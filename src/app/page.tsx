@@ -54,13 +54,15 @@ import {
 
 interface OutputChunk {
   id: number
-  stream: 'stdout' | 'stderr' | 'input' | 'system' | 'image'
+  stream: 'stdout' | 'stderr' | 'input' | 'system' | 'image' | 'server'
   text: string
   // For input chunks: did the user enter this? For output chunks: was the
   // server hint that this looks like an input prompt?
   isPrompt?: boolean
   // For image chunks: data URL (data:image/png;base64,...)
   src?: string
+  // For server chunks: the port the server is listening on
+  port?: number
 }
 
 interface RunResult {
@@ -256,6 +258,26 @@ export default function Home() {
         ...prev,
         { id, stream: 'image', text: '', src },
       ])
+    })
+
+    sock.on('server', (msg: { port: number; host?: string }) => {
+      // A long-running server (Flask, Django, http.server, uvicorn, etc.)
+      // has started. Render a clickable link in the console that opens the
+      // server via the Caddy gateway using ?XTransformPort=<port>.
+      const id = ++chunkIdRef.current
+      setChunks((prev) => [
+        ...prev,
+        {
+          id,
+          stream: 'server',
+          text: `Server started on port ${msg.port}`,
+          port: msg.port,
+        },
+      ])
+      toast.success('Server started', {
+        description: `Listening on port ${msg.port} — click the link in the console to open it.`,
+        duration: 8000,
+      })
     })
 
     sock.on('exit', (res: RunResult) => {
@@ -872,6 +894,54 @@ function ConsoleLine({ chunk }: { chunk: OutputChunk }) {
           className="max-w-full h-auto rounded-md border border-zinc-700/50 bg-white"
           style={{ display: 'block', maxHeight: '70vh' }}
         />
+      </span>
+    )
+  }
+
+  // Server chunk: clickable link that opens the running server via Caddy.
+  // The URL uses ?XTransformPort=<port> so the gateway routes the request
+  // to the user's running Flask/Django/http.server app.
+  if (chunk.stream === 'server' && chunk.port) {
+    const port = chunk.port
+    const href = `/?XTransformPort=${port}`
+    return (
+      <span
+        className="my-2 block rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2"
+        style={{
+          fontFamily:
+            'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'break-word',
+        }}
+      >
+        <span className="text-emerald-400 font-semibold">▶ Server ready</span>
+        <span className="text-zinc-300"> — listening on port </span>
+        <span className="text-emerald-400 font-mono font-semibold">{port}</span>
+        <span className="block mt-1">
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 hover:underline underline-offset-2"
+          >
+            Open
+            <span className="text-zinc-500">/?XTransformPort={port}</span>
+            <svg
+              className="h-3 w-3"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M7 17L17 7M17 7H7M17 7v10" />
+            </svg>
+          </a>
+        </span>
+        <span className="block mt-1 text-xs text-zinc-500">
+          Use Stop to terminate the server.
+        </span>
       </span>
     )
   }

@@ -322,4 +322,133 @@ plt.tight_layout()
 plt.show()
 `,
   },
+  {
+    id: 'flask-hello',
+    name: 'Flask: Hello API',
+    description: 'Run a Flask server and open the link.',
+    code: `# A minimal Flask web server.
+# When you press Run, a clickable link will appear in
+# the console — click it to open your API in a new tab.
+
+from flask import Flask, jsonify
+
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return jsonify({
+        "message": "Hello from Flask!",
+        "endpoints": ["/", "/users", "/greet/Alice"],
+    })
+
+@app.route("/users")
+def users():
+    return jsonify([
+        {"id": 1, "name": "Alice"},
+        {"id": 2, "name": "Bob"},
+        {"id": 3, "name": "Charlie"},
+    ])
+
+@app.route("/greet/<name>")
+def greet(name):
+    return jsonify({"greeting": f"Hello, {name}!"})
+
+if __name__ == "__main__":
+    # Use port 5555 so it doesn't clash with the runner
+    app.run(host="127.0.0.1", port=5555, debug=False)
+`,
+  },
+  {
+    id: 'flask-html',
+    name: 'Flask: HTML Page',
+    description: 'Serve an HTML page with templates.',
+    code: `# Flask serving an inline HTML page.
+# Click the link in the console to view it.
+
+from flask import Flask, render_template_string
+
+app = Flask(__name__)
+
+HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Flask Demo</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif;
+           background: linear-gradient(135deg, #667eea, #764ba2);
+           color: white; min-height: 100vh; margin: 0;
+           display: flex; align-items: center; justify-content: center; }
+    .card { background: rgba(255,255,255,0.15); padding: 2rem 3rem;
+            border-radius: 16px; backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+    h1 { margin: 0 0 0.5rem; font-size: 2rem; }
+    p { margin: 0; opacity: 0.9; }
+    code { background: rgba(0,0,0,0.3); padding: 2px 6px;
+           border-radius: 4px; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Hello from Flask! 🐍</h1>
+    <p>Rendered with <code>render_template_string</code></p>
+  </div>
+</body>
+</html>
+"""
+
+@app.route("/")
+def home():
+    return render_template_string(HTML)
+
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=5556, debug=False)
+`,
+  },
+  {
+    id: 'http-server',
+    name: 'Python: http.server',
+    description: 'Stdlib HTTP server (no Flask needed).',
+    code: `# Python's built-in HTTP server. No external library needed.
+# Click the link in the console to open it.
+
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse
+import json
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        # Parse the path so query params (like ?XTransformPort=5557 added by
+        # the gateway) are ignored when matching routes.
+        path = urlparse(self.path).path
+        if path == "/":
+            body = json.dumps({
+                "message": "Hello from http.server!",
+                "path": path,
+            }).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/time":
+            from datetime import datetime
+            body = json.dumps({"now": datetime.now().isoformat()}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+
+httpd = HTTPServer(("127.0.0.1", 5557), Handler)
+# Print this exact line so PyRunner detects the server and cancels the timeout.
+print(f" * Running on http://127.0.0.1:5557/")
+httpd.serve_forever()
+`,
+  },
 ]

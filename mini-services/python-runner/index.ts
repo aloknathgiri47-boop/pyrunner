@@ -39,6 +39,9 @@ interface Session {
   pendingPromptText: string // stdout that hasn't ended in newline (the prompt)
   // Buffer for in-progress image marker (markers can span multiple chunks)
   stdoutBuffer: string
+  // True once we've detected the user's code started a long-running server
+  // (Flask, Django, http.server, uvicorn, etc.) — used to cancel the timeout
+  serverDetected: boolean
 }
 
 const sessions = new Map<string, Session>()
@@ -156,24 +159,80 @@ function setupSession(socketId: string, session: Session, socket: any) {
 
     // Emit any accumulated plain text
     if (emitted.length > 0) {
+      // Strip ANSI escape codes (some libraries print colored output to stdout too)
+      const stripped = emitted.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
       const looksLikePrompt =
-        !emitted.endsWith('\n') && !emitted.endsWith('\r\n')
+        !stripped.endsWith('\n') && !stripped.endsWith('\r\n')
       socket.emit('output', {
         stream: 'stdout',
-        data: emitted,
+        data: stripped,
         promptLike: looksLikePrompt,
       })
+
+      // Detect a long-running server starting up (Flask, Django, http.server, etc.)
+      // Common patterns:
+      //   * Running on http://127.0.0.1:5000
+      //   * Running on http://0.0.0.0:8000
+      //   * Serving HTTP on port 8000 ...
+      //   * Uvicorn running on http://0.0.0.0:8000
+      if (!session.serverDetected) {
+        const match = stripped.match(
+          /Running on (https?:\/\/[0-9.]+:(\d+))|Serving HTTP on .*?:(\d+)|running on (https?:\/\/[0-9.]+:(\d+))/,
+        )
+        if (match) {
+          // Find the port number from whichever capture group matched
+          const portStr = match[2] || match[3] || match[5]
+          if (portStr) {
+            const port = parseInt(portStr, 10)
+            if (!isNaN(port) && port > 0 && port < 65536) {
+              session.serverDetected = true
+              // Cancel the hard timeout — servers are long-running by design.
+              // The user stops them via the Stop button.
+              if (session.timer) {
+                clearTimeout(session.timer)
+                session.timer = null
+              }
+              socket.emit('server', { port, host: '127.0.0.1' })
+            }
+          }
+        }
+      }
     }
   })
 
   child.stderr?.on('data', (chunk: Buffer) => {
     session.totalStderr += chunk.length
     if (session.totalStderr > MAX_OUTPUT_BYTES * 2) return
+    const raw = chunk.toString('utf8')
+    // Strip ANSI escape codes (e.g. Flask/werkzeug color codes \x1b[33m...\x1b[0m)
+    // so the console shows clean text instead of escape sequences.
+    const stripped = raw.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
     socket.emit('output', {
       stream: 'stderr',
-      data: chunk.toString('utf8'),
+      data: stripped,
       promptLike: false,
     })
+
+    // Server detection: werkzeug prints "Running on http://..." to stderr.
+    if (!session.serverDetected) {
+      const match = stripped.match(
+        /Running on (https?:\/\/[0-9.]+:(\d+))|Serving HTTP on .*?:(\d+)|running on (https?:\/\/[0-9.]+:(\d+))/,
+      )
+      if (match) {
+        const portStr = match[2] || match[3] || match[5]
+        if (portStr) {
+          const port = parseInt(portStr, 10)
+          if (!isNaN(port) && port > 0 && port < 65536) {
+            session.serverDetected = true
+            if (session.timer) {
+              clearTimeout(session.timer)
+              session.timer = null
+            }
+            socket.emit('server', { port, host: '127.0.0.1' })
+          }
+        }
+      }
+    }
   })
 
   child.on('error', (err) => {
@@ -343,6 +402,7 @@ ${code}
       totalStderr: 0,
       pendingPromptText: '',
       stdoutBuffer: '',
+      serverDetected: false,
     }
 
     sessions.set(socket.id, session)
