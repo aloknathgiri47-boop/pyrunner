@@ -3,7 +3,6 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  stdin?: string
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -12,10 +11,29 @@ export const EXAMPLES: Snippet[] = [
     name: 'Hello, World',
     description: 'The classic first program.',
     code: `# Welcome to PyRunner — a fast Python playground.
-# Press the Run button (or Ctrl+Enter) to execute.
+# Press Run (or Ctrl+Enter) to execute.
 
 print("Hello, World!")
 print("Python is running on the server.")
+`,
+  },
+  {
+    id: 'interactive',
+    name: 'Interactive Input',
+    description: 'Type your answers when prompted.',
+    code: `# This script asks for your name and age.
+# When you press Run, the prompts will appear
+# in the console — just type and hit Enter.
+
+name = input("What's your name? ")
+age = int(input("How old are you? "))
+
+print(f"\\nHello, {name}!")
+print(f"In 10 years you'll be {age + 10}.")
+
+# Ask a few more questions interactively
+favorite = input("\\nWhat's your favorite color? ")
+print(f"{favorite.capitalize()}? Great choice!")
 `,
   },
   {
@@ -35,29 +53,6 @@ print(", ".join(str(n) for n in fib(15)))
 a, b = list(fib(30))[-2:]
 print(f"\\nApprox golden ratio from F(29)/F(28): {b/a:.10f}")
 `,
-  },
-  {
-    id: 'stdin',
-    name: 'Stdin Demo',
-    description: 'Reads input from the Stdin tab.',
-    code: `name = input("What's your name? ")
-age = int(input("How old are you? "))
-
-print(f"\\nHello, {name}!")
-print(f"In 10 years you'll be {age + 10}.")
-
-# Read remaining lines
-print("\\n--- lines from stdin ---")
-try:
-    while True:
-        line = input()
-        if not line:
-            break
-        print(f"  > {line}")
-except EOFError:
-    pass
-`,
-    stdin: 'Ada\n36\nline one\nline two\nline three',
   },
   {
     id: 'classes',
@@ -134,9 +129,37 @@ for row in transposed:
 `,
   },
   {
+    id: 'guess',
+    name: 'Number Guessing Game',
+    description: 'A mini REPL — guess until you win.',
+    code: `import random
+
+print("I'm thinking of a number between 1 and 100.")
+target = random.randint(1, 100)
+attempts = 0
+
+while True:
+    guess = input("Your guess: ")
+    try:
+        g = int(guess)
+    except ValueError:
+        print("  Please enter a valid integer.")
+        continue
+
+    attempts += 1
+    if g < target:
+        print(f"  {g} is too low. Try again.")
+    elif g > target:
+        print(f"  {g} is too high. Try again.")
+    else:
+        print(f"  You got it in {attempts} attempts!")
+        break
+`,
+  },
+  {
     id: 'errors',
     name: 'Error Handling',
-    description: 'See how Python tracebacks appear in the output.',
+    description: 'See how Python tracebacks appear in the console.',
     code: `def divide(a, b):
     if b == 0:
         raise ValueError("Cannot divide by zero")
@@ -149,7 +172,7 @@ try:
 except ValueError as e:
     print(f"Caught: {e}")
 
-# This one is uncaught — the traceback will appear in stderr.
+# This one is uncaught — the traceback will appear in the console.
 print(divide(1, 0))
 print("This line never runs.")
 `,
