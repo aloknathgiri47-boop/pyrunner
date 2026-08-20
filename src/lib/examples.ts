@@ -451,4 +451,131 @@ print(f" * Running on http://127.0.0.1:5557/")
 httpd.serve_forever()
 `,
   },
+  {
+    id: 'requests-get',
+    name: 'requests: GET JSON',
+    description: 'Fetch JSON from a public API.',
+    code: `# The 'requests' library is pre-installed.
+# Use it to fetch data from any public HTTP API.
+
+import requests
+
+# httpbin.org is a free service for testing HTTP requests
+response = requests.get("https://httpbin.org/json")
+print(f"Status: {response.status_code}")
+print(f"Content-Type: {response.headers.get('Content-Type')}")
+
+data = response.json()
+print(f"\\nParsed JSON:")
+print(f"  Title:  {data['slideshow']['title']}")
+print(f"  Author: {data['slideshow']['author']}")
+print(f"  Slides: {len(data['slideshow']['slides'])}")
+`,
+  },
+  {
+    id: 'requests-headers',
+    name: 'requests: Headers & Auth',
+    description: 'Custom headers, query params, and basic auth.',
+    code: `import requests
+
+# Custom headers (e.g. User-Agent, Authorization)
+headers = {
+    "User-Agent": "PyRunner/1.0",
+    "Accept": "application/json",
+}
+
+# Query parameters
+params = {
+    "foo": "bar",
+    "baz": "42",
+}
+
+# Basic auth
+auth = ("user", "passwd")
+
+response = requests.get(
+    "https://httpbin.org/get",
+    headers=headers,
+    params=params,
+    auth=auth,
+    timeout=10,
+)
+
+print(f"Status: {response.status_code}")
+print(f"Final URL: {response.url}")
+
+data = response.json()
+print(f"\\nSent headers:")
+for k, v in data["headers"].items():
+    print(f"  {k}: {v}")
+
+print(f"\\nSent query params:")
+for k, v in data["args"].items():
+    print(f"  {k}: {v}")
+`,
+  },
+  {
+    id: 'requests-post',
+    name: 'requests: POST JSON',
+    description: 'Send JSON body and inspect the response.',
+    code: `import requests
+import json
+
+# POST a JSON body to httpbin.org — it echoes it back
+payload = {
+    "user": {"name": "Ada", "age": 36},
+    "tags": ["python", "math", "computing"],
+    "active": True,
+}
+
+response = requests.post(
+    "https://httpbin.org/post",
+    json=payload,
+    timeout=10,
+)
+
+print(f"Status: {response.status_code}")
+print(f"Server: {response.headers.get('Server')}")
+
+# httpbin echoes back what we sent
+echoed = response.json()
+print(f"\\nEchoed JSON body:")
+print(json.dumps(echoed["json"], indent=2))
+
+# The response text
+print(f"\\nResponse time: {response.elapsed.total_seconds() * 1000:.0f} ms")
+`,
+  },
+  {
+    id: 'requests-pandas',
+    name: 'requests + pandas',
+    description: 'Fetch CSV and analyze with pandas.',
+    code: `# Combine 'requests' (HTTP) with 'pandas' (data analysis).
+# Fetch a CSV from a URL and load it directly into a DataFrame.
+
+import io
+import requests
+import pandas as pd
+
+# Famous Iris dataset (CSV format, served from a public URL)
+url = "https://raw.githubusercontent.com/mwaskom/seaborn-data/master/iris.csv"
+response = requests.get(url, timeout=10)
+print(f"Downloaded {len(response.content)} bytes from {response.url}")
+
+# Load directly from the response bytes
+df = pd.read_csv(io.StringIO(response.text))
+
+print(f"\\nShape: {df.shape[0]} rows × {df.shape[1]} columns")
+print(f"\\nColumns: {list(df.columns)}")
+
+print(f"\\nFirst 5 rows:")
+print(df.head().to_string())
+
+print(f"\\nSummary statistics:")
+print(df.describe().to_string())
+
+print(f"\\nMean by species:")
+print(df.groupby("species").mean(numeric_only=True).to_string())
+`,
+  },
 ]
