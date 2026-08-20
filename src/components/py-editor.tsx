@@ -6,6 +6,7 @@ import CodeMirror, {
   type Extension,
 } from '@uiw/react-codemirror'
 import { python } from '@codemirror/lang-python'
+import { java } from '@codemirror/lang-java'
 import { oneDark } from '@codemirror/theme-one-dark'
 
 interface PyEditorProps {
@@ -14,6 +15,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
+  language?: 'python' | 'java'
 }
 
 const customLightTheme = EditorView.theme(
@@ -95,6 +97,7 @@ export default function PyEditor({
   onRun,
   theme = 'dark',
   readOnly = false,
+  language = 'python',
 }: PyEditorProps) {
   const runRef = useRef(onRun)
   useEffect(() => {
@@ -102,8 +105,9 @@ export default function PyEditor({
   }, [onRun])
 
   const extensions = useMemo<Extension[]>(() => {
+    const langExt = language === 'java' ? java() : python()
     const exts: Extension[] = [
-      python(),
+      langExt,
       EditorView.lineWrapping,
       EditorView.editable.of(!readOnly),
       EditorView.theme({
@@ -114,7 +118,7 @@ export default function PyEditor({
       }),
     ]
     return exts
-  }, [readOnly])
+  }, [readOnly, language])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Ctrl/Cmd+Enter triggers Run

@@ -73,10 +73,13 @@ interface RunResult {
   error?: string
 }
 
-const STORAGE_KEY = 'pyrunner:state:v2'
+const STORAGE_KEY = 'pyrunner:state:v3'
+
+type Language = 'python' | 'java'
 
 interface PersistedState {
   code: string
+  language: Language
 }
 
 const DEFAULT_CODE = `# PyRunner — Python 3 playground
@@ -93,6 +96,23 @@ name = input("What's your name? ")
 print(f"Nice to meet you, {name}!")
 `
 
+const DEFAULT_JAVA_CODE = `// PyRunner — Java 21 playground
+// Press Run (or Ctrl/Cmd+Enter) to execute.
+// The public class name is detected automatically.
+
+public class Hello {
+    public static void main(String[] args) {
+        System.out.println("Hello, World!");
+
+        // Use Scanner to read from stdin (interactive)
+        var scanner = new java.util.Scanner(System.in);
+        System.out.print("What's your name? ");
+        String name = scanner.nextLine();
+        System.out.println("Nice to meet you, " + name + "!");
+    }
+}
+`
+
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
 /* ------------------------------------------------------------------ */
@@ -104,37 +124,16 @@ function loadState(): PersistedState | null {
     if (!raw) return null
     const parsed = JSON.parse(raw) as PersistedState
     if (typeof parsed.code !== 'string') return null
-    return { code: parsed.code }
-  } catch {
-    return null
-  }
-}
-
-function loadFromUrlHash(): string | null {
-  if (typeof window === 'undefined') return null
-  const hash = window.location.hash
-  if (!hash || hash.length < 2) return null
-  try {
-    const params = new URLSearchParams(hash.slice(1))
-    const codeB64 = params.get('c')
-    if (!codeB64) return null
-    const decode = (s: string) => {
-      const padded = s.replace(/-/g, '+').replace(/_/g, '/')
-      const pad =
-        padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4))
-      const b64 = padded + pad
-      const bin = atob(b64)
-      const bytes = new Uint8Array(bin.length)
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-      return new TextDecoder('utf-8').decode(bytes)
+    return {
+      code: parsed.code,
+      language: parsed.language === 'java' ? 'java' : 'python',
     }
-    return decode(codeB64)
   } catch {
     return null
   }
 }
 
-function encodeToHash(code: string): string {
+function encodeToHash(code: string, language: Language): string {
   const encode = (s: string) => {
     const bytes = new TextEncoder().encode(s)
     let bin = ''
@@ -143,6 +142,7 @@ function encodeToHash(code: string): string {
   }
   const params = new URLSearchParams()
   params.set('c', encode(code))
+  params.set('l', language)
   return `#${params.toString()}`
 }
 
@@ -150,14 +150,38 @@ function encodeToHash(code: string): string {
 /* Main component                                                      */
 /* ------------------------------------------------------------------ */
 
-function getInitialCode(): string {
-  if (typeof window === 'undefined') return DEFAULT_CODE
+function getInitialState(): { code: string; language: Language } {
+  if (typeof window === 'undefined') return { code: DEFAULT_CODE, language: 'python' }
   // URL hash takes priority, then localStorage, then default.
-  const fromHash = loadFromUrlHash()
-  if (fromHash) return fromHash
+  const hash = window.location.hash
+  if (hash && hash.length > 2) {
+    try {
+      const params = new URLSearchParams(hash.slice(1))
+      const codeB64 = params.get('c')
+      const lang = params.get('l')
+      if (codeB64) {
+        const decode = (s: string) => {
+          const padded = s.replace(/-/g, '+').replace(/_/g, '/')
+          const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4))
+          const bin = atob(padded + pad)
+          const bytes = new Uint8Array(bin.length)
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+          return new TextDecoder('utf-8').decode(bytes)
+        }
+        return {
+          code: decode(codeB64),
+          language: lang === 'java' ? 'java' : 'python',
+        }
+      }
+    } catch {
+      /* fall through */
+    }
+  }
   const persisted = loadState()
-  if (persisted) return persisted.code
-  return DEFAULT_CODE
+  if (persisted) {
+    return { code: persisted.code, language: persisted.language }
+  }
+  return { code: DEFAULT_CODE, language: 'python' }
 }
 
 export default function Home() {
@@ -166,7 +190,9 @@ export default function Home() {
   // On the server it returns DEFAULT_CODE (window is undefined). This avoids
   // any useEffect-based hydration that would trip react-hooks/set-state-in-effect.
   // suppressHydrationWarning on <html> covers the resulting markup difference.
-  const [code, setCode] = useState<string>(() => getInitialCode())
+  const [initialState] = useState(() => getInitialState())
+  const [code, setCode] = useState<string>(initialState.code)
+  const [language, setLanguage] = useState<Language>(initialState.language)
   const [activeExampleId, setActiveExampleId] = useState<string | null>(null)
 
   const [chunks, setChunks] = useState<OutputChunk[]>([])
@@ -185,20 +211,20 @@ export default function Home() {
 
   // No hydration effect needed — the lazy initializer handles it.
 
-  // ---- Persist code (debounced) ----
+  // ---- Persist code + language (debounced) ----
   useEffect(() => {
     const t = setTimeout(() => {
       try {
         window.localStorage.setItem(
           STORAGE_KEY,
-          JSON.stringify({ code } satisfies PersistedState),
+          JSON.stringify({ code, language } satisfies PersistedState),
         )
       } catch {
         /* ignore */
       }
     }, 400)
     return () => clearTimeout(t)
-  }, [code])
+  }, [code, language])
 
   // ---- WebSocket connection (lazy: only connect when running) ----
   const ensureSocket = useCallback((): Socket => {
@@ -336,7 +362,9 @@ export default function Home() {
   const handleRun = useCallback(() => {
     if (isRunningRef.current) return
     if (!code.trim()) {
-      toast.info('Nothing to run', { description: 'Write some Python first.' })
+      toast.info('Nothing to run', {
+        description: language === 'java' ? 'Write some Java first.' : 'Write some Python first.',
+      })
       return
     }
     isRunningRef.current = true
@@ -347,7 +375,7 @@ export default function Home() {
     chunkIdRef.current = 0
 
     const sock = ensureSocket()
-    const emitRun = () => sock.emit('run', { code, timeout: 15000 })
+    const emitRun = () => sock.emit('run', { code, language, timeout: 15000 })
     if (sock.connected) {
       emitRun()
     } else {
@@ -357,7 +385,7 @@ export default function Home() {
       // Safety timeout: if we never connect, surface the error
       setTimeout(() => {
         if (isRunningRef.current && !sock.connected) {
-          toast.error('Cannot connect to Python runner', {
+          toast.error('Cannot connect to runner', {
             description: 'Check that the runner service is available.',
           })
           isRunningRef.current = false
@@ -365,7 +393,7 @@ export default function Home() {
         }
       }, 5000)
     }
-  }, [code, ensureSocket])
+  }, [code, language, ensureSocket])
 
   // ---- Submit input line ----
   const handleSubmitInput = useCallback(() => {
@@ -407,6 +435,16 @@ export default function Home() {
     toast.info('Editor cleared')
   }, [])
 
+  // Switch language — load the default starter code for that language.
+  const handleLanguageChange = useCallback((lang: Language) => {
+    if (lang === language) return
+    setLanguage(lang)
+    setCode(lang === 'java' ? DEFAULT_JAVA_CODE : DEFAULT_CODE)
+    setChunks([])
+    setResult(null)
+    setActiveExampleId(null)
+  }, [language])
+
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(code)
@@ -420,7 +458,7 @@ export default function Home() {
 
   const handleShare = useCallback(async () => {
     try {
-      const hash = encodeToHash(code)
+      const hash = encodeToHash(code, language)
       const newUrl = `${window.location.pathname}${hash}`
       window.history.replaceState(null, '', newUrl)
       await navigator.clipboard.writeText(window.location.href)
@@ -432,23 +470,29 @@ export default function Home() {
     } catch {
       toast.error('Failed to create share link')
     }
-  }, [code])
+  }, [code, language])
 
   const handleDownload = useCallback(() => {
-    const blob = new Blob([code], { type: 'text/x-python;charset=utf-8' })
+    const ext = language === 'java' ? 'java' : 'py'
+    const mime = language === 'java' ? 'text/x-java;charset=utf-8' : 'text/x-python;charset=utf-8'
+    const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'snippet.py'
+    a.download = `snippet.${ext}`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    toast.success('Downloaded snippet.py')
-  }, [code])
+    toast.success(`Downloaded snippet.${ext}`)
+  }, [code, language])
 
   const handleSelectExample = useCallback((ex: Snippet) => {
     setCode(ex.code)
+    // Auto-switch language if the example specifies one
+    if (ex.language) {
+      setLanguage(ex.language)
+    }
     setActiveExampleId(ex.id)
     setChunks([])
     setResult(null)
@@ -504,14 +548,48 @@ export default function Home() {
                 </h1>
                 <Badge
                   variant="secondary"
-                  className="hidden sm:inline-flex bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                  className={`hidden sm:inline-flex border ${
+                    language === 'java'
+                      ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
+                      : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                  }`}
                 >
-                  Python 3.12
+                  {language === 'java' ? 'Java 21' : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
-                Interactive Python console with live input()
+                {language === 'java'
+                  ? 'Interactive Java console with live stdin'
+                  : 'Interactive Python console with live input()'}
               </p>
+            </div>
+          </div>
+
+          {/* Language selector */}
+          <div className="flex items-center gap-1 mr-1.5">
+            <div className="flex items-center rounded-md border border-border bg-muted/50 p-0.5">
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('python')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'python'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Python
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('java')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'java'
+                    ? 'bg-orange-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Java
+              </button>
             </div>
           </div>
 
@@ -526,13 +604,30 @@ export default function Home() {
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="w-64 max-h-[400px] overflow-y-auto"
+                className="w-72 max-h-[450px] overflow-y-auto"
               >
                 <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Load an example
+                  Python examples
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {EXAMPLES.map((ex) => (
+                {EXAMPLES.filter((ex) => ex.language !== 'java').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Java examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'java').map((ex) => (
                   <DropdownMenuItem
                     key={ex.id}
                     onSelect={() => handleSelectExample(ex)}
@@ -670,7 +765,7 @@ export default function Home() {
                 <div className="flex-none flex h-9 items-center gap-2 border-b border-border bg-muted/30 px-3">
                   <FileCode2 className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    code.py
+                    {language === 'java' ? 'code.java' : 'code.py'}
                   </span>
                 </div>
                 <div className="flex-1 min-h-0">
@@ -679,6 +774,7 @@ export default function Home() {
                     onChange={setCode}
                     onRun={handleRun}
                     theme={editorTheme}
+                    language={language}
                   />
                 </div>
               </div>

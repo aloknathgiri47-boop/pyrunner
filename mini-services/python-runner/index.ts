@@ -26,6 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
+  language?: 'python' | 'java'
 }
 
 interface Session {
@@ -159,15 +160,22 @@ function setupSession(socketId: string, session: Session, socket: any) {
 
     // Emit any accumulated plain text
     if (emitted.length > 0) {
-      // Strip ANSI escape codes (some libraries print colored output to stdout too)
-      const stripped = emitted.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+      // Strip ANSI escape codes and filter out the noisy
+      // "Picked up JAVA_TOOL_OPTIONS" line from Java runs.
+      const stripped = emitted
+        .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+        .split('\n')
+        .filter((line) => !line.includes('Picked up JAVA_TOOL_OPTIONS') && !line.includes('Picked up _JAVA_OPTIONS'))
+        .join('\n')
       const looksLikePrompt =
         !stripped.endsWith('\n') && !stripped.endsWith('\r\n')
-      socket.emit('output', {
-        stream: 'stdout',
-        data: stripped,
-        promptLike: looksLikePrompt,
-      })
+      if (stripped) {
+        socket.emit('output', {
+          stream: 'stdout',
+          data: stripped,
+          promptLike: looksLikePrompt,
+        })
+      }
 
       // Detect a long-running server starting up (Flask, Django, http.server, etc.)
       // Common patterns:
@@ -205,8 +213,12 @@ function setupSession(socketId: string, session: Session, socket: any) {
     if (session.totalStderr > MAX_OUTPUT_BYTES * 2) return
     const raw = chunk.toString('utf8')
     // Strip ANSI escape codes (e.g. Flask/werkzeug color codes \x1b[33m...\x1b[0m)
-    // so the console shows clean text instead of escape sequences.
-    const stripped = raw.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+    // and filter out the noisy "Picked up JAVA_TOOL_OPTIONS" line from Java runs.
+    const stripped = raw
+      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+      .split('\n')
+      .filter((line) => !line.includes('Picked up JAVA_TOOL_OPTIONS') && !line.includes('Picked up _JAVA_OPTIONS'))
+      .join('\n')
     socket.emit('output', {
       stream: 'stderr',
       data: stripped,
@@ -303,6 +315,194 @@ function findSafePlainTextEnd(buf: string, start: number): number {
 io.on('connection', (socket) => {
   console.log(`[python-runner] client connected: ${socket.id}`)
 
+  /**
+   * Spawn a Python child process for the given code.
+   * Returns the ChildProcess, or null if an error was already emitted.
+   */
+  async function spawnPython(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.py`)
+
+    // Load the matplotlib preamble (sets Agg backend, patches plt.show() and
+    // plt.savefig() to emit inline PNG images via the marker protocol).
+    let preamble = ''
+    try {
+      const preamblePath = join(__dirname, 'preamble.py')
+      preamble = await readFile(preamblePath, 'utf8')
+    } catch {
+      // Preamble is optional — if it can't be loaded, run code as-is.
+    }
+
+    const wrappedCode = `${preamble}
+
+# --- Begin user code ---
+${code}
+# --- End user code ---
+`
+
+    try {
+      await writeFile(scriptPath, wrappedCode, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write script file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
+      })
+      return null
+    }
+
+    const child = spawn('python3', ['-u', '-B', scriptPath], {
+      cwd: sandboxDir,
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: '1',
+        PYTHONDONTWRITEBYTECODE: '1',
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONHASHSEED: '0',
+        DATABASE_URL: undefined,
+        NEXTAUTH_SECRET: undefined,
+        NEXTAUTH_URL: undefined,
+      } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
+  /**
+   * Spawn a Java child process for the given code.
+   * - Writes code to Snippet.java (extracts public class name if found)
+   * - Compiles with javac
+   * - If compilation succeeds, runs with java -cp <sandbox> <ClassName>
+   * - Streams compile errors (stderr) and runtime output to the client
+   * Returns the ChildProcess (the `java` run), or null on compile error.
+   */
+  async function spawnJava(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    // Extract the public class name from the code.
+    // Java requires the file name to match the public class name.
+    // We strip comments first so "public class name" in a comment doesn't match.
+    let className = 'Snippet'
+    const strippedCode = code
+      .replace(/\/\/[^\n]*/g, '')       // strip // comments
+      .replace(/\/\*[\s\S]*?\*\//g, '') // strip /* */ comments
+    const classMatch = strippedCode.match(
+      /public\s+(?:final\s+|abstract\s+)*class\s+([A-Za-z_][A-Za-z0-9_]*)/,
+    )
+    if (classMatch) {
+      className = classMatch[1]
+    }
+
+    const javaFilePath = join(sandboxDir, `${className}.java`)
+
+    try {
+      await writeFile(javaFilePath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write Java file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
+      })
+      return null
+    }
+
+    // Locate the JDK (portable Temurin 21 installed at ~/.local/jdk/current).
+    // Fall back to system javac if not found.
+    const home = process.env.HOME || '/home/z'
+    const jdkBin = join(home, '.local', 'jdk', 'current', 'bin')
+    const javacPath = existsSync(join(jdkBin, 'javac')) ? join(jdkBin, 'javac') : 'javac'
+    const javaPath = existsSync(join(jdkBin, 'java')) ? join(jdkBin, 'java') : 'java'
+
+    // Compile step (synchronous — capture output)
+    socket.emit('output', {
+      stream: 'system',
+      data: `Compiling ${className}.java...\n`,
+      promptLike: false,
+    })
+
+    const compileResult = await new Promise<{ ok: boolean; stderr: string; stdout: string }>((resolve) => {
+      const javac = spawn(javacPath, ['-Xlint:none', '-nowarn', javaFilePath], {
+        cwd: sandboxDir,
+        env: {
+          ...process.env,
+          JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
+          // Suppress the "Picked up JAVA_TOOL_OPTIONS" banner noise
+          _JAVA_OPTIONS: '-Dfile.encoding=UTF-8',
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+
+      let stderr = ''
+      let stdout = ''
+      javac.stdout?.on('data', (c: Buffer) => { stdout += c.toString('utf8') })
+      javac.stderr?.on('data', (c: Buffer) => { stderr += c.toString('utf8') })
+      javac.on('error', (err) => {
+        resolve({ ok: false, stderr: `Failed to spawn javac: ${err.message}\n`, stdout })
+      })
+      javac.on('close', (code) => {
+        resolve({ ok: code === 0, stderr, stdout })
+      })
+      javac.stdin?.end()
+    })
+
+    // Filter out the noisy "Picked up JAVA_TOOL_OPTIONS" / "_JAVA_OPTIONS" line
+    compileResult.stderr = compileResult.stderr
+      .split('\n')
+      .filter((line) => !line.includes('Picked up JAVA_TOOL_OPTIONS') && !line.includes('Picked up _JAVA_OPTIONS'))
+      .join('\n')
+    compileResult.stdout = compileResult.stdout
+      .split('\n')
+      .filter((line) => !line.includes('Picked up JAVA_TOOL_OPTIONS') && !line.includes('Picked up _JAVA_OPTIONS'))
+      .join('\n')
+
+    if (!compileResult.ok) {
+      // Compilation failed — emit the errors and exit
+      const strippedStderr = compileResult.stderr.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+      if (strippedStderr) {
+        socket.emit('output', {
+          stream: 'stderr',
+          data: strippedStderr,
+          promptLike: false,
+        })
+      }
+      socket.emit('output', {
+        stream: 'system',
+        data: `\nCompilation failed.\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: 1, signal: null, timedOut: false, durationMs: 0,
+      })
+      return null
+    }
+
+    // Compilation succeeded — run the program
+    socket.emit('output', {
+      stream: 'system',
+      data: `Compiled. Running ${className}...\n`,
+      promptLike: false,
+    })
+
+    const child = spawn(javaPath, ['-cp', sandboxDir, className], {
+      cwd: sandboxDir,
+      env: {
+        ...process.env,
+        JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
+      } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
+
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
     const prev = sessions.get(socket.id)
@@ -312,6 +512,7 @@ io.on('connection', (socket) => {
     }
 
     const code = typeof payload?.code === 'string' ? payload.code : ''
+    const language = payload?.language ?? 'python'
     const requestedTimeout = Number(payload?.timeout) || DEFAULT_TIMEOUT_MS
     const timeoutMs = Math.min(
       Math.max(requestedTimeout, 1000),
@@ -334,63 +535,16 @@ io.on('connection', (socket) => {
     }
 
     const sessionId = randomUUID()
-    const scriptPath = join(sandboxDir, `snippet_${sessionId}.py`)
+    // For Python we spawn directly. For Java we compile first, then spawn.
+    let child: ChildProcess
 
-    // Load the matplotlib preamble (sets Agg backend, patches plt.show() and
-    // plt.savefig() to emit inline PNG images via the marker protocol).
-    // We prepend it to the user's code so figures render in the console.
-    let preamble = ''
-    try {
-      const preamblePath = join(__dirname, 'preamble.py')
-      preamble = await readFile(preamblePath, 'utf8')
-    } catch {
-      // Preamble is optional — if it can't be loaded, run code as-is.
-      preamble = ''
+    if (language === 'java') {
+      child = await spawnJava(code, sessionId, socket)
+    } else {
+      child = await spawnPython(code, sessionId, socket)
     }
 
-    // Wrap user code so tracebacks report the user's line numbers correctly.
-    // We use exec(compile(...)) so the user's code still runs at top level.
-    const wrappedCode = `${preamble}
-
-# --- Begin user code ---
-${code}
-# --- End user code ---
-`
-
-    try {
-      await writeFile(scriptPath, wrappedCode, { encoding: 'utf8', mode: 0o600 })
-    } catch (e) {
-      socket.emit('output', {
-        stream: 'stderr',
-        data: `Failed to write script file: ${(e as Error).message}\n`,
-        promptLike: false,
-      })
-      socket.emit('exit', {
-        code: null,
-        signal: null,
-        timedOut: false,
-        durationMs: 0,
-        error: 'WRITE_FAILED',
-      })
-      return
-    }
-
-    const child = spawn('python3', ['-u', '-B', scriptPath], {
-      cwd: sandboxDir,
-      env: {
-        ...process.env,
-        PYTHONUNBUFFERED: '1',
-        PYTHONDONTWRITEBYTECODE: '1',
-        PYTHONIOENCODING: 'utf-8',
-        PYTHONHASHSEED: '0',
-        // Strip sandbox-internal env vars
-        DATABASE_URL: undefined,
-        NEXTAUTH_SECRET: undefined,
-        NEXTAUTH_URL: undefined,
-      } as NodeJS.ProcessEnv,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true,
-    })
+    if (!child) return // Error already emitted by spawn function
 
     const session: Session = {
       child,
@@ -425,7 +579,7 @@ ${code}
       socket.emit('timeout', { durationMs: timeoutMs })
     }, timeoutMs)
 
-    socket.emit('started', { timeoutMs, scriptPath })
+    socket.emit('started', { timeoutMs, scriptPath: language })
   })
 
   // Client sends a line of stdin (Enter pressed in the console input).

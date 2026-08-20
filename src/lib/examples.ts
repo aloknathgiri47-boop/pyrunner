@@ -3,6 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
+  language?: 'python' | 'java'
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -576,6 +577,183 @@ print(df.describe().to_string())
 
 print(f"\\nMean by species:")
 print(df.groupby("species").mean(numeric_only=True).to_string())
+`,
+  },
+  {
+    id: 'java-hello',
+    name: 'Java: Hello World',
+    description: 'Classic first Java program.',
+    language: 'java',
+    code: `// Welcome to PyRunner — Java 21 playground.
+// Press Run (or Ctrl/Cmd+Enter) to execute.
+
+public class Hello {
+    public static void main(String[] args) {
+        System.out.println("Hello, World!");
+        System.out.println("Java is running on the server.");
+
+        // Iterate and print
+        for (int i = 1; i <= 5; i++) {
+            System.out.println("Count: " + i);
+        }
+    }
+}
+`,
+  },
+  {
+    id: 'java-interactive',
+    name: 'Java: Interactive Input',
+    description: 'Read from stdin with Scanner.',
+    language: 'java',
+    code: `// This program reads input from the console.
+// When you press Run, the prompt will appear in
+// the console — type your answer and press Enter.
+
+import java.util.Scanner;
+
+public class Interactive {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+
+        System.out.print("What's your name? ");
+        String name = scanner.nextLine();
+
+        System.out.print("How old are you? ");
+        int age = Integer.parseInt(scanner.nextLine().trim());
+
+        System.out.println();
+        System.out.println("Hello, " + name + "!");
+        System.out.println("In 10 years you'll be " + (age + 10) + ".");
+
+        scanner.close();
+    }
+}
+`,
+  },
+  {
+    id: 'java-fizzbuzz',
+    name: 'Java: FizzBuzz',
+    description: 'Classic FizzBuzz with a twist.',
+    language: 'java',
+    code: `// Classic FizzBuzz problem.
+// Print numbers 1 to 30, but:
+//   - multiples of 3 → "Fizz"
+//   - multiples of 5 → "Buzz"
+//   - multiples of both → "FizzBuzz"
+
+public class FizzBuzz {
+    public static void main(String[] args) {
+        for (int i = 1; i <= 30; i++) {
+            if (i % 15 == 0) {
+                System.out.println("FizzBuzz");
+            } else if (i % 3 == 0) {
+                System.out.println("Fizz");
+            } else if (i % 5 == 0) {
+                System.out.println("Buzz");
+            } else {
+                System.out.println(i);
+            }
+        }
+    }
+}
+`,
+  },
+  {
+    id: 'java-fibonacci',
+    name: 'Java: Fibonacci',
+    description: 'Generate Fibonacci numbers.',
+    language: 'java',
+    code: `// Generate the first 20 Fibonacci numbers using a
+// memoized recursive approach with an array cache.
+
+public class Fibonacci {
+    public static void main(String[] args) {
+        int n = 20;
+        long[] fib = new long[n];
+        fib[0] = 0;
+        fib[1] = 1;
+
+        System.out.println("First " + n + " Fibonacci numbers:");
+        System.out.print(fib[0] + ", " + fib[1]);
+
+        for (int i = 2; i < n; i++) {
+            fib[i] = fib[i - 1] + fib[i - 2];
+            System.out.print(", " + fib[i]);
+        }
+        System.out.println();
+
+        // Golden ratio approximation
+        double ratio = (double) fib[n - 1] / fib[n - 2];
+        System.out.printf("%nApprox golden ratio F(%d)/F(%d): %.10f%n",
+            n - 1, n - 2, ratio);
+    }
+}
+`,
+  },
+  {
+    id: 'java-arraylist',
+    name: 'Java: ArrayList & Streams',
+    description: 'Modern Java with collections and streams.',
+    language: 'java',
+    code: `// Modern Java 21 with ArrayList, lambdas, and streams.
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+public class CollectionDemo {
+    public static void main(String[] args) {
+        List<String> names = new ArrayList<>(List.of(
+            "Alice", "Bob", "Charlie", "Diana", "Eve",
+            "Frank", "Grace", "Heidi"
+        ));
+
+        System.out.println("All names (" + names.size() + "):");
+        names.forEach(System.out::println);
+
+        // Filter names longer than 4 characters, sorted
+        List<String> longNames = names.stream()
+            .filter(n -> n.length() > 4)
+            .sorted()
+            .collect(Collectors.toList());
+
+        System.out.println("\\nNames longer than 4 chars (sorted):");
+        longNames.forEach(System.out::println);
+
+        // Map to uppercase, join with commas
+        String joined = names.stream()
+            .map(String::toUpperCase)
+            .collect(Collectors.joining(", "));
+        System.out.println("\\nUppercase joined:");
+        System.out.println(joined);
+
+        // Total character count
+        int totalChars = names.stream()
+            .mapToInt(String::length)
+            .sum();
+        System.out.println("\\nTotal characters across all names: " + totalChars);
+    }
+}
+`,
+  },
+  {
+    id: 'java-error',
+    name: 'Java: Compile Error',
+    description: 'See how javac errors appear in the console.',
+    language: 'java',
+    code: `// This file has a deliberate compile error.
+// The runner will show the javac error messages
+// in the console so you can see the format.
+
+public class Broken {
+    public static void main(String[] args) {
+        // Typo: 'Syste' instead of 'System'
+        Syste.out.println("This won't compile");
+
+        // Type mismatch
+        int x = "hello";
+    }
+}
 `,
   },
 ]
