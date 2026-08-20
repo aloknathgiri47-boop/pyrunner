@@ -232,10 +232,15 @@ export default function Home() {
     // Use polling+websocket transports so the XTransformPort query parameter
     // is preserved during the initial HTTP handshake (websocket-only skips
     // the polling handshake and the query gets dropped by the gateway).
+    // Enable reconnection so if the runner restarts (watchdog auto-restart),
+    // the client automatically reconnects without showing "xhr poll error".
     const sock = io('/?XTransformPort=3003', {
       transports: ['polling', 'websocket'],
       forceNew: true,
-      reconnection: false,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 3000,
       timeout: 10_000,
     })
 
@@ -244,6 +249,10 @@ export default function Home() {
     })
 
     sock.on('connect_error', (err: { message: string }) => {
+      // Only show the error toast if we're actively trying to run code.
+      // During reconnection attempts, socket.io fires many of these
+      // and we don't want to spam the user.
+      if (!isRunningRef.current) return
       toast.error('Cannot connect to runner', {
         description: err.message || 'WebSocket connection failed',
       })
@@ -379,19 +388,20 @@ export default function Home() {
     if (sock.connected) {
       emitRun()
     } else {
-      // Wait for connection (could take a few hundred ms with polling transport)
+      // Wait for connection. The runner might be restarting (watchdog
+      // auto-restart), so give it extra time to come back up.
       sock.once('connect', emitRun)
-      sock.connect()
-      // Safety timeout: if we never connect, surface the error
+      if (!sock.active) sock.connect()
+      // Safety timeout: if we never connect after 10s, surface the error
       setTimeout(() => {
         if (isRunningRef.current && !sock.connected) {
-          toast.error('Cannot connect to runner', {
-            description: 'Check that the runner service is available.',
+          toast.error('Cannot connect to Python runner', {
+            description: 'The runner service may be restarting. Try again in a moment.',
           })
           isRunningRef.current = false
           setIsRunning(false)
         }
-      }, 5000)
+      }, 10000)
     }
   }, [code, language, ensureSocket])
 

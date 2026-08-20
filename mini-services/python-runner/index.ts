@@ -632,3 +632,15 @@ process.on('SIGINT', () => {
   for (const [, session] of sessions) killSession(session, 'client_disconnect')
   httpServer.close(() => process.exit(0))
 })
+
+// CRITICAL: Catch unhandled errors so the runner doesn't crash.
+// Without these, a single bad spawn() or a child-process error can kill
+// the entire runner, causing "xhr poll error" for all connected clients.
+process.on('uncaughtException', (err) => {
+  console.error('[python-runner] UNCAUGHT EXCEPTION (survived):', err)
+  // Do NOT exit — keep the server alive so existing and new clients can reconnect.
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('[python-runner] UNHANDLED REJECTION (survived):', reason)
+  // Do NOT exit — keep the server alive.
+})
