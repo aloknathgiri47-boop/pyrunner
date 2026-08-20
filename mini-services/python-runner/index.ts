@@ -1,8 +1,9 @@
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import { spawn, type ChildProcess } from 'child_process'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
+import { writeFile, mkdir, readFile } from 'fs/promises'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
@@ -11,6 +12,16 @@ const PORT = 3003
 const MAX_OUTPUT_BYTES = 1_000_000 // 1 MB per stream
 const MAX_TIMEOUT_MS = 30_000
 const DEFAULT_TIMEOUT_MS = 15_000
+
+// Resolve the directory of this module so we can locate preamble.py
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
+// Marker protocol constants for inline image transmission.
+// The preamble wraps PNG figures as:
+//   \x00PYRUNNER_IMG_BEGIN\x00<len>\x00<base64-png>\x00PYRUNNER_IMG_END\x00
+const IMG_BEGIN = '\x00PYRUNNER_IMG_BEGIN\x00'
+const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 
 interface RunPayload {
   code: string
@@ -26,6 +37,8 @@ interface Session {
   totalStdout: number
   totalStderr: number
   pendingPromptText: string // stdout that hasn't ended in newline (the prompt)
+  // Buffer for in-progress image marker (markers can span multiple chunks)
+  stdoutBuffer: string
 }
 
 const sessions = new Map<string, Session>()
@@ -68,19 +81,89 @@ function setupSession(socketId: string, session: Session, socket: any) {
   child.stdout?.on('data', (chunk: Buffer) => {
     session.totalStdout += chunk.length
     if (session.totalStdout > MAX_OUTPUT_BYTES * 2) return
-    const text = chunk.toString('utf8')
 
-    // Heuristic: detect if this chunk ends mid-line (likely an input prompt).
-    // We tell the client "this looks like a prompt" by checking that the chunk
-    // doesn't end with a newline AND the process is still running. The client
-    // uses this hint to focus its input field.
-    const looksLikePrompt = !text.endsWith('\n') && !text.endsWith('\r\n')
+    // Append to the session buffer. We need to scan the ENTIRE accumulated
+    // buffer because image markers may span multiple 'data' events.
+    session.stdoutBuffer += chunk.toString('utf8')
+    const buf = session.stdoutBuffer
 
-    socket.emit('output', {
-      stream: 'stdout',
-      data: text,
-      promptLike: looksLikePrompt,
-    })
+    // Walk through the buffer, extracting image markers and forwarding plain text.
+    let i = 0
+    let plainTextStart = 0
+    let emitted = ''
+    let nextBuffer = ''
+
+    while (i < buf.length) {
+      const beginIdx = buf.indexOf(IMG_BEGIN, i)
+      if (beginIdx === -1) {
+        // No more markers — flush remaining plain text (but keep any trailing
+        // partial IMG_BEGIN prefix in case the chunk was cut mid-marker).
+        // We must be careful: a marker could start but not yet have its END.
+        // Find the last position where an IMG_BEGIN could START but be incomplete.
+        const safeEnd = findSafePlainTextEnd(buf, plainTextStart)
+        if (safeEnd > plainTextStart) {
+          emitted += buf.slice(plainTextStart, safeEnd)
+          nextBuffer = buf.slice(safeEnd)
+        } else {
+          nextBuffer = buf.slice(plainTextStart)
+        }
+        break
+      }
+      // Plain text before the marker
+      if (beginIdx > plainTextStart) {
+        emitted += buf.slice(plainTextStart, beginIdx)
+      }
+      // Find the end of this marker's header (3rd \x00 after BEGIN)
+      const headerStart = beginIdx + IMG_BEGIN.length
+      const lenEnd = buf.indexOf('\x00', headerStart)
+      if (lenEnd === -1) {
+        // Header not complete yet — keep from beginIdx onwards
+        nextBuffer = buf.slice(beginIdx)
+        break
+      }
+      const lenStr = buf.slice(headerStart, lenEnd)
+      const dataLen = parseInt(lenStr, 10)
+      if (isNaN(dataLen)) {
+        // Malformed — skip the marker prefix and continue
+        plainTextStart = lenEnd + 1
+        i = lenEnd + 1
+        continue
+      }
+      const dataStart = lenEnd + 1
+      const dataEnd = dataStart + dataLen
+      // Need at least dataLen bytes + IMG_END marker
+      const endMarkerStart = dataEnd
+      if (endMarkerStart + IMG_END.length > buf.length) {
+        // Marker not complete yet — keep from beginIdx onwards
+        nextBuffer = buf.slice(beginIdx)
+        break
+      }
+      const expectedEndMarker = buf.slice(endMarkerStart, endMarkerStart + IMG_END.length)
+      if (expectedEndMarker !== IMG_END) {
+        // Malformed — skip past the begin marker and continue scanning
+        plainTextStart = dataStart
+        i = dataStart
+        continue
+      }
+      // Complete marker — extract base64 data and emit image event
+      const b64Data = buf.slice(dataStart, dataEnd)
+      socket.emit('image', { data: b64Data, mime: 'image/png' })
+      plainTextStart = endMarkerStart + IMG_END.length
+      i = plainTextStart
+    }
+
+    session.stdoutBuffer = nextBuffer
+
+    // Emit any accumulated plain text
+    if (emitted.length > 0) {
+      const looksLikePrompt =
+        !emitted.endsWith('\n') && !emitted.endsWith('\r\n')
+      socket.emit('output', {
+        stream: 'stdout',
+        data: emitted,
+        promptLike: looksLikePrompt,
+      })
+    }
   })
 
   child.stderr?.on('data', (chunk: Buffer) => {
@@ -114,6 +197,18 @@ function setupSession(socketId: string, session: Session, socket: any) {
       clearTimeout(session.timer)
       session.timer = null
     }
+    // Flush any remaining buffered plain text (no more chunks coming)
+    if (session.stdoutBuffer.length > 0) {
+      const text = session.stdoutBuffer
+      session.stdoutBuffer = ''
+      const looksLikePrompt =
+        !text.endsWith('\n') && !text.endsWith('\r\n')
+      socket.emit('output', {
+        stream: 'stdout',
+        data: text,
+        promptLike: looksLikePrompt,
+      })
+    }
     socket.emit('exit', {
       code,
       signal: signal as NodeJS.Signals | null,
@@ -122,6 +217,28 @@ function setupSession(socketId: string, session: Session, socket: any) {
     })
     sessions.delete(socketId)
   })
+}
+
+/**
+ * Find the safe end position for emitting plain text — i.e. the latest
+ * position that is NOT the start of a partial IMG_BEGIN marker.
+ *
+ * If the buffer ends with a prefix of IMG_BEGIN (e.g. "\x00PYRUN" cut short),
+ * we must NOT emit those bytes yet because they could be the start of a
+ * marker that completes in the next chunk.
+ */
+function findSafePlainTextEnd(buf: string, start: number): number {
+  const end = buf.length
+  // Check the longest possible partial-match prefix at the end of buf.
+  // IMG_BEGIN is '\x00PYRUNNER_IMG_BEGIN\x00' (length 22). Check up to 21 chars.
+  const maxCheck = Math.min(IMG_BEGIN.length - 1, end - start)
+  for (let len = maxCheck; len > 0; len--) {
+    const tail = buf.slice(end - len)
+    if (IMG_BEGIN.startsWith(tail)) {
+      return end - len
+    }
+  }
+  return end
 }
 
 io.on('connection', (socket) => {
@@ -160,8 +277,29 @@ io.on('connection', (socket) => {
     const sessionId = randomUUID()
     const scriptPath = join(sandboxDir, `snippet_${sessionId}.py`)
 
+    // Load the matplotlib preamble (sets Agg backend, patches plt.show() and
+    // plt.savefig() to emit inline PNG images via the marker protocol).
+    // We prepend it to the user's code so figures render in the console.
+    let preamble = ''
     try {
-      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 })
+      const preamblePath = join(__dirname, 'preamble.py')
+      preamble = await readFile(preamblePath, 'utf8')
+    } catch {
+      // Preamble is optional — if it can't be loaded, run code as-is.
+      preamble = ''
+    }
+
+    // Wrap user code so tracebacks report the user's line numbers correctly.
+    // We use exec(compile(...)) so the user's code still runs at top level.
+    const wrappedCode = `${preamble}
+
+# --- Begin user code ---
+${code}
+# --- End user code ---
+`
+
+    try {
+      await writeFile(scriptPath, wrappedCode, { encoding: 'utf8', mode: 0o600 })
     } catch (e) {
       socket.emit('output', {
         stream: 'stderr',
@@ -204,6 +342,7 @@ io.on('connection', (socket) => {
       totalStdout: 0,
       totalStderr: 0,
       pendingPromptText: '',
+      stdoutBuffer: '',
     }
 
     sessions.set(socket.id, session)

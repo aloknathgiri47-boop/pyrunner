@@ -207,4 +207,96 @@ data = {
 print(json.dumps(data, indent=2))
 `,
   },
+  {
+    id: 'matplotlib-line',
+    name: 'Matplotlib: Line Plot',
+    description: 'Inline chart rendered as PNG in the console.',
+    code: `# Matplotlib figures render INLINE in the console!
+# plt.show() emits the figure as a PNG image.
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+x = np.linspace(0, 4 * np.pi, 200)
+y_sin = np.sin(x)
+y_cos = np.cos(x)
+
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.plot(x, y_sin, label="sin(x)", linewidth=2)
+ax.plot(x, y_cos, label="cos(x)", linewidth=2, linestyle="--")
+ax.set_title("Sine & Cosine Waves", fontsize=13)
+ax.set_xlabel("x")
+ax.set_ylabel("amplitude")
+ax.legend()
+ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+print("Plot rendered above.")
+`,
+  },
+  {
+    id: 'matplotlib-bar',
+    name: 'Matplotlib: Bar Chart',
+    description: 'Bar chart with categories and colors.',
+    code: `import matplotlib.pyplot as plt
+
+languages = ["Python", "JavaScript", "Rust", "Go", "TypeScript"]
+popularity = [89, 67, 12, 18, 35]
+colors = ["#4ade80", "#fbbf24", "#f87171", "#60a5fa", "#c084fc"]
+
+fig, ax = plt.subplots(figsize=(8, 4))
+bars = ax.bar(languages, popularity, color=colors, edgecolor="black", linewidth=0.5)
+
+# Annotate each bar with its value
+for bar, value in zip(bars, popularity):
+    ax.text(
+        bar.get_x() + bar.get_width() / 2,
+        bar.get_height() + 1.5,
+        f"{value}",
+        ha="center",
+        va="bottom",
+        fontsize=10,
+        fontweight="bold",
+    )
+
+ax.set_title("Programming Language Popularity (2026)")
+ax.set_ylabel("Score")
+ax.set_ylim(0, 100)
+ax.grid(axis="y", alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+`,
+  },
+  {
+    id: 'matplotlib-subplots',
+    name: 'Matplotlib: Subplots',
+    description: 'Multiple plots in one figure.',
+    code: `import numpy as np
+import matplotlib.pyplot as plt
+
+x = np.linspace(0, 10, 100)
+
+fig, axes = plt.subplots(2, 2, figsize=(9, 6))
+
+axes[0, 0].plot(x, np.sin(x), color="#4ade80")
+axes[0, 0].set_title("sin(x)")
+
+axes[0, 1].plot(x, np.cos(x), color="#fbbf24")
+axes[0, 1].set_title("cos(x)")
+
+axes[1, 0].plot(x, x**2, color="#f87171")
+axes[1, 0].set_title("x²")
+
+axes[1, 1].hist(np.random.randn(1000), bins=30, color="#60a5fa", edgecolor="black")
+axes[1, 1].set_title("Normal distribution")
+
+for ax in axes.flat:
+    ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+`,
+  },
 ]

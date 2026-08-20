@@ -54,11 +54,13 @@ import {
 
 interface OutputChunk {
   id: number
-  stream: 'stdout' | 'stderr' | 'input' | 'system'
+  stream: 'stdout' | 'stderr' | 'input' | 'system' | 'image'
   text: string
   // For input chunks: did the user enter this? For output chunks: was the
   // server hint that this looks like an input prompt?
   isPrompt?: boolean
+  // For image chunks: data URL (data:image/png;base64,...)
+  src?: string
 }
 
 interface RunResult {
@@ -242,6 +244,18 @@ export default function Home() {
         // A newline ended, so the prompt is resolved.
         setAwaitingInput(false)
       }
+    })
+
+    sock.on('image', (msg: { data: string; mime?: string }) => {
+      // Inline image (matplotlib figure rendered as PNG). The runner already
+      // base64-encoded the bytes — we wrap it as a data URL for <img src>.
+      const mime = msg.mime ?? 'image/png'
+      const src = `data:${mime};base64,${msg.data}`
+      const id = ++chunkIdRef.current
+      setChunks((prev) => [
+        ...prev,
+        { id, stream: 'image', text: '', src },
+      ])
     })
 
     sock.on('exit', (res: RunResult) => {
@@ -839,6 +853,20 @@ function StatusBadge({
 }
 
 function ConsoleLine({ chunk }: { chunk: OutputChunk }) {
+  // Image chunk (matplotlib figure rendered as inline PNG)
+  if (chunk.stream === 'image' && chunk.src) {
+    return (
+      <span className="my-2 block">
+        <img
+          src={chunk.src}
+          alt="matplotlib figure"
+          className="max-w-full h-auto rounded-md border border-zinc-700/50 bg-white"
+          style={{ display: 'block', maxHeight: '70vh' }}
+        />
+      </span>
+    )
+  }
+
   // Render with preserved whitespace. We split on newlines so trailing
   // prompt text (no newline) and full lines look right.
   const text = chunk.text
@@ -901,13 +929,14 @@ function EmptyConsole() {
         </div>
       </div>
       <h3 className="text-sm font-medium mb-1 text-zinc-200">Interactive console</h3>
-      <p className="text-xs text-zinc-400 max-w-[280px] leading-relaxed">
+      <p className="text-xs text-zinc-400 max-w-[300px] leading-relaxed">
         Write your Python code on the left and press{' '}
         <kbd className="font-mono px-1 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-200">
           Run
         </kbd>
-        . When your code calls <code className="text-emerald-400">input()</code>,
-        type your answer in the bar below the console.
+        . <code className="text-emerald-400">input()</code> prompts appear
+        inline, and <code className="text-emerald-400">matplotlib</code> figures
+        render as images — try the examples menu.
       </p>
     </div>
   )
