@@ -702,7 +702,16 @@ export default function Home() {
                   {chunks.length === 0 && !isRunning ? (
                     <EmptyConsole />
                   ) : (
-                    <div className="px-3 py-2.5 font-mono text-[13px] leading-relaxed">
+                    <div
+                      className="px-3 py-2.5 font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-words"
+                      style={{
+                        fontFamily:
+                          'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+                        whiteSpace: 'pre-wrap',
+                        overflowWrap: 'break-word',
+                        tabSize: 4,
+                      }}
+                    >
                       {chunks.map((chunk) => (
                         <ConsoleLine key={chunk.id} chunk={chunk} />
                       ))}
@@ -867,53 +876,46 @@ function ConsoleLine({ chunk }: { chunk: OutputChunk }) {
     )
   }
 
-  // Render with preserved whitespace. We split on newlines so trailing
-  // prompt text (no newline) and full lines look right.
+  // Render with EXACT whitespace preservation.
+  // white-space: pre-wrap preserves leading spaces, multiple consecutive
+  // spaces, tabs, and line breaks exactly as the program produced them.
+  // It also wraps long lines at the right edge instead of horizontal scroll.
+  // overflow-wrap: break-word breaks very long unbreakable tokens (e.g.
+  // long file paths in tracebacks) to prevent overflow.
+  // tab-size: 4 renders tabs as 4 columns wide.
   const text = chunk.text
+  const baseStyle: React.CSSProperties = {
+    fontFamily:
+      'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'break-word',
+    tabSize: 4,
+  }
+
   if (chunk.stream === 'input') {
     return (
-      <span
-        className="text-sky-400"
-        style={{
-          fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
-        }}
-      >
+      <span className="text-sky-400" style={baseStyle}>
         {text}
       </span>
     )
   }
   if (chunk.stream === 'stderr') {
     return (
-      <span
-        className="text-rose-400"
-        style={{
-          fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
-        }}
-      >
+      <span className="text-rose-400" style={baseStyle}>
         {text}
       </span>
     )
   }
   if (chunk.stream === 'system') {
     return (
-      <span
-        className="text-muted-foreground italic"
-        style={{
-          fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
-        }}
-      >
+      <span className="text-muted-foreground italic" style={baseStyle}>
         {text}
       </span>
     )
   }
   // stdout
   return (
-    <span
-      className="text-zinc-100"
-      style={{
-        fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
-      }}
-    >
+    <span className="text-zinc-100" style={baseStyle}>
       {text}
     </span>
   )

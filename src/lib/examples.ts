@@ -18,6 +18,29 @@ print("Python is running on the server.")
 `,
   },
   {
+    id: 'pyramid',
+    name: 'Pyramid Pattern',
+    description: 'Test whitespace preservation with leading spaces.',
+    code: `# Whitespace test — leading spaces must be preserved exactly.
+# Each line of the pyramid starts with several spaces before the *.
+
+n = 8
+for i in range(1, n + 1):
+    # 2*(n-i) leading spaces, then (2*i - 1) stars
+    print(" " * (2 * (n - i)) + "* " * (2 * i - 1))
+
+# Tab character test (should render as 4 columns wide)
+print("\\nTab demo:")
+print("a\\tb\\tc")
+print("1\\t2\\t3")
+
+# Multiple consecutive spaces test
+print("\\nConsecutive spaces:")
+print("X" + " " * 10 + "X")
+print("Y" + " " * 20 + "Y")
+`,
+  },
+  {
     id: 'interactive',
     name: 'Interactive Input',
     description: 'Type your answers when prompted.',
