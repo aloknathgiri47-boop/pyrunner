@@ -824,30 +824,26 @@ readline <- function(prompt = "") {
     // JavaScript preamble: polyfill browser APIs (prompt, alert, confirm)
     // that don't exist in Node.js. This lets users write browser-style code
     // that works with stdin (via Program Input or interactive console).
+    //
+    // prompt() uses execSync with shell 'read' command to synchronously
+    // block until a line is available on stdin. This is necessary because
+    // Node.js's fs.readSync doesn't properly block on pipe stdin.
     const jsPreamble = `// --- PyRunner preamble: polyfill browser APIs ---
-const readline = require('readline');
-const _rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const { execSync } = require('child_process');
 
-// prompt(message) — shows message, reads one line from stdin, returns it
+// prompt(message) — shows message, reads one line from stdin, returns it.
+// Uses execSync with shell 'read' to synchronously block until input arrives.
 globalThis.prompt = function(message = '') {
   if (message) process.stdout.write(message);
-  // Synchronous read from stdin (blocking)
-  const fs = require('fs');
-  const fd = process.stdin.fd;
-  let line = '';
   try {
-    const buf = Buffer.alloc(1);
-    while (true) {
-      const bytesRead = fs.readSync(fd, buf, 0, 1, null);
-      if (bytesRead === 0) break; // EOF
-      const char = buf.toString('utf8');
-      if (char === '\\n' || char === '\\r') break;
-      line += char;
-    }
+    const result = execSync('read line && echo "$line"', {
+      stdio: ['inherit', 'pipe', 'pipe'],
+      timeout: 60000,
+    });
+    return result.toString('utf8').replace(/\\n$/, '');
   } catch (e) {
-    // stdin might be closed or in non-blocking mode
+    return '';
   }
-  return line;
 };
 
 // alert(message) — prints message to stdout
