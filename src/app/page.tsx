@@ -373,14 +373,21 @@ export default function Home() {
   const [awaitingInput, setAwaitingInput] = useState(false)
   const [stdinText, setStdinText] = useState('')
   const [showStdin, setShowStdin] = useState(false)
+  const [flutterPort, setFlutterPort] = useState<number | null>(null)
 
   const socketRef = useRef<Socket | null>(null)
   const chunkIdRef = useRef(0)
   const consoleEndRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const isRunningRef = useRef(false)
+  const languageRef = useRef<Language>(language)
 
   // No hydration effect needed — the lazy initializer handles it.
+
+  // Keep languageRef in sync so the socket callbacks can read the current value
+  useEffect(() => {
+    languageRef.current = language
+  }, [language])
 
   // ---- Persist code + language (debounced) ----
   useEffect(() => {
@@ -467,23 +474,30 @@ export default function Home() {
     })
 
     sock.on('server', (msg: { port: number; host?: string }) => {
-      // A long-running server (Flask, Django, http.server, uvicorn, etc.)
-      // has started. Render a clickable link in the console that opens the
-      // server via the Caddy gateway using ?XTransformPort=<port>.
-      const id = ++chunkIdRef.current
-      setChunks((prev) => [
-        ...prev,
-        {
-          id,
-          stream: 'server',
-          text: `Server started on port $\{msg.port}`,
-          port: msg.port,
-        },
-      ])
-      toast.success('Server started', {
-        description: `Listening on port $\{msg.port} — click the link in the console to open it.`,
-        duration: 8000,
-      })
+      // For Flutter: automatically set the port so the preview iframe shows
+      // For other servers (Flask, etc.): show a clickable link in the console
+      if (languageRef.current === 'flutter') {
+        setFlutterPort(msg.port)
+        toast.success('Flutter app is live!', {
+          description: 'Preview panel updated.',
+          duration: 4000,
+        })
+      } else {
+        const id = ++chunkIdRef.current
+        setChunks((prev) => [
+          ...prev,
+          {
+            id,
+            stream: 'server',
+            text: `Server started on port $\{msg.port}`,
+            port: msg.port,
+          },
+        ])
+        toast.success('Server started', {
+          description: `Listening on port $\{msg.port} — click the link in the console to open it.`,
+          duration: 8000,
+        })
+      }
     })
 
     sock.on('exit', (res: RunResult) => {
@@ -558,6 +572,7 @@ export default function Home() {
     setResult(null)
     setChunks([])
     setAwaitingInput(false)
+    setFlutterPort(null)
     chunkIdRef.current = 0
 
     const sock = ensureSocket()
@@ -1350,7 +1365,7 @@ export default function Home() {
               <div className="h-10 w-0.5 rounded-full bg-border group-hover:bg-emerald-500" />
             </PanelResizeHandle>
 
-            {/* ---- Interactive Console ---- */}
+            {/* ---- Interactive Console + Flutter Preview ---- */}
             <Panel defaultSize={45} minSize={25}>
               <div className="h-full flex flex-col bg-card/30">
                 {/* Console header */}
@@ -1358,7 +1373,7 @@ export default function Home() {
                   <div className="flex items-center gap-2">
                     <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Console
+                      {language === 'flutter' && flutterPort ? 'Console (build logs)' : 'Console'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1381,6 +1396,58 @@ export default function Home() {
                   </div>
                 </div>
 
+                {/* Flutter Preview Panel (shows iframe when app is running) */}
+                {language === 'flutter' && (
+                  <div className="flex-none border-b border-border bg-muted/20" style={{ height: '45%' }}>
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/10">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                        Flutter Preview
+                      </span>
+                      {flutterPort && (
+                        <span className="text-[10px] text-emerald-500 font-mono">
+                          port: {flutterPort}
+                        </span>
+                      )}
+                    </div>
+                    <div className="h-[calc(100%-28px)] bg-white">
+                      {flutterPort ? (
+                        <iframe
+                          key={flutterPort}
+                          src={`/?XTransformPort=${flutterPort}`}
+                          className="w-full h-full border-0"
+                          title="Flutter Preview"
+                          allow="fullscreen"
+                        />
+                      ) : isRunning ? (
+                        <div className="flex h-full flex-col items-center justify-center gap-3 bg-muted/10">
+                          <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                          <span className="text-xs text-muted-foreground">
+                            Building Flutter web app...
+                          </span>
+                          <span className="text-[10px] text-muted-foreground/60">
+                            This takes ~20-30 seconds
+                          </span>
+                        </div>
+                      ) : result && !result.code ? (
+                        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+                          <CircleAlert className="h-6 w-6 text-rose-500" />
+                          <span className="text-xs text-rose-500">Build failed</span>
+                          <span className="text-[10px] text-muted-foreground">Check console for errors</span>
+                        </div>
+                      ) : (
+                        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 border border-blue-500/20">
+                            <svg className="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M12 2L2 12l10 10 10-10L12 2z"/>
+                            </svg>
+                          </div>
+                          <span className="text-xs text-muted-foreground">Press Run to build and preview your Flutter app</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Console body */}
                 <div className="flex-1 min-h-0 overflow-auto bg-[#0a0b10] dark:bg-[#0a0b10]">
                   {chunks.length === 0 && !isRunning ? (
@@ -1402,7 +1469,9 @@ export default function Home() {
                       {isRunning && chunks.length === 0 && (
                         <div className="flex items-center gap-2 text-muted-foreground py-1">
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          <span className="text-xs">Starting Python…</span>
+                          <span className="text-xs">
+                            {language === 'flutter' ? 'Building Flutter web app…' : 'Starting…'}
+                          </span>
                         </div>
                       )}
                       <div ref={consoleEndRef} />
