@@ -417,22 +417,18 @@ export default function Home() {
       const ok =
         res.code === 0 && !res.timedOut && !res.error
       if (ok) {
-        toast.success('Program finished', {
-          description: `Exit 0 · ${res.durationMs}ms`,
-        })
+        toast.success('Program finished')
       } else if (res.timedOut) {
-        toast.error('Timed out', { description: `Killed after ${res.durationMs}ms` })
+        toast.error('Timed out')
       } else if (res.code !== null && res.code !== 0) {
-        toast.error(`Exited with code ${res.code}`, {
-          description: `${res.durationMs}ms`,
-        })
+        toast.error(`Exited with code ${res.code}`)
       } else if (res.error) {
         toast.error('Failed to run', { description: res.error })
       }
     })
 
-    sock.on('timeout', ({ durationMs }: { durationMs: number }) => {
-      toast.error('Timed out', { description: `Killed after ${durationMs}ms` })
+    sock.on('timeout', () => {
+      toast.error('Timed out')
     })
 
     socketRef.current = sock
