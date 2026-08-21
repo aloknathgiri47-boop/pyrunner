@@ -10,8 +10,8 @@ import { randomUUID } from 'crypto'
 
 const PORT = 3003
 const MAX_OUTPUT_BYTES = 1_000_000 // 1 MB per stream
-const MAX_TIMEOUT_MS = 30_000
-const DEFAULT_TIMEOUT_MS = 15_000
+const MAX_TIMEOUT_MS = 60_000
+const DEFAULT_TIMEOUT_MS = 30_000
 
 // Resolve the directory of this module so we can locate preamble.py
 const __filename = fileURLToPath(import.meta.url)
@@ -44,6 +44,10 @@ interface Session {
   // True once we've detected the user's code started a long-running server
   // (Flask, Django, http.server, uvicorn, etc.) — used to cancel the timeout
   serverDetected: boolean
+  // Timer that closes stdin after 3s if no interactive input arrives,
+  // so programs that call input()/readline()/scanf() get EOF and exit
+  // gracefully instead of hanging for the full timeout.
+  stdinIdleTimer: ReturnType<typeof setTimeout> | null
 }
 
 const sessions = new Map<string, Session>()
@@ -71,6 +75,10 @@ function killSession(session: Session, reason: 'timeout' | 'client_disconnect' |
   if (session.timer) {
     clearTimeout(session.timer)
     session.timer = null
+  }
+  if (session.stdinIdleTimer) {
+    clearTimeout(session.stdinIdleTimer)
+    session.stdinIdleTimer = null
   }
   try {
     session.child.kill('SIGKILL')
@@ -268,6 +276,10 @@ function setupSession(socketId: string, session: Session, socket: any) {
     if (session.timer) {
       clearTimeout(session.timer)
       session.timer = null
+    }
+    if (session.stdinIdleTimer) {
+      clearTimeout(session.stdinIdleTimer)
+      session.stdinIdleTimer = null
     }
     // Flush any remaining buffered plain text (no more chunks coming)
     if (session.stdoutBuffer.length > 0) {
@@ -904,6 +916,7 @@ readline <- function(prompt = "") {
       pendingPromptText: '',
       stdoutBuffer: '',
       serverDetected: false,
+      stdinIdleTimer: null,
     }
 
     sessions.set(socket.id, session)
@@ -921,15 +934,36 @@ readline <- function(prompt = "") {
         if (!payload.stdin.endsWith('\n')) {
           child.stdin?.write('\n')
         }
+        // Close stdin after writing pre-piped input so the program gets EOF
+        // and exits gracefully (instead of hanging waiting for more input).
+        child.stdin?.end()
       } catch {
         /* stdin might be closed already */
       }
+    } else {
+      // No Program Input provided. Start an "idle stdin" timer:
+      // if the program hasn't received any interactive input within 3 seconds,
+      // close stdin so programs that call input()/readline()/scanf() get EOF
+      // and exit gracefully instead of hanging for the full timeout.
+      session.stdinIdleTimer = setTimeout(() => {
+        if (!session.killed) {
+          try {
+            child.stdin?.end()
+          } catch {
+            /* already closed */
+          }
+        }
+      }, 3000)
     }
 
     // Timeout watchdog
     session.timer = setTimeout(() => {
       if (session.killed) return
       session.killed = true
+      if (session.stdinIdleTimer) {
+        clearTimeout(session.stdinIdleTimer)
+        session.stdinIdleTimer = null
+      }
       try {
         child.kill('SIGKILL')
       } catch {
@@ -950,6 +984,11 @@ readline <- function(prompt = "") {
   socket.on('input', (data: { text?: string } | string) => {
     const session = sessions.get(socket.id)
     if (!session || session.killed) return
+    // Cancel the idle stdin timer — user is actively providing interactive input
+    if (session.stdinIdleTimer) {
+      clearTimeout(session.stdinIdleTimer)
+      session.stdinIdleTimer = null
+    }
     const text = typeof data === 'string' ? data : (data?.text ?? '')
     try {
       // Always append a newline so input() returns.

@@ -90,10 +90,21 @@ def greet(name: str) -> str:
 
 print(greet("world"))
 
-# Try the interactive example! Code with input() will
-# prompt you directly in the console below.
-name = input("What's your name? ")
-print(f"Nice to meet you, {name}!")
+# Quick demo: compute prime numbers below 50
+def primes(limit: int):
+    is_prime = [True] * (limit + 1)
+    is_prime[0] = is_prime[1] = False
+    for i in range(2, int(limit**0.5) + 1):
+        if is_prime[i]:
+            for j in range(i*i, limit + 1, i):
+                is_prime[j] = False
+    return [i for i, p in enumerate(is_prime) if p]
+
+print("Primes below 50:", primes(50))
+
+# For interactive input, open "Program Input" below the editor,
+# type your values (one per line), then Run.
+# Or load the "Interactive Input" example from the Examples menu.
 `
 
 const DEFAULT_JAVA_CODE = `// PyRunner — Java 21 playground
@@ -154,8 +165,6 @@ int main() {
 
 const DEFAULT_R_CODE = `# PyRunner — R 4.5 playground
 # Press Run (or Ctrl/Cmd+Enter) to execute.
-# For interactive input: open "Program Input" below the editor
-# and type your input values (one per line) before Run.
 
 print("Hello, World!")
 
@@ -163,11 +172,11 @@ print("Hello, World!")
 x <- c(1, 2, 3, 4, 5)
 print(paste("Mean:", mean(x)))
 print(paste("Sum:", sum(x)))
+print(paste("Squared:", paste(x^2, collapse=", ")))
 
-# Read from stdin using readline()
-# (works with the Program Input panel)
-name <- readline("What's your name? ")
-cat("Hello,", name, "!\\n")
+# For interactive input, open "Program Input" below the editor,
+# type your values (one per line), then Run.
+# Or load the "R: Interactive Input" example from the Examples menu.
 `
 
 const DEFAULT_JS_CODE = `// PyRunner — JavaScript (Node.js 24) playground
@@ -176,18 +185,18 @@ const DEFAULT_JS_CODE = `// PyRunner — JavaScript (Node.js 24) playground
 
 console.log("Hello, World!");
 
-// Array methods
+// Array methods — functional programming style
 const nums = [1, 2, 3, 4, 5];
 console.log("Sum:", nums.reduce((a, b) => a + b, 0));
 console.log("Squared:", nums.map(n => n ** 2));
 
-// Read from stdin using readline (works with Program Input)
-const readline = require('readline');
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-rl.question("What's your name? ", (name) => {
-  console.log("Nice to meet you, " + name + "!");
-  rl.close();
-});
+// Object destructuring
+const user = { name: "Ada", age: 36 };
+console.log(user.name + " is " + user.age + " years old.");
+
+// For interactive input, open "Program Input" below the editor,
+// type your values (one per line), then Run.
+// Or load the "JS: Interactive Input" example from the Examples menu.
 `
 
 /* ------------------------------------------------------------------ */
@@ -469,7 +478,7 @@ export default function Home() {
     chunkIdRef.current = 0
 
     const sock = ensureSocket()
-    const emitRun = () => sock.emit('run', { code, language, timeout: 15000, stdin: stdinText })
+    const emitRun = () => sock.emit('run', { code, language, timeout: 30000, stdin: stdinText })
     if (sock.connected) {
       emitRun()
     } else {
@@ -1236,7 +1245,7 @@ export default function Home() {
               <span className="opacity-60">to run</span>
             </span>
             <span className="hidden md:inline opacity-50">·</span>
-            <span className="hidden md:inline">15s timeout · interactive stdin</span>
+            <span className="hidden md:inline">30s timeout · interactive stdin</span>
           </div>
         </footer>
       </div>
