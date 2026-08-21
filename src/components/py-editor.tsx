@@ -20,7 +20,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp'
 }
 
 const customLightTheme = EditorView.theme(
@@ -115,7 +115,7 @@ export default function PyEditor({
     // For JavaScript we use javascript() (supports both CommonJS and ESM).
     const langExt =
       language === 'java' ? java() :
-      language === 'c' || language === 'cpp' ? cpp() :
+      language === 'c' || language === 'cpp' || language === 'csharp' ? cpp() :
       language === 'r' ? StreamLanguage.define(r) :
       language === 'javascript' ? javascript() :
       language === 'php' ? phpLang() :

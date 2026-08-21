@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp'
   stdin?: string
 }
 
@@ -983,6 +983,182 @@ if (!function_exists('readline')) {
     return child
   }
 
+  /**
+   * Spawn a C# child process for the given code.
+   * - Writes code to snippet_<sessionId>.cs
+   * - Compiles with dotnet csc (Roslyn)
+   * - Creates a .dll output + runtimeconfig.json
+   * - Runs with dotnet
+   */
+  async function spawnCSharp(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const csFilePath = join(sandboxDir, `snippet_${sessionId}.cs`)
+    const dllPath = join(sandboxDir, `snippet_${sessionId}.dll`)
+    const configPath = join(sandboxDir, `snippet_${sessionId}.runtimeconfig.json`)
+
+    try {
+      await writeFile(csFilePath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write C# file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
+      })
+      return null
+    }
+
+    // Locate the .NET SDK and reference assemblies
+    const home = process.env.HOME || '/home/z'
+    const sdkDir = existsSync(join(home, '.dotnet', 'sdk'))
+      ? join(home, '.dotnet', 'sdk')
+      : null
+    if (!sdkDir) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: '.NET SDK not found. Cannot compile C#.\n',
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'NO_SDK',
+      })
+      return null
+    }
+
+    // Find the actual SDK version directory
+    const { readdirSync } = await import('fs')
+    const sdkVersions = readdirSync(sdkDir).filter(d => d.startsWith('8.'))
+    if (sdkVersions.length === 0) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: '.NET SDK 8.x not found.\n',
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'NO_SDK',
+      })
+      return null
+    }
+    const actualSdkDir = join(sdkDir, sdkVersions[0])
+
+    // Find reference assemblies
+    const refBase = join(home, '.dotnet', 'packs', 'Microsoft.NETCore.App.Ref')
+    let refDir = ''
+    if (existsSync(refBase)) {
+      const refVersions = readdirSync(refBase).filter(d => d.startsWith('8.'))
+      if (refVersions.length > 0) {
+        refDir = join(refBase, refVersions[0], 'ref', 'net8.0')
+      }
+    }
+    if (!refDir || !existsSync(refDir)) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: 'Reference assemblies not found.\n',
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'NO_REFS',
+      })
+      return null
+    }
+
+    const dotnetBin = join(home, '.dotnet', 'dotnet')
+    const cscDll = join(actualSdkDir, 'Roslyn', 'bincore', 'csc.dll')
+
+    // Compile step
+    socket.emit('output', {
+      stream: 'system',
+      data: `Compiling with C# Roslyn compiler...\n`,
+      promptLike: false,
+    })
+
+    const compileResult = await new Promise<{ ok: boolean; stderr: string; stdout: string }>((resolve) => {
+      const csc = spawn(dotnetBin, [
+        cscDll,
+        `-r:${join(refDir, 'System.Runtime.dll')}`,
+        `-r:${join(refDir, 'System.Console.dll')}`,
+        `-r:${join(refDir, 'mscorlib.dll')}`,
+        `-r:${join(refDir, 'System.Collections.dll')}`,
+        `-r:${join(refDir, 'System.Linq.dll')}`,
+        `-r:${join(refDir, 'System.IO.FileSystem.dll')}`,
+        `-r:${join(refDir, 'System.Text.RegularExpressions.dll')}`,
+        `-r:${join(refDir, 'System.Net.Http.dll')}`,
+        `-r:${join(refDir, 'System.Threading.dll')}`,
+        `-out:${dllPath}`,
+        csFilePath,
+      ], {
+        cwd: sandboxDir,
+        env: { ...process.env } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+
+      let stderr = ''
+      let stdout = ''
+      csc.stdout?.on('data', (c: Buffer) => { stdout += c.toString('utf8') })
+      csc.stderr?.on('data', (c: Buffer) => { stderr += c.toString('utf8') })
+      csc.on('error', (err) => {
+        resolve({ ok: false, stderr: `Failed to spawn csc: ${err.message}\n`, stdout })
+      })
+      csc.on('close', (code) => {
+        resolve({ ok: code === 0, stderr, stdout })
+      })
+      csc.stdin?.end()
+    })
+
+    if (!compileResult.ok) {
+      if (compileResult.stderr) {
+        socket.emit('output', {
+          stream: 'stderr',
+          data: compileResult.stderr,
+          promptLike: false,
+        })
+      }
+      socket.emit('output', {
+        stream: 'system',
+        data: `\nCompilation failed.\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: 1, signal: null, timedOut: false, durationMs: 0,
+      })
+      return null
+    }
+
+    // Create runtimeconfig.json
+    const configJson = JSON.stringify({
+      runtimeOptions: {
+        tfm: 'net8.0',
+        framework: {
+          name: 'Microsoft.NETCore.App',
+          version: '8.0.11',
+        },
+      },
+    }, null, 2)
+    try {
+      await writeFile(configPath, configJson, { encoding: 'utf8' })
+    } catch {
+      // ignore
+    }
+
+    // Compilation succeeded — run the .dll
+    socket.emit('output', {
+      stream: 'system',
+      data: `Compiled. Running...\n`,
+      promptLike: false,
+    })
+
+    const child = spawn(dotnetBin, [dllPath], {
+      cwd: sandboxDir,
+      env: { ...process.env } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
 
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
@@ -1031,6 +1207,8 @@ if (!function_exists('readline')) {
       child = await spawnJavaScript(code, sessionId, socket)
     } else if (language === 'php') {
       child = await spawnPHP(code, sessionId, socket)
+    } else if (language === 'csharp') {
+      child = await spawnCSharp(code, sessionId, socket)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }

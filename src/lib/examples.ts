@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp'
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -1992,6 +1992,191 @@ for ($i = 1; $i <= 30; $i++) {
         $i % 5 === 0  => "Buzz",
         default        => (string)$i,
     } . "\\n";
+}
+`,
+  },
+  {
+    id: 'cs-hello',
+    name: 'C#: Hello World',
+    description: 'Basic C# with Console.WriteLine and LINQ.',
+    language: 'csharp',
+    code: `// PyRunner — C# (.NET 8) playground
+// Press Run (or Ctrl/Cmd+Enter) to execute.
+
+using System;
+using System.Linq;
+
+class Program {
+    static void Main() {
+        Console.WriteLine("Hello, World!");
+
+        // LINQ
+        int[] nums = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+        Console.WriteLine("Sum: " + nums.Sum());
+        Console.WriteLine("Evens: " + string.Join(", ", nums.Where(n => n % 2 == 0)));
+        Console.WriteLine("Squared: " + string.Join(", ", nums.Select(n => n * n)));
+    }
+}
+`,
+  },
+  {
+    id: 'cs-interactive',
+    name: 'C#: Interactive Input',
+    description: 'Read from stdin with Console.ReadLine.',
+    language: 'csharp',
+    code: `using System;
+
+class Program {
+    static void Main() {
+        // Open "Program Input" below the editor and type:
+        //   Alice
+        //   25
+        Console.Write("What's your name? ");
+        string name = Console.ReadLine();
+
+        Console.Write("How old are you? ");
+        int age = int.Parse(Console.ReadLine());
+
+        Console.WriteLine();
+        Console.WriteLine("Hello, " + name + "!");
+        Console.WriteLine("In 10 years you'll be " + (age + 10) + ".");
+    }
+}
+`,
+  },
+  {
+    id: 'cs-classes',
+    name: 'C#: Classes & OOP',
+    description: 'Classes, inheritance, interfaces, generics.',
+    language: 'csharp',
+    code: `using System;
+using System.Collections.Generic;
+
+interface IAnimal {
+    string Name { get; }
+    string Speak();
+}
+
+abstract class Animal : IAnimal {
+    public string Name { get; }
+    protected string Sound { get; }
+
+    protected Animal(string name, string sound) {
+        Name = name;
+        Sound = sound;
+    }
+
+    public string Speak() => Name + " says " + Sound;
+}
+
+class Dog : Animal {
+    public Dog(string name) : base(name, "Woof") {}
+    public string Fetch() => Name + " fetches the ball!";
+}
+
+class Cat : Animal {
+    public Cat(string name) : base(name, "Meow") {}
+    public string Purr() => Name + " purrs softly...";
+}
+
+class Program {
+    static void Main() {
+        List<IAnimal> animals = new List<IAnimal> {
+            new Dog("Rex"),
+            new Cat("Whiskers"),
+            new Dog("Buddy"),
+        };
+
+        foreach (var animal in animals) {
+            Console.WriteLine(animal.Speak());
+            if (animal is Dog dog) Console.WriteLine("  " + dog.Fetch());
+            if (animal is Cat cat) Console.WriteLine("  " + cat.Purr());
+        }
+    }
+}
+`,
+  },
+  {
+    id: 'cs-linq',
+    name: 'C#: LINQ',
+    description: 'Query collections with LINQ.',
+    language: 'csharp',
+    code: `using System;
+using System.Linq;
+using System.Collections.Generic;
+
+class Program {
+    static void Main() {
+        var people = new List<Person> {
+            new Person("Alice", 30, "Engineering"),
+            new Person("Bob", 25, "Marketing"),
+            new Person("Charlie", 35, "Engineering"),
+            new Person("Diana", 28, "Sales"),
+            new Person("Eve", 32, "Engineering"),
+        };
+
+        // Filter + sort
+        var engineers = people
+            .Where(p => p.Department == "Engineering")
+            .OrderBy(p => p.Age);
+
+        Console.WriteLine("Engineers (sorted by age):");
+        foreach (var p in engineers) {
+            Console.WriteLine("  " + p);
+        }
+
+        // Group by department
+        var byDept = people.GroupBy(p => p.Department);
+        foreach (var group in byDept) {
+            Console.WriteLine("\\n" + group.Key + ": " + group.Count() + " people");
+            foreach (var p in group) {
+                Console.WriteLine("  " + p.Name + " (" + p.Age + ")");
+            }
+        }
+
+        // Aggregate
+        var avgAge = people.Average(p => p.Age);
+        Console.WriteLine("\\nAverage age: " + avgAge.ToString("F1"));
+
+        // Select + ToDictionary
+        var names = people.Select(p => p.Name).ToList();
+        Console.WriteLine("Names: " + string.Join(", ", names));
+    }
+}
+
+class Person {
+    public string Name { get; set; }
+    public int Age { get; set; }
+    public string Department { get; set; }
+
+    public Person(string name, int age, string dept) {
+        Name = name; Age = age; Department = dept;
+    }
+
+    public override string ToString() => Name + " (" + Age + ", " + Department + ")";
+}
+`,
+  },
+  {
+    id: 'cs-fizzbuzz',
+    name: 'C#: FizzBuzz',
+    description: 'Classic FizzBuzz with switch expression.',
+    language: 'csharp',
+    code: `using System;
+
+class Program {
+    static void Main() {
+        for (int i = 1; i <= 30; i++) {
+            Console.WriteLine(
+                (i % 15 == 0, i % 3 == 0, i % 5 == 0) switch {
+                    (true, _, _) => "FizzBuzz",
+                    (_, true, _) => "Fizz",
+                    (_, _, true) => "Buzz",
+                    _ => i.ToString(),
+                }
+            );
+        }
+    }
 }
 `,
   },

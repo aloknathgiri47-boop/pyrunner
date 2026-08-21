@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp'
 
 interface PersistedState {
   code: string
@@ -205,6 +205,29 @@ $name = trim(fgets(STDIN));
 echo "Nice to meet you, $name!\\n";
 `
 
+const DEFAULT_CSHARP_CODE = `// PyRunner - C# (.NET 8) playground
+// Press Run (or Ctrl/Cmd+Enter) to execute.
+
+using System;
+using System.Linq;
+
+class Program {
+    static void Main() {
+        Console.WriteLine("Hello, World!");
+
+        // LINQ
+        int[] nums = { 1, 2, 3, 4, 5 };
+        Console.WriteLine("Sum: " + nums.Sum());
+        Console.WriteLine("Squared: " + string.Join(", ", nums.Select(n => n * n)));
+
+        // Interactive: type your name in the input bar
+        Console.Write("What's your name? ");
+        string name = Console.ReadLine();
+        Console.WriteLine("Nice to meet you, " + name + "!");
+    }
+}
+`
+
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
 /* ------------------------------------------------------------------ */
@@ -218,7 +241,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -262,7 +285,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
@@ -469,6 +492,7 @@ export default function Home() {
           language === 'r' ? 'Write some R first.' :
           language === 'javascript' ? 'Write some JavaScript first.' :
           language === 'php' ? 'Write some PHP first.' :
+          language === 'csharp' ? 'Write some C# first.' :
           'Write some Python first.',
       })
       return
@@ -559,6 +583,7 @@ export default function Home() {
       lang === 'r' ? DEFAULT_R_CODE :
       lang === 'javascript' ? DEFAULT_JS_CODE :
       lang === 'php' ? DEFAULT_PHP_CODE :
+      lang === 'csharp' ? DEFAULT_CSHARP_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -601,6 +626,7 @@ export default function Home() {
       language === 'r' ? 'R' :
       language === 'javascript' ? 'js' :
       language === 'php' ? 'php' :
+      language === 'csharp' ? 'cs' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -609,6 +635,7 @@ export default function Home() {
       language === 'r' ? 'text/x-r;charset=utf-8' :
       language === 'javascript' ? 'text/javascript;charset=utf-8' :
       language === 'php' ? 'text/x-php;charset=utf-8' :
+      language === 'csharp' ? 'text/x-csharp;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -696,7 +723,9 @@ export default function Home() {
                               ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20'
                               : language === 'php'
                                 ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'
-                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                : language === 'csharp'
+                                  ? 'bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-500/20'
+                                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
                   {language === 'java'
@@ -711,7 +740,9 @@ export default function Home() {
                             ? 'Node.js 24'
                             : language === 'php'
                               ? 'PHP 8.4'
-                              : 'Python 3.12'}
+                              : language === 'csharp'
+                                ? 'C# (.NET 8)'
+                                : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -727,7 +758,9 @@ export default function Home() {
                           ? 'Interactive JavaScript console with live stdin'
                           : language === 'php'
                             ? 'Interactive PHP console with live stdin'
-                            : 'Interactive Python console with live input()'}
+                            : language === 'csharp'
+                              ? 'Interactive C# console with live stdin'
+                              : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -811,6 +844,17 @@ export default function Home() {
                 }`}
               >
                 PHP
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('csharp')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'csharp'
+                    ? 'bg-pink-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                C#
               </button>
             </div>
           </div>
@@ -935,6 +979,23 @@ export default function Home() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {EXAMPLES.filter((ex) => ex.language === 'php').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  C# examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'csharp').map((ex) => (
                   <DropdownMenuItem
                     key={ex.id}
                     onSelect={() => handleSelectExample(ex)}
@@ -1084,7 +1145,9 @@ export default function Home() {
                               ? 'code.js'
                               : language === 'php'
                                 ? 'code.php'
-                                : 'code.py'}
+                                : language === 'csharp'
+                                  ? 'code.cs'
+                                  : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button
