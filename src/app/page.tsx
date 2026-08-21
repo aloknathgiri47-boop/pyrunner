@@ -355,13 +355,13 @@ function getInitialState(): { code: string; language: Language } {
 
 export default function Home() {
   const { setTheme, resolvedTheme } = useTheme()
-  // Lazy initializer: runs once on the client during the very first render.
-  // On the server it returns DEFAULT_CODE (window is undefined). This avoids
-  // any useEffect-based hydration that would trip react-hooks/set-state-in-effect.
-  // suppressHydrationWarning on <html> covers the resulting markup difference.
-  const [initialState] = useState(() => getInitialState())
-  const [code, setCode] = useState<string>(initialState.code)
-  const [language, setLanguage] = useState<Language>(initialState.language)
+
+  // Use defaults on both server AND the first client render so the markup
+  // matches exactly. After mount, we hydrate from localStorage / URL hash.
+  // This is the canonical Next.js pattern for avoiding hydration mismatches
+  // when initial state depends on browser-only APIs.
+  const [code, setCode] = useState<string>(DEFAULT_CODE)
+  const [language, setLanguage] = useState<Language>('python')
   const [activeExampleId, setActiveExampleId] = useState<string | null>(null)
 
   const [chunks, setChunks] = useState<OutputChunk[]>([])
@@ -374,6 +374,21 @@ export default function Home() {
   const [stdinText, setStdinText] = useState('')
   const [showStdin, setShowStdin] = useState(false)
   const [flutterPort, setFlutterPort] = useState<number | null>(null)
+  // Hydration flag: false during SSR and the very first client render,
+  // true after mount. Used to gate rendering of any client-only UI
+  // (like theme-dependent icons or persisted state).
+  const [hydrated, setHydrated] = useState(false)
+
+  // After mount: load persisted state from localStorage / URL hash.
+  // This runs only on the client, so there is no SSR/client mismatch.
+  useEffect(() => {
+    setHydrated(true)
+    const initial = getInitialState()
+    if (initial.code !== DEFAULT_CODE || initial.language !== 'python') {
+      setCode(initial.code)
+      setLanguage(initial.language)
+    }
+  }, [])
 
   const socketRef = useRef<Socket | null>(null)
   const chunkIdRef = useRef(0)
@@ -381,8 +396,6 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const isRunningRef = useRef(false)
   const languageRef = useRef<Language>(language)
-
-  // No hydration effect needed — the lazy initializer handles it.
 
   // Keep languageRef in sync so the socket callbacks can read the current value
   useEffect(() => {
@@ -746,10 +759,11 @@ export default function Home() {
     toast.success(`Loaded "$\{ex.name}"`, { description: ex.description })
   }, [])
 
-  // resolvedTheme is undefined on first render (SSR); default to dark to
-  // match the ThemeProvider's `defaultTheme='dark'` setting.
+  // resolvedTheme is undefined during SSR; default to dark to match the
+  // ThemeProvider's `defaultTheme='dark'` setting. After mount the actual
+  // resolved theme will be applied.
   const editorTheme: 'light' | 'dark' =
-    resolvedTheme === 'light' ? 'light' : 'dark'
+    hydrated && resolvedTheme === 'light' ? 'light' : 'dark'
 
   const status = useMemo(() => {
     if (isRunning) {
@@ -1176,7 +1190,10 @@ export default function Home() {
                   }
                   aria-label="Toggle theme"
                 >
-                  {resolvedTheme === 'light' ? (
+                  {/* Render a placeholder Sun icon during SSR/first render so
+                      the markup matches what the server produced. After
+                      hydration, show the correct icon based on resolvedTheme. */}
+                  {hydrated && resolvedTheme === 'light' ? (
                     <Moon className="h-4 w-4" />
                   ) : (
                     <Sun className="h-4 w-4" />
