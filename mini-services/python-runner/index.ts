@@ -908,8 +908,40 @@ globalThis.confirm = function(message = '') {
   async function spawnPHP(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
     const phpFilePath = join(sandboxDir, `snippet_${sessionId}.php`)
 
+    // PHP preamble: override readline() to use fgets(STDIN).
+    // The portable PHP install doesn't have the readline extension loaded
+    // (it needs libedit/readline shared library). By overriding readline()
+    // to use fgets(STDIN), we make it work with piped stdin (Program Input
+    // and interactive console input).
+    // NOTE: Do NOT close the preamble with ?> — that would switch PHP back
+    // to text mode and the user's code would be echoed as plain text.
+    const phpPreamble = `<?php
+// --- PyRunner preamble: override readline() ---
+if (!function_exists('readline')) {
+    function readline($prompt = '') {
+        if ($prompt) echo $prompt;
+        $line = fgets(STDIN);
+        return $line === false ? '' : rtrim($line, "\\r\\n");
+    }
+}
+// --- End preamble ---
+
+`
+
+    // Wrap user code. If user code starts with <?php, remove that tag
+    // (our preamble already opened PHP mode) and append the rest.
+    let wrappedCode = code
+    const trimmed = code.trimStart()
+    if (trimmed.startsWith('<?php')) {
+      wrappedCode = phpPreamble + trimmed.slice(5) // skip "<?php"
+    } else if (trimmed.startsWith('<?')) {
+      wrappedCode = phpPreamble + trimmed.slice(2) // skip "<?"
+    } else {
+      wrappedCode = phpPreamble + code
+    }
+
     try {
-      await writeFile(phpFilePath, code, { encoding: 'utf8', mode: 0o600 })
+      await writeFile(phpFilePath, wrappedCode, { encoding: 'utf8', mode: 0o600 })
     } catch (e) {
       socket.emit('output', {
         stream: 'stderr',
@@ -933,8 +965,13 @@ globalThis.confirm = function(message = '') {
       promptLike: false,
     })
 
-    // Run with php. -d flags set common defaults.
-    const child = spawn(actualPhp, ['-d', 'error_reporting=E_ALL', phpFilePath], {
+    // Run with php. Set extension_dir so PHP can find its modules,
+    // and enable all errors.
+    const child = spawn(actualPhp, [
+      '-d', 'error_reporting=E_ALL',
+      '-d', `extension_dir=${join(home, '.local', 'php', 'usr', 'lib', 'php', '20240924')}`,
+      phpFilePath,
+    ], {
       cwd: sandboxDir,
       env: {
         ...process.env,
