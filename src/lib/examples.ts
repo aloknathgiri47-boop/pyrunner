@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r'
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -1305,6 +1305,167 @@ int main() {
 
     return 0;
 }
+`,
+  },
+  {
+    id: 'r-hello',
+    name: 'R: Hello World',
+    description: 'Basic R vectors and statistics.',
+    language: 'r',
+    code: `# Welcome to PyRunner — R 4.5 playground
+# Press Run (or Ctrl/Cmd+Enter) to execute.
+
+print("Hello, World!")
+
+# Vectors are R's basic data structure
+x <- c(1, 2, 3, 4, 5)
+print(paste("Vector:", paste(x, collapse=", ")))
+print(paste("Mean:", mean(x)))
+print(paste("Sum:", sum(x)))
+print(paste("Squared:", paste(x^2, collapse=", ")))
+
+# Sequence
+print(paste("1:10:", paste(1:10, collapse=", ")))
+`,
+  },
+  {
+    id: 'r-interactive',
+    name: 'R: Interactive Input',
+    description: 'Read from stdin with readLines.',
+    language: 'r',
+    code: `# This program reads input from the console.
+# When you press Run, the prompt will appear in
+# the console — type your answer and press Enter.
+
+cat("What's your name? ")
+name <- readLines(file("stdin"), n=1)
+
+cat("How old are you? ")
+age <- as.integer(readLines(file("stdin"), n=1))
+
+cat("\\n")
+cat("Hello,", name, "!\\n")
+cat("In 10 years you'll be", age + 10, ".\\n")
+`,
+  },
+  {
+    id: 'r-dataframe',
+    name: 'R: Data Frames',
+    description: 'Create and analyze data frames.',
+    language: 'r',
+    code: `# Data frames are R's tabular data structure.
+# Perfect for data analysis and statistics.
+
+# Create a data frame
+students <- data.frame(
+  name = c("Alice", "Bob", "Charlie", "Diana", "Eve"),
+  age = c(20, 22, 19, 21, 23),
+  grade = c("A", "B", "A", "A", "B"),
+  gpa = c(3.8, 3.2, 3.9, 3.7, 3.5)
+)
+
+print("Students data frame:")
+print(students)
+
+# Summary statistics
+cat("\\nSummary statistics:\\n")
+print(summary(students))
+
+# Filter: students with GPA > 3.5
+high_gpa <- students[students$gpa > 3.5, ]
+cat("\\nStudents with GPA > 3.5:\\n")
+print(high_gpa)
+
+# Sort by age
+sorted <- students[order(students$age), ]
+cat("\\nSorted by age:\\n")
+print(sorted)
+
+# Average GPA
+cat("\\nAverage GPA:", mean(students$gpa), "\\n")
+cat("Average age:", mean(students$age), "\\n")
+`,
+  },
+  {
+    id: 'r-statistics',
+    name: 'R: Statistics',
+    description: 'Linear regression and statistical tests.',
+    language: 'r',
+    code: `# R is built for statistics. This example shows
+# linear regression, correlation, and random sampling.
+
+set.seed(42)  # For reproducibility
+
+# Generate random data
+x <- 1:20
+y <- 2 * x + rnorm(20, mean=0, sd=3)  # y = 2x + noise
+
+# Linear regression
+model <- lm(y ~ x)
+cat("Linear regression: y = 2x + noise\\n")
+print(summary(model))
+
+# Correlation
+cat("\\nCorrelation between x and y:", cor(x, y), "\\n")
+
+# Predictions
+predictions <- predict(model)
+cat("\\nFirst 5 predictions:", head(predictions), "\\n")
+
+# Normal distribution samples
+cat("\\nNormal distribution samples (mean=100, sd=15):\\n")
+iq_scores <- rnorm(100, mean=100, sd=15)
+cat("Mean:", mean(iq_scores), "\\n")
+cat("SD:", sd(iq_scores), "\\n")
+cat("Min:", min(iq_scores), "\\n")
+cat("Max:", max(iq_scores), "\\n")
+
+# Quantiles
+cat("\\nQuantiles:\\n")
+print(quantile(iq_scores, c(0.25, 0.5, 0.75)))
+`,
+  },
+  {
+    id: 'r-matrix',
+    name: 'R: Matrix Operations',
+    description: 'Matrix algebra and apply functions.',
+    language: 'r',
+    code: `# R has powerful matrix operations.
+# This example shows matrix creation, multiplication,
+# and the apply() function for row/column operations.
+
+# Create matrices
+A <- matrix(1:9, nrow=3, byrow=TRUE)
+B <- matrix(c(1, 0, 0, 0, 1, 0, 0, 0, 1), nrow=3)
+
+cat("Matrix A:\\n")
+print(A)
+cat("\\nMatrix B (identity):\\n")
+print(B)
+
+# Matrix multiplication
+cat("\\nA %*% B (should equal A):\\n")
+print(A %*% B)
+
+# Element-wise operations
+cat("\\nA * A (element-wise):\\n")
+print(A * A)
+
+# Transpose
+cat("\\nTranspose of A:\\n")
+print(t(A))
+
+# Row and column sums
+cat("\\nRow sums:", rowSums(A), "\\n")
+cat("Column sums:", colSums(A), "\\n")
+
+# apply() function
+cat("\\nRow means (apply):", apply(A, 1, mean), "\\n")
+cat("Column means (apply):", apply(A, 2, mean), "\\n")
+
+# Eigenvalues
+cat("\\nEigenvalues of A:\\n")
+print(eigen(A)$values)
 `,
   },
 ]

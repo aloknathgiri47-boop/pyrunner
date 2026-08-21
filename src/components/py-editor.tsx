@@ -5,9 +5,11 @@ import CodeMirror, {
   EditorView,
   type Extension,
 } from '@uiw/react-codemirror'
+import { StreamLanguage } from '@codemirror/language'
 import { python } from '@codemirror/lang-python'
 import { java } from '@codemirror/lang-java'
 import { cpp } from '@codemirror/lang-cpp'
+import { r } from '@codemirror/legacy-modes/mode/r'
 import { oneDark } from '@codemirror/theme-one-dark'
 
 interface PyEditorProps {
@@ -16,7 +18,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r'
 }
 
 const customLightTheme = EditorView.theme(
@@ -107,12 +109,11 @@ export default function PyEditor({
 
   const extensions = useMemo<Extension[]>(() => {
     // For C and C++ we use the cpp() extension.
-    // @codemirror/lang-cpp supports both C and C++ syntax highlighting.
-    // For C++ we pass { cppLanguage: true } to use C++ mode; for C we use
-    // the default (also C++ but with C keywords too).
+    // For R we use the legacy StreamLanguage mode.
     const langExt =
       language === 'java' ? java() :
       language === 'c' || language === 'cpp' ? cpp() :
+      language === 'r' ? StreamLanguage.define(r) :
       python()
     const exts: Extension[] = [
       langExt,

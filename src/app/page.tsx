@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r'
 
 interface PersistedState {
   code: string
@@ -152,6 +152,22 @@ int main() {
 }
 `
 
+const DEFAULT_R_CODE = `# PyRunner — R 4.5 playground
+# Press Run (or Ctrl/Cmd+Enter) to execute.
+
+print("Hello, World!")
+
+# Basic vector operations
+x <- c(1, 2, 3, 4, 5)
+print(paste("Mean:", mean(x)))
+print(paste("Sum:", sum(x)))
+
+# Read from stdin (interactive)
+cat("What's your name? ")
+name <- readLines(file("stdin"), n=1)
+cat("Hello,", name, "!\\n")
+`
+
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
 /* ------------------------------------------------------------------ */
@@ -165,7 +181,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: parsed.language === 'java' || parsed.language === 'c' || parsed.language === 'cpp' ? parsed.language : 'python',
+      language: parsed.language === 'java' || parsed.language === 'c' || parsed.language === 'cpp' || parsed.language === 'r' ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -209,7 +225,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: lang === 'java' || lang === 'c' || lang === 'cpp' ? lang : 'python',
+          language: lang === 'java' || lang === 'c' || lang === 'cpp' || lang === 'r' ? lang : 'python',
         }
       }
     } catch {
@@ -415,6 +431,7 @@ export default function Home() {
           language === 'java' ? 'Write some Java first.' :
           language === 'c' ? 'Write some C first.' :
           language === 'cpp' ? 'Write some C++ first.' :
+          language === 'r' ? 'Write some R first.' :
           'Write some Python first.',
       })
       return
@@ -496,6 +513,7 @@ export default function Home() {
       lang === 'java' ? DEFAULT_JAVA_CODE :
       lang === 'c' ? DEFAULT_C_CODE :
       lang === 'cpp' ? DEFAULT_CPP_CODE :
+      lang === 'r' ? DEFAULT_R_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -535,11 +553,13 @@ export default function Home() {
       language === 'java' ? 'java' :
       language === 'c' ? 'c' :
       language === 'cpp' ? 'cpp' :
+      language === 'r' ? 'R' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
       language === 'c' ? 'text/x-csrc;charset=utf-8' :
       language === 'cpp' ? 'text/x-c++src;charset=utf-8' :
+      language === 'r' ? 'text/x-r;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -621,7 +641,9 @@ export default function Home() {
                         ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
                         : language === 'cpp'
                           ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
-                          : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                          : language === 'r'
+                            ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20'
+                            : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
                   {language === 'java'
@@ -630,7 +652,9 @@ export default function Home() {
                       ? 'C (gcc 14)'
                       : language === 'cpp'
                         ? 'C++ (g++ 14)'
-                        : 'Python 3.12'}
+                        : language === 'r'
+                          ? 'R 4.5'
+                          : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -640,7 +664,9 @@ export default function Home() {
                     ? 'Interactive C console with live stdin'
                     : language === 'cpp'
                       ? 'Interactive C++ console with live stdin'
-                      : 'Interactive Python console with live input()'}
+                      : language === 'r'
+                        ? 'Interactive R console with live stdin'
+                        : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -691,6 +717,17 @@ export default function Home() {
                 }`}
               >
                 C++
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('r')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'r'
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                R
               </button>
             </div>
           </div>
@@ -764,6 +801,23 @@ export default function Home() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {EXAMPLES.filter((ex) => ex.language === 'cpp').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  R examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'r').map((ex) => (
                   <DropdownMenuItem
                     key={ex.id}
                     onSelect={() => handleSelectExample(ex)}
@@ -907,7 +961,9 @@ export default function Home() {
                         ? 'code.c'
                         : language === 'cpp'
                           ? 'code.cpp'
-                          : 'code.py'}
+                          : language === 'r'
+                            ? 'code.R'
+                            : 'code.py'}
                   </span>
                 </div>
                 <div className="flex-1 min-h-0">

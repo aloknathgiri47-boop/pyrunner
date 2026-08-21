@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r'
 }
 
 interface Session {
@@ -706,6 +706,65 @@ ${code}
     return child
   }
 
+  /**
+   * Spawn an R child process for the given code.
+   * - Writes code to snippet_<sessionId>.R
+   * - Runs with Rscript (R --slave --no-restore --file=...)
+   * - Streams stdout/stderr/stdin to the client
+   * Uses the portable R at ~/.local/r/bin/Rscript (Temurin-style portable install).
+   * R needs R_HOME and LD_LIBRARY_PATH set correctly.
+   */
+  async function spawnR(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const rFilePath = join(sandboxDir, `snippet_${sessionId}.R`)
+
+    try {
+      await writeFile(rFilePath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write R file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
+      })
+      return null
+    }
+
+    // Locate the portable R install
+    const home = process.env.HOME || '/home/z'
+    const rscriptPath = join(home, '.local', 'r', 'bin', 'Rscript')
+    const actualRscript = existsSync(rscriptPath) ? rscriptPath : 'Rscript'
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `Running R script...\n`,
+      promptLike: false,
+    })
+
+    // R needs R_HOME and LD_LIBRARY_PATH set correctly.
+    // --slave suppresses the startup banner, --no-restore prevents loading .RData,
+    // --no-save prevents saving .RData on exit.
+    const child = spawn(actualRscript, [rFilePath], {
+      cwd: sandboxDir,
+      env: {
+        ...process.env,
+        R_HOME: join(home, '.local', 'r', 'usr', 'lib', 'R'),
+        LD_LIBRARY_PATH: [
+          join(home, '.local', 'r', 'usr', 'lib', 'R', 'lib'),
+          join(home, '.local', 'r', 'usr', 'lib', 'x86_64-linux-gnu'),
+          '/lib/x86_64-linux-gnu',
+          '/usr/lib/x86_64-linux-gnu',
+          process.env.LD_LIBRARY_PATH || '',
+        ].filter(Boolean).join(':'),
+      } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
 
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
@@ -748,6 +807,8 @@ ${code}
       child = await spawnC(code, sessionId, socket)
     } else if (language === 'cpp') {
       child = await spawnCpp(code, sessionId, socket)
+    } else if (language === 'r') {
+      child = await spawnR(code, sessionId, socket)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }
