@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php'
   stdin?: string
 }
 
@@ -898,6 +898,54 @@ globalThis.confirm = function(message = '') {
     return child
   }
 
+  /**
+   * Spawn a PHP child process for the given code.
+   * - Writes code to snippet_<sessionId>.php
+   * - Runs with php (portable install at ~/.local/php/usr/bin/php)
+   * - Streams stdout/stderr/stdin to the client
+   * PHP supports fgets(STDIN) for interactive stdin, echo/print for output.
+   */
+  async function spawnPHP(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const phpFilePath = join(sandboxDir, `snippet_${sessionId}.php`)
+
+    try {
+      await writeFile(phpFilePath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write PHP file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
+      })
+      return null
+    }
+
+    // Locate the portable PHP install
+    const home = process.env.HOME || '/home/z'
+    const phpPath = join(home, '.local', 'php', 'usr', 'bin', 'php')
+    const actualPhp = existsSync(phpPath) ? phpPath : 'php'
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `Running PHP script...\n`,
+      promptLike: false,
+    })
+
+    // Run with php. -d flags set common defaults.
+    const child = spawn(actualPhp, ['-d', 'error_reporting=E_ALL', phpFilePath], {
+      cwd: sandboxDir,
+      env: {
+        ...process.env,
+      } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
 
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
@@ -944,6 +992,8 @@ globalThis.confirm = function(message = '') {
       child = await spawnR(code, sessionId, socket)
     } else if (language === 'javascript') {
       child = await spawnJavaScript(code, sessionId, socket)
+    } else if (language === 'php') {
+      child = await spawnPHP(code, sessionId, socket)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }

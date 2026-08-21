@@ -10,6 +10,7 @@ import { python } from '@codemirror/lang-python'
 import { java } from '@codemirror/lang-java'
 import { cpp } from '@codemirror/lang-cpp'
 import { javascript } from '@codemirror/lang-javascript'
+import { php as phpLang } from '@codemirror/lang-php'
 import { r } from '@codemirror/legacy-modes/mode/r'
 import { oneDark } from '@codemirror/theme-one-dark'
 
@@ -19,7 +20,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php'
 }
 
 const customLightTheme = EditorView.theme(
@@ -117,6 +118,7 @@ export default function PyEditor({
       language === 'c' || language === 'cpp' ? cpp() :
       language === 'r' ? StreamLanguage.define(r) :
       language === 'javascript' ? javascript() :
+      language === 'php' ? phpLang() :
       python()
     const exts: Extension[] = [
       langExt,

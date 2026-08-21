@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php'
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -1808,6 +1808,190 @@ if (likesPython) {
   alert("Awesome! Keep coding!");
 } else {
   alert("Give it another try!");
+}
+`,
+  },
+  {
+    id: 'php-hello',
+    name: 'PHP: Hello World',
+    description: 'Basic PHP with echo and arrays.',
+    language: 'php',
+    code: `<?php
+// Welcome to PyRunner — PHP 8.4 playground
+// Press Run (or Ctrl/Cmd+Enter) to execute.
+
+echo "Hello, World!\\n";
+
+// Array functions
+$nums = [1, 2, 3, 4, 5];
+echo "Sum: " . array_sum($nums) . "\\n";
+echo "Max: " . max($nums) . "\\n";
+echo "Squared: " . implode(", ", array_map(fn($n) => $n * $n, $nums)) . "\\n";
+
+// Associative array
+$user = ["name" => "Ada", "age" => 36, "city" => "London"];
+echo "\\n" . $user["name"] . " is " . $user["age"] . " years old.\\n";
+
+// String functions
+$str = "Hello, PHP!";
+echo "Uppercase: " . strtoupper($str) . "\\n";
+echo "Length: " . strlen($str) . "\\n";
+echo "Reversed: " . strrev($str) . "\\n";
+`,
+  },
+  {
+    id: 'php-interactive',
+    name: 'PHP: Interactive Input',
+    description: 'Read from stdin with fgets.',
+    language: 'php',
+    code: `<?php
+// This program reads input from stdin.
+// Open "Program Input" below the editor and type
+// your values (one per line) before Run.
+// Example: Alice / 25
+
+echo "What's your name? ";
+$name = trim(fgets(STDIN));
+
+echo "How old are you? ";
+$age = (int)trim(fgets(STDIN));
+
+echo "\\nHello, $name!\\n";
+echo "In 10 years you'll be " . ($age + 10) . ".\\n";
+`,
+  },
+  {
+    id: 'php-classes',
+    name: 'PHP: Classes & OOP',
+    description: 'Modern PHP with classes, traits, interfaces.',
+    language: 'php',
+    code: `<?php
+// Modern PHP 8.4 OOP with classes, interfaces, and traits.
+
+interface Greetable {
+    public function greet(): string;
+}
+
+trait Nameable {
+    public function getName(): string {
+        return $this->name;
+    }
+}
+
+class Person implements Greetable {
+    use Nameable;
+
+    public function __construct(
+        public string $name,
+        public int $age
+    ) {}
+
+    public function greet(): string {
+        return "Hi, I'm {$this->name}!";
+    }
+
+    public function __toString(): string {
+        return "{$this->name} (age {$this->age})";
+    }
+}
+
+class Student extends Person {
+    public function __construct(
+        string $name,
+        int $age,
+        public string $major
+    ) {
+        parent::__construct($name, $age);
+    }
+
+    public function study(): string {
+        return "{$this->name} is studying {$this->major}.";
+    }
+}
+
+// Create instances
+$people = [
+    new Person("Alice", 30),
+    new Student("Bob", 22, "Computer Science"),
+    new Student("Charlie", 19, "Mathematics"),
+];
+
+foreach ($people as $person) {
+    echo $person->greet() . "\\n";
+    echo "  " . $person . "\\n";
+
+    if ($person instanceof Student) {
+        echo "  " . $person->study() . "\\n";
+    }
+    echo "\\n";
+}
+`,
+  },
+  {
+    id: 'php-json',
+    name: 'PHP: JSON & Arrays',
+    description: 'Encode/decode JSON and manipulate arrays.',
+    language: 'php',
+    code: `<?php
+// JSON manipulation in PHP.
+
+// Create an associative array
+$data = [
+    "name" => "Ada Lovelace",
+    "email" => "ada@example.com",
+    "age" => 36,
+    "roles" => ["admin", "user"],
+    "address" => [
+        "street" => "100 Math Street",
+        "city" => "London",
+    ],
+];
+
+// Encode to JSON
+$json = json_encode($data, JSON_PRETTY_PRINT);
+echo "JSON string:\\n$json\\n\\n";
+
+// Decode back to object
+$obj = json_decode($json);
+echo "Name: " . $obj->name . "\\n";
+echo "City: " . $obj->address->city . "\\n";
+echo "Roles: " . implode(", ", $obj->roles) . "\\n\\n";
+
+// Array operations
+$products = [
+    ["name" => "Laptop", "price" => 999],
+    ["name" => "Phone", "price" => 599],
+    ["name" => "Tablet", "price" => 399],
+];
+
+// Sort by price
+usort($products, fn($a, $b) => $a["price"] <=> $b["price"]);
+
+echo "Products sorted by price:\\n";
+foreach ($products as $p) {
+    echo "  " . $p["name"] . ": $" . $p["price"] . "\\n";
+}
+
+// Total price
+$total = array_sum(array_column($products, "price"));
+echo "\\nTotal: $" . $total . "\\n";
+`,
+  },
+  {
+    id: 'php-fizzbuzz',
+    name: 'PHP: FizzBuzz',
+    description: 'Classic FizzBuzz with match expression.',
+    language: 'php',
+    code: `<?php
+// Classic FizzBuzz using PHP 8 match expression.
+
+for ($i = 1; $i <= 30; $i++) {
+    echo match(true) {
+        $i % 15 === 0 => "FizzBuzz",
+        $i % 3 === 0  => "Fizz",
+        $i % 5 === 0  => "Buzz",
+        default        => (string)$i,
+    } . "\\n";
 }
 `,
   },
