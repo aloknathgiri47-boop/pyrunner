@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java'
+  language?: 'python' | 'java' | 'c'
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -753,6 +753,253 @@ public class Broken {
         // Type mismatch
         int x = "hello";
     }
+}
+`,
+  },
+  {
+    id: 'c-hello',
+    name: 'C: Hello World',
+    description: 'Classic first C program with printf.',
+    language: 'c',
+    code: `// Welcome to PyRunner — C (gcc 14) playground.
+// Compiled with: gcc -std=c11 -Wall -O2 -lm
+// Press Run (or Ctrl/Cmd+Enter) to execute.
+
+#include <stdio.h>
+
+int main(void) {
+    printf("Hello, World!\\n");
+    printf("C is running on the server.\\n");
+
+    // Simple loop
+    for (int i = 1; i <= 5; i++) {
+        printf("Count: %d\\n", i);
+    }
+
+    return 0;
+}
+`,
+  },
+  {
+    id: 'c-interactive',
+    name: 'C: Interactive Input',
+    description: 'Read from stdin with scanf.',
+    language: 'c',
+    code: `// This program reads input from the console.
+// When you press Run, the prompt will appear in
+// the console — type your answer and press Enter.
+
+#include <stdio.h>
+
+int main(void) {
+    char name[64];
+    int age;
+
+    printf("What's your name? ");
+    scanf("%63s", name);
+
+    printf("How old are you? ");
+    scanf("%d", &age);
+
+    printf("\\nHello, %s!\\n", name);
+    printf("In 10 years you'll be %d.\\n", age + 10);
+
+    return 0;
+}
+`,
+  },
+  {
+    id: 'c-fizzbuzz',
+    name: 'C: FizzBuzz',
+    description: 'Classic FizzBuzz with printf formatting.',
+    language: 'c',
+    code: `// Classic FizzBuzz problem in C.
+// Print numbers 1 to 30 with Fizz/Buzz/FizzBuzz rules.
+
+#include <stdio.h>
+
+int main(void) {
+    for (int i = 1; i <= 30; i++) {
+        if (i % 15 == 0) {
+            printf("FizzBuzz\\n");
+        } else if (i % 3 == 0) {
+            printf("Fizz\\n");
+        } else if (i % 5 == 0) {
+            printf("Buzz\\n");
+        } else {
+            printf("%d\\n", i);
+        }
+    }
+    return 0;
+}
+`,
+  },
+  {
+    id: 'c-fibonacci',
+    name: 'C: Fibonacci',
+    description: 'Generate Fibonacci numbers with arrays.',
+    language: 'c',
+    code: `// Generate the first 20 Fibonacci numbers.
+// Uses an array for memoization and math.h for the
+// golden ratio approximation.
+
+#include <stdio.h>
+#include <math.h>
+
+int main(void) {
+    int n = 20;
+    long long fib[20];
+    fib[0] = 0;
+    fib[1] = 1;
+
+    printf("First %d Fibonacci numbers:\\n", n);
+    printf("%lld, %lld", fib[0], fib[1]);
+
+    for (int i = 2; i < n; i++) {
+        fib[i] = fib[i - 1] + fib[i - 2];
+        printf(", %lld", fib[i]);
+    }
+    printf("\\n");
+
+    // Golden ratio approximation
+    double ratio = (double)fib[n - 1] / fib[n - 2];
+    printf("\\nApprox golden ratio F(%d)/F(%d): %.10f\\n",
+           n - 1, n - 2, ratio);
+
+    return 0;
+}
+`,
+  },
+  {
+    id: 'c-structs',
+    name: 'C: Structs & Pointers',
+    description: 'Define structs, use pointers, malloc/free.',
+    language: 'c',
+    code: `// Modern C with structs, pointers, and dynamic memory.
+// Demonstrates typedef, malloc, and pointer arithmetic.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    char name[32];
+    int age;
+    float gpa;
+} Student;
+
+void print_student(const Student *s) {
+    printf("  %s — age %d, GPA %.2f\\n", s->name, s->age, s->gpa);
+}
+
+int compare_by_age(const void *a, const void *b) {
+    const Student *sa = (const Student *)a;
+    const Student *sb = (const Student *)b;
+    return sa->age - sb->age;
+}
+
+int main(void) {
+    int count = 4;
+    Student *students = malloc(count * sizeof(Student));
+    if (!students) return 1;
+
+    strcpy(students[0].name, "Alice");    students[0].age = 20; students[0].gpa = 3.8;
+    strcpy(students[1].name, "Bob");      students[1].age = 22; students[1].gpa = 3.2;
+    strcpy(students[2].name, "Charlie");  students[2].age = 19; students[2].gpa = 3.9;
+    strcpy(students[3].name, "Diana");    students[3].age = 21; students[3].gpa = 3.7;
+
+    printf("Students (unsorted):\\n");
+    for (int i = 0; i < count; i++) print_student(&students[i]);
+
+    // Sort by age using qsort
+    qsort(students, count, sizeof(Student), compare_by_age);
+
+    printf("\\nStudents (sorted by age):\\n");
+    for (int i = 0; i < count; i++) print_student(&students[i]);
+
+    // Compute average GPA
+    float sum = 0;
+    for (int i = 0; i < count; i++) sum += students[i].gpa;
+    printf("\\nAverage GPA: %.2f\\n", sum / count);
+
+    free(students);
+    return 0;
+}
+`,
+  },
+  {
+    id: 'c-pointers',
+    name: 'C: Pointers & Arrays',
+    description: 'Pointer arithmetic and array manipulation.',
+    language: 'c',
+    code: `// Demonstrate pointer arithmetic and array passing.
+
+#include <stdio.h>
+
+// Pass array as pointer + length
+int sum_array(const int *arr, int len) {
+    int total = 0;
+    for (int i = 0; i < len; i++) {
+        total += *arr++;  // pointer arithmetic
+    }
+    return total;
+}
+
+// Reverse an array in place using two pointers
+void reverse_array(int *begin, int *end) {
+    while (begin < end) {
+        int tmp = *begin;
+        *begin = *end;
+        *end = tmp;
+        begin++;
+        end--;
+    }
+}
+
+int main(void) {
+    int arr[] = {10, 20, 30, 40, 50, 60, 70, 80};
+    int len = sizeof(arr) / sizeof(arr[0]);
+
+    printf("Original array: ");
+    for (int i = 0; i < len; i++) printf("%d ", arr[i]);
+    printf("\\n");
+
+    printf("Sum: %d\\n", sum_array(arr, len));
+    printf("Average: %.2f\\n", (double)sum_array(arr, len) / len);
+
+    // Reverse using pointers
+    reverse_array(arr, arr + len - 1);
+
+    printf("Reversed array: ");
+    for (int i = 0; i < len; i++) printf("%d ", arr[i]);
+    printf("\\n");
+
+    return 0;
+}
+`,
+  },
+  {
+    id: 'c-error',
+    name: 'C: Compile Error',
+    description: 'See how gcc errors appear in the console.',
+    language: 'c',
+    code: `// This file has deliberate compile errors.
+// The runner will show gcc error messages
+// in the console so you can see the format.
+
+#include <stdio.h>
+
+int main(void) {
+    // Using undeclared variable
+    printf("Value: %d\\n", x);
+
+    // Type mismatch — assigning string to int
+    int y = "hello";
+
+    // Missing semicolon
+    int z = 42
+
+    return 0;
 }
 `,
   },

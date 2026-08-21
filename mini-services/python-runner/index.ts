@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java'
+  language?: 'python' | 'java' | 'c'
 }
 
 interface Session {
@@ -502,6 +502,108 @@ ${code}
     return child
   }
 
+  /**
+   * Spawn a C child process for the given code.
+   * - Writes code to snippet_<sessionId>.c
+   * - Compiles with gcc -std=c11 -Wall -o <binary>
+   * - If compilation succeeds, runs the binary
+   * - Streams compile errors (stderr) and runtime output to the client
+   * Returns the ChildProcess (the binary run), or null on compile error.
+   */
+  async function spawnC(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const cFilePath = join(sandboxDir, `snippet_${sessionId}.c`)
+    const binaryPath = join(sandboxDir, `snippet_${sessionId}.bin`)
+
+    try {
+      await writeFile(cFilePath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write C file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
+      })
+      return null
+    }
+
+    // Compile step
+    socket.emit('output', {
+      stream: 'system',
+      data: `Compiling snippet.c with gcc...\n`,
+      promptLike: false,
+    })
+
+    const compileResult = await new Promise<{ ok: boolean; stderr: string; stdout: string }>((resolve) => {
+      const gcc = spawn('gcc', [
+        '-std=c11',     // Modern C standard
+        '-Wall',        // All warnings
+        '-Wno-unused',  // But don't nag about unused vars in examples
+        '-O2',          // Basic optimization
+        '-o', binaryPath,
+        cFilePath,
+        '-lm',          // Math library (for sqrt, sin, etc.)
+      ], {
+        cwd: sandboxDir,
+        env: process.env as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+
+      let stderr = ''
+      let stdout = ''
+      gcc.stdout?.on('data', (c: Buffer) => { stdout += c.toString('utf8') })
+      gcc.stderr?.on('data', (c: Buffer) => { stderr += c.toString('utf8') })
+      gcc.on('error', (err) => {
+        resolve({ ok: false, stderr: `Failed to spawn gcc: ${err.message}\nIs gcc installed?\n`, stdout })
+      })
+      gcc.on('close', (code) => {
+        resolve({ ok: code === 0, stderr, stdout })
+      })
+      gcc.stdin?.end()
+    })
+
+    if (!compileResult.ok) {
+      const strippedStderr = compileResult.stderr.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+      if (strippedStderr) {
+        socket.emit('output', {
+          stream: 'stderr',
+          data: strippedStderr,
+          promptLike: false,
+        })
+      }
+      socket.emit('output', {
+        stream: 'system',
+        data: `\nCompilation failed.\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: 1, signal: null, timedOut: false, durationMs: 0,
+      })
+      return null
+    }
+
+    // Compilation succeeded — run the binary
+    socket.emit('output', {
+      stream: 'system',
+      data: `Compiled. Running binary...\n`,
+      promptLike: false,
+    })
+
+    // Use stdbuf -oL to make stdout line-buffered so printf output appears
+    // immediately in the console (not buffered until 4KB or program exit).
+    // This is critical for interactive programs that block on scanf().
+    const child = spawn('stdbuf', ['-oL', binaryPath], {
+      cwd: sandboxDir,
+      env: process.env as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
 
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
@@ -535,11 +637,13 @@ ${code}
     }
 
     const sessionId = randomUUID()
-    // For Python we spawn directly. For Java we compile first, then spawn.
+    // For Python we spawn directly. For Java/C we compile first, then spawn.
     let child: ChildProcess
 
     if (language === 'java') {
       child = await spawnJava(code, sessionId, socket)
+    } else if (language === 'c') {
+      child = await spawnC(code, sessionId, socket)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }

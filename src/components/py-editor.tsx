@@ -7,6 +7,7 @@ import CodeMirror, {
 } from '@uiw/react-codemirror'
 import { python } from '@codemirror/lang-python'
 import { java } from '@codemirror/lang-java'
+import { cpp } from '@codemirror/lang-cpp'
 import { oneDark } from '@codemirror/theme-one-dark'
 
 interface PyEditorProps {
@@ -15,7 +16,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java'
+  language?: 'python' | 'java' | 'c'
 }
 
 const customLightTheme = EditorView.theme(
@@ -105,7 +106,12 @@ export default function PyEditor({
   }, [onRun])
 
   const extensions = useMemo<Extension[]>(() => {
-    const langExt = language === 'java' ? java() : python()
+    // For C we use the cpp() extension with C language detection.
+    // @codemirror/lang-cpp supports both C and C++ based on file type.
+    const langExt =
+      language === 'java' ? java() :
+      language === 'c' ? cpp() :
+      python()
     const exts: Extension[] = [
       langExt,
       EditorView.lineWrapping,
