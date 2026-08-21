@@ -1331,21 +1331,20 @@ print(paste("1:10:", paste(1:10, collapse=", ")))
   {
     id: 'r-interactive',
     name: 'R: Interactive Input',
-    description: 'Read from stdin with readLines.',
+    description: 'Read from stdin with readline().',
     language: 'r',
-    code: `# This program reads input from the console.
-# When you press Run, the prompt will appear in
-# the console — type your answer and press Enter.
+    code: `# This program reads input using readline().
+# Open the "Program Input" panel below the editor
+# and type your input values (one per line) before Run.
+# Example input:
+#   Arun
+#   20
 
-cat("What's your name? ")
-name <- readLines(file("stdin"), n=1)
+name <- readline("Enter your name: ")
+age <- as.integer(readline("Enter your age: "))
 
-cat("How old are you? ")
-age <- as.integer(readLines(file("stdin"), n=1))
-
-cat("\\n")
-cat("Hello,", name, "!\\n")
-cat("In 10 years you'll be", age + 10, ".\\n")
+cat("Name:", name, "\\n")
+cat("Age:", age, "\\n")
 `,
   },
   {

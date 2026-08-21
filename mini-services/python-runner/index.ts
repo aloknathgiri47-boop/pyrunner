@@ -27,6 +27,7 @@ interface RunPayload {
   code: string
   timeout?: number
   language?: 'python' | 'java' | 'c' | 'cpp' | 'r'
+  stdin?: string
 }
 
 interface Session {
@@ -353,10 +354,18 @@ ${code}
       return null
     }
 
-    const child = spawn('python3', ['-u', '-B', scriptPath], {
+    // Use the venv python3 (which has matplotlib, pandas, numpy, etc. installed)
+    // The runner's PATH might not include /home/z/.venv/bin, so use the full path.
+    const home = process.env.HOME || '/home/z'
+    const venvPython = join(home, '.venv', 'bin', 'python3')
+    const pythonBin = existsSync(venvPython) ? venvPython : 'python3'
+
+    const child = spawn(pythonBin, ['-u', '-B', scriptPath], {
       cwd: sandboxDir,
       env: {
         ...process.env,
+        // Make sure the venv bin is in PATH so subprocesses can find python tools
+        PATH: join(home, '.venv', 'bin') + ':' + (process.env.PATH || ''),
         PYTHONUNBUFFERED: '1',
         PYTHONDONTWRITEBYTECODE: '1',
         PYTHONIOENCODING: 'utf-8',
@@ -717,8 +726,28 @@ ${code}
   async function spawnR(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
     const rFilePath = join(sandboxDir, `snippet_${sessionId}.R`)
 
+    // R preamble: override readline() to use a persistent stdin connection.
+    // R's built-in readline() uses R_ReadConsole which only works with terminals,
+    // NOT with piped stdin. By overriding readline() to use readLines() on a
+    // persistent file("stdin") connection, we make it work with pre-piped input.
+    const rPreamble = `# --- PyRunner preamble: make readline() work with piped stdin ---
+.pyrunner_stdin_con <- file("stdin")
+open(.pyrunner_stdin_con)
+readline <- function(prompt = "") {
+  cat(prompt)
+  flush.console()
+  lines <- readLines(.pyrunner_stdin_con, n = 1)
+  return(if (length(lines) > 0) lines[1] else "")
+}
+# --- End preamble ---
+
+`
+
+    // Wrap user code with the preamble
+    const wrappedCode = rPreamble + code
+
     try {
-      await writeFile(rFilePath, code, { encoding: 'utf8', mode: 0o600 })
+      await writeFile(rFilePath, wrappedCode, { encoding: 'utf8', mode: 0o600 })
     } catch (e) {
       socket.emit('output', {
         stream: 'stderr',
@@ -830,6 +859,23 @@ ${code}
 
     sessions.set(socket.id, session)
     setupSession(socket.id, session, socket)
+
+    // If pre-piped stdin was provided, write it to the child's stdin now.
+    // This is the "Program Input" feature: user types input values upfront
+    // (one per line) and they're fed to the program's stdin immediately.
+    // Works with: Python input(), Java Scanner, C scanf, C++ cin/getline,
+    // R readline() (via our preamble override), readLines(file("stdin")).
+    if (typeof payload.stdin === 'string' && payload.stdin.length > 0) {
+      try {
+        child.stdin?.write(payload.stdin)
+        // If the stdin doesn't end with a newline, add one
+        if (!payload.stdin.endsWith('\n')) {
+          child.stdin?.write('\n')
+        }
+      } catch {
+        /* stdin might be closed already */
+      }
+    }
 
     // Timeout watchdog
     session.timer = setTimeout(() => {

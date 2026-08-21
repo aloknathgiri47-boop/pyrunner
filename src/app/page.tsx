@@ -154,6 +154,8 @@ int main() {
 
 const DEFAULT_R_CODE = `# PyRunner — R 4.5 playground
 # Press Run (or Ctrl/Cmd+Enter) to execute.
+# For interactive input: open "Program Input" below the editor
+# and type your input values (one per line) before Run.
 
 print("Hello, World!")
 
@@ -162,9 +164,9 @@ x <- c(1, 2, 3, 4, 5)
 print(paste("Mean:", mean(x)))
 print(paste("Sum:", sum(x)))
 
-# Read from stdin (interactive)
-cat("What's your name? ")
-name <- readLines(file("stdin"), n=1)
+# Read from stdin using readline()
+# (works with the Program Input panel)
+name <- readline("What's your name? ")
 cat("Hello,", name, "!\\n")
 `
 
@@ -257,6 +259,8 @@ export default function Home() {
   const [shared, setShared] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [awaitingInput, setAwaitingInput] = useState(false)
+  const [stdinText, setStdinText] = useState('')
+  const [showStdin, setShowStdin] = useState(false)
 
   const socketRef = useRef<Socket | null>(null)
   const chunkIdRef = useRef(0)
@@ -444,7 +448,7 @@ export default function Home() {
     chunkIdRef.current = 0
 
     const sock = ensureSocket()
-    const emitRun = () => sock.emit('run', { code, language, timeout: 15000 })
+    const emitRun = () => sock.emit('run', { code, language, timeout: 15000, stdin: stdinText })
     if (sock.connected) {
       emitRun()
     } else {
@@ -463,7 +467,7 @@ export default function Home() {
         }
       }, 10000)
     }
-  }, [code, language, ensureSocket])
+  }, [code, language, stdinText, ensureSocket])
 
   // ---- Submit input line ----
   const handleSubmitInput = useCallback(() => {
@@ -965,6 +969,25 @@ export default function Home() {
                             ? 'code.R'
                             : 'code.py'}
                   </span>
+                  <div className="flex-1" />
+                  <button
+                    type="button"
+                    onClick={() => setShowStdin(!showStdin)}
+                    className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded transition-colors ${
+                      showStdin
+                        ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    }`}
+                    title="Toggle Program Input panel"
+                  >
+                    <Terminal className="h-3 w-3" />
+                    Program Input
+                    {stdinText.trim() && (
+                      <span className="bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-[9px] px-1 rounded">
+                        {stdinText.split('\n').filter(l => l.trim()).length}
+                      </span>
+                    )}
+                  </button>
                 </div>
                 <div className="flex-1 min-h-0">
                   <PyEditor
@@ -975,6 +998,37 @@ export default function Home() {
                     language={language}
                   />
                 </div>
+                {/* Program Input panel (collapsible) */}
+                {showStdin && (
+                  <div className="flex-none border-t border-border bg-muted/20">
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/10">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                        Program Input (stdin) — one value per line
+                      </span>
+                      {stdinText && (
+                        <button
+                          type="button"
+                          onClick={() => setStdinText('')}
+                          className="text-[10px] text-muted-foreground hover:text-foreground"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={stdinText}
+                      onChange={(e) => setStdinText(e.target.value)}
+                      placeholder="Type input values here, one per line.&#10;Example:&#10;Arun&#10;20"
+                      spellCheck={false}
+                      className="w-full h-24 resize-none bg-background font-mono text-[13px] leading-relaxed px-3 py-2 outline-none placeholder:text-muted-foreground/50"
+                      style={{
+                        fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
+                        whiteSpace: 'pre-wrap',
+                        overflowWrap: 'break-word',
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             </Panel>
 
