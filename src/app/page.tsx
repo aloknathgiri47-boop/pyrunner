@@ -248,33 +248,39 @@ void main() {
 }
 `
 
-const DEFAULT_FLUTTER_CODE = `// PyRunner - Flutter 3.47 playground
-// Write Flutter widget code and press Run.
-// The code runs as a headless widget test.
+const DEFAULT_FLUTTER_CODE = `import 'package:flutter/material.dart';
 
-// Build your widget and pump it into the tester
-await tester.pumpWidget(
-  MaterialApp(
-    home: Scaffold(
-      appBar: AppBar(title: Text('My Flutter App')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('Hello from Flutter!',
-              style: TextStyle(fontSize: 24)),
-            SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {},
-              child: Text('Click me'),
-            ),
-          ],
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(title: const Text('My Flutter App')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Hello from Flutter!',
+                style: TextStyle(fontSize: 24)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {},
+                child: const Text('Click me'),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  ),
-);
-`
+    );
+  }
+}`
+
 
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
@@ -555,7 +561,7 @@ export default function Home() {
     chunkIdRef.current = 0
 
     const sock = ensureSocket()
-    const emitRun = () => sock.emit('run', { code, language, timeout: 30000, stdin: stdinText })
+    const emitRun = () => sock.emit('run', { code, language, timeout: language === 'flutter' ? 120000 : 30000, stdin: stdinText })
     if (sock.connected) {
       emitRun()
     } else {

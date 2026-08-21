@@ -10,7 +10,7 @@ import { randomUUID } from 'crypto'
 
 const PORT = 3003
 const MAX_OUTPUT_BYTES = 1_000_000 // 1 MB per stream
-const MAX_TIMEOUT_MS = 60_000
+const MAX_TIMEOUT_MS = 120_000
 const DEFAULT_TIMEOUT_MS = 30_000
 
 // Resolve the directory of this module so we can locate preamble.py
@@ -1205,21 +1205,19 @@ if (!function_exists('readline')) {
   }
 
   /**
-   * Spawn a Flutter test child process.
-   * - Three modes:
-   *   1. User wrote testWidgets() — run as-is
-   *   2. User wrote a full Flutter app (main + runApp + classes) — extract app, create test
-   *   3. User wrote widget code (pumpWidget etc.) — wrap in testWidgets
-   * - Runs in the pre-warmed Flutter test project
-   * - Uses `flutter test` which runs headlessly (no display needed)
+   * Spawn a Flutter web app.
+   * - Writes user code to lib/main.dart in the Flutter web project
+   * - Runs `flutter build web --release` to compile to HTML/JS
+   * - Serves the built app on a random port (8000-8999)
+   * - Emits a 'server' event so the frontend opens it in a preview panel
+   * - The user can interact with the rendered Flutter app (TextFields, buttons, etc.)
+   * - Console shows build logs; the actual UI renders in the preview iframe
    */
   async function spawnFlutter(code: string, sessionId: string, socket: any, stdin?: string): Promise<ChildProcess | null> {
     const home = process.env.HOME || '/home/z'
     const flutterProjectDir = '/tmp/py-compiler/flutter_project'
-    const testDir = join(flutterProjectDir, 'test')
     const libDir = join(flutterProjectDir, 'lib')
-    const testFilePath = join(testDir, `user_${sessionId}_test.dart`)
-    const appFilePath = join(libDir, `user_${sessionId}_app.dart`)
+    const mainDartPath = join(libDir, 'main.dart')
 
     // Ensure the Flutter project exists
     if (!existsSync(join(flutterProjectDir, 'pubspec.yaml'))) {
@@ -1239,188 +1237,94 @@ if (!function_exists('readline')) {
       await mkdir(libDir, { recursive: true }).catch(() => {})
     }
 
-    const flutterBin = join(home, '.local', 'flutter', 'bin', 'flutter')
-    const actualFlutter = existsSync(flutterBin) ? flutterBin : 'flutter'
+    // Ensure web directory exists (flutter create --platforms web)
+    const webDir = join(flutterProjectDir, 'web')
+    if (!existsSync(join(webDir, 'index.html'))) {
+      // Create web directory if it doesn't exist
+      if (!existsSync(webDir)) {
+        await mkdir(webDir, { recursive: true }).catch(() => {})
+      }
+      // Create index.html for Flutter web
+      const indexHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <base href="/"></base>
+  <title>Flutter App</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+  <script src="flutter.js" defer></script>
+</body>
+</html>`
+      await writeFile(join(webDir, 'index.html'), indexHtml).catch(() => {})
+    }
 
-    // Determine the mode based on user's code
-    const hasTestWidgets = code.includes('testWidgets') || code.includes('test(')
-    const hasRunApp = code.includes('runApp(') || code.includes('runApp (')
-    const hasMain = code.includes('void main(') || code.includes('main() {') || code.includes('main() {')
-
-    let testCode: string
-    let needsAppFile = false
-
-    if (hasTestWidgets) {
-      // Mode 1: User wrote their own testWidgets — run as-is
-      testCode = `import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
+    // Write user's code to lib/main.dart
+    // If the code doesn't have void main(), wrap it in a simple app
+    let mainDart: string
+    if (code.includes('void main(') || code.includes('runApp(')) {
+      // User wrote a full Flutter app — use as-is
+      mainDart = code
+    } else if (code.includes('testWidgets') || code.includes('test(')) {
+      // User wrote test code — convert to a simple app that shows the test result
+      mainDart = `import 'package:flutter/material.dart';
 
 ${code}
-`
-    } else if (hasRunApp || hasMain || code.includes('class ')) {
-      // Mode 2: Full Flutter app (has runApp, main, or class definitions)
-      // Write the user's code as a library file, then create a test that imports it
-      needsAppFile = true
-
-      // Strip the user's import statements (we'll add our own)
-      // and strip void main() { runApp(...) } (we'll pump the widget ourselves)
-      let appCode = code
-      // Remove import lines
-      appCode = appCode.replace(/^import\s+['"][^'"]+['"];?\s*$/gm, '')
-      // Remove void main() { runApp(...) } block
-      appCode = appCode.replace(/void\s+main\s*\([^)]*\)\s*\{[^}]*runApp\s*\([^)]*\)[^}]*\}/g, '')
-      // Remove "main() { runApp(...) }" without void
-      appCode = appCode.replace(/main\s*\(\s*\)\s*\{[^}]*runApp\s*\([^)]*\)[^}]*\}/g, '')
-
-      // Try to find the root widget class name from runApp()
-      let rootWidget = 'MaterialApp'
-      const runAppMatch = code.match(/runApp\s*\(\s*(?:const\s+)?(\w+)/)
-      if (runAppMatch) {
-        rootWidget = runAppMatch[1]
-      }
-
-      // Write the app code to lib/
-      const fullAppCode = `import 'package:flutter/material.dart';
-
-${appCode}
-`
-      try {
-        await writeFile(appFilePath, fullAppCode, { encoding: 'utf8', mode: 0o600 })
-      } catch (e) {
-        socket.emit('output', {
-          stream: 'stderr',
-          data: `Failed to write app file: ${(e as Error).message}\n`,
-          promptLike: false,
-        })
-        socket.emit('exit', {
-          code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
-        })
-        return null
-      }
-
-      // Create test file that imports the app and pumps it.
-      // The test also:
-      // 1. Enters text into TextFields (from Program Input, embedded as list)
-      // 2. Taps all buttons to trigger actions
-      // 3. Dumps all Text widgets after interaction
-      //
-      // NOTE: Flutter test subprocess doesn't inherit stdin, so we embed
-      // the input values as a Dart list literal in the test source code.
-      const stdinLines = (typeof stdin === 'string' && stdin.length > 0)
-        ? stdin.split('\n').filter((l: string) => l.length > 0)
-        : [] as string[]
-      // Build a Dart list literal: ['Arun', '20', 'Delhi', ...]
-      const inputListLiteral = stdinLines.map((l: string) => `'${l.replace(/'/g, "\\'")}'`).join(', ')
-      testCode = `import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-import '../lib/user_${sessionId}_app.dart';
 
 void main() {
-  testWidgets('User Flutter App', (WidgetTester tester) async {
-    await tester.pumpWidget(${rootWidget}());
-    await tester.pumpAndSettle();
+  runApp(MaterialApp(
+    home: Scaffold(
+      appBar: AppBar(title: Text('Flutter Test')),
+      body: Center(child: Text('Test code detected. Use full app mode for UI.')),
+    ),
+  ));
+}
+`
+    } else if (code.includes('class ') && code.includes('Widget build')) {
+      // User wrote widget classes but no main — wrap in a simple app
+      mainDart = `import 'package:flutter/material.dart';
 
-    print('Flutter app rendered successfully!');
-    print('Root widget: ${rootWidget}');
+${code}
 
-    // Input values from Program Input panel (embedded at compile time)
-    final inputs = <String>[${inputListLiteral}];
-    int inputIdx = 0;
+void main() {
+  runApp(const MaterialApp(home: MyApp()));
+}
 
-    // --- Enter text into TextFields ---
-    final textFields = find.byType(TextField);
-    final fieldCount = textFields.evaluate().length;
-    if (fieldCount > 0) {
-      print('TextFields found: ' + fieldCount.toString());
-      for (int i = 0; i < fieldCount; i++) {
-        String inputVal = '';
-        if (inputIdx < inputs.length) {
-          inputVal = inputs[inputIdx];
-          inputIdx++;
-        }
-        if (inputVal.isNotEmpty) {
-          await tester.enterText(textFields.at(i), inputVal);
-          await tester.pump();
-          try {
-            final tf = tester.widget<TextField>(textFields.at(i));
-            final label = tf.decoration?.labelText;
-            print('  Field[' + i.toString() + '] ' + (label ?? '') + ': ' + inputVal);
-          } catch (e) {
-            print('  Field[' + i.toString() + ']: ' + inputVal);
-          }
-        } else {
-          print('  Field[' + i.toString() + ']: (no input)');
-        }
-      }
-      await tester.pumpAndSettle();
-    }
-
-    // --- Tap all buttons ---
-    final buttons = find.byType(ElevatedButton);
-    final btnCount = buttons.evaluate().length;
-    if (btnCount > 0) {
-      print('Buttons found: ' + btnCount.toString());
-      for (int i = 0; i < btnCount; i++) {
-        try {
-          final btn = tester.widget<ElevatedButton>(buttons.at(i));
-          if (btn.onPressed != null) {
-            await tester.tap(buttons.at(i));
-            await tester.pumpAndSettle();
-            print('  Button[' + i.toString() + '] tapped!');
-          } else {
-            print('  Button[' + i.toString() + '] disabled, skipping');
-          }
-        } catch (e) {
-          print('  Button[' + i.toString() + '] tap failed');
-        }
-      }
-    }
-
-    // --- Dump all Text widgets after interaction ---
-    print('');
-    print('=== App Output ===');
-    final textWidgets = find.byType(Text);
-    final count = textWidgets.evaluate().length;
-    for (int i = 0; i < count; i++) {
-      try {
-        final text = tester.widget<Text>(textWidgets.at(i));
-        if (text.data != null && text.data!.isNotEmpty) {
-          print(text.data!);
-        }
-      } catch (e) {
-        // skip
-      }
-    }
-    print('=== End ===');
-  });
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Flutter App')),
+      body: const Center(child: Text('App loaded')),
+    );
+  }
 }
 `
     } else {
-      // Mode 3: Widget code (pumpWidget etc.) — wrap in testWidgets
-      testCode = `import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
+      // Assume it's widget code that should be wrapped
+      mainDart = `import 'package:flutter/material.dart';
 
 void main() {
-  testWidgets('User Flutter App', (WidgetTester tester) async {
-    // --- User code starts ---
-${code}
-    // --- User code ends ---
-
-    await tester.pumpAndSettle();
-    print('Flutter app rendered successfully!');
-  });
+  runApp(MaterialApp(
+    home: Scaffold(
+      appBar: AppBar(title: const Text('Flutter App')),
+      body: Builder(builder: (context) {
+        ${code}
+      }),
+    ),
+  ));
 }
 `
     }
 
-    // Write the test file
     try {
-      await writeFile(testFilePath, testCode, { encoding: 'utf8', mode: 0o600 })
+      await writeFile(mainDartPath, mainDart, { encoding: 'utf8', mode: 0o600 })
     } catch (e) {
       socket.emit('output', {
         stream: 'stderr',
-        data: `Failed to write Flutter test file: ${(e as Error).message}\n`,
+        data: `Failed to write main.dart: ${(e as Error).message}\n`,
         promptLike: false,
       })
       socket.emit('exit', {
@@ -1429,23 +1333,97 @@ ${code}
       return null
     }
 
+    const flutterBin = join(home, '.local', 'flutter', 'bin', 'flutter')
+    const actualFlutter = existsSync(flutterBin) ? flutterBin : 'flutter'
+    const flutterPath = join(home, '.local', 'flutter', 'bin')
+
     socket.emit('output', {
       stream: 'system',
-      data: `Running Flutter test...\n`,
+      data: `Building Flutter web app...\n`,
       promptLike: false,
     })
 
-    // Run flutter test in the project directory
-    const child = spawn(actualFlutter, ['test', testFilePath, '--no-pub'], {
-      cwd: flutterProjectDir,
-      env: {
-        ...process.env,
-        PATH: join(home, '.local', 'flutter', 'bin') + ':' + (process.env.PATH || ''),
-      } as NodeJS.ProcessEnv,
+    // Build the web app
+    const buildResult = await new Promise<{ ok: boolean; stderr: string; stdout: string }>((resolve) => {
+      const build = spawn(actualFlutter, [
+        'build', 'web', '--release', '--no-wasm-dry-run', '--no-pub',
+      ], {
+        cwd: flutterProjectDir,
+        env: {
+          ...process.env,
+          PATH: flutterPath + ':' + (process.env.PATH || ''),
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+
+      let stderr = ''
+      let stdout = ''
+      build.stdout?.on('data', (c: Buffer) => {
+        const text = c.toString('utf8')
+        stdout += text
+        // Stream build progress to console
+        socket.emit('output', { stream: 'stdout', data: text, promptLike: false })
+      })
+      build.stderr?.on('data', (c: Buffer) => {
+        const text = c.toString('utf8')
+        stderr += text
+        socket.emit('output', { stream: 'stderr', data: text, promptLike: false })
+      })
+      build.on('error', (err) => {
+        resolve({ ok: false, stderr: `Failed to run flutter build: ${err.message}\n`, stdout })
+      })
+      build.on('close', (code) => {
+        resolve({ ok: code === 0, stderr, stdout })
+      })
+      build.stdin?.end()
+    })
+
+    if (!buildResult.ok) {
+      socket.emit('output', {
+        stream: 'system',
+        data: `\nBuild failed.\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: 1, signal: null, timedOut: false, durationMs: 0,
+      })
+      return null
+    }
+
+    // Find a free port for serving (8000-8999 range)
+    const net = await import('net')
+    const findFreePort = (): Promise<number> => {
+      return new Promise((resolve) => {
+        const server = net.createServer()
+        server.listen(0, '127.0.0.1', () => {
+          const port = (server.address() as any).port
+          server.close(() => resolve(port))
+        })
+      })
+    }
+    const servePort = await findFreePort()
+
+    // Serve the built web app using Python's http.server
+    const webBuildDir = join(flutterProjectDir, 'build', 'web')
+    socket.emit('output', {
+      stream: 'system',
+      data: `Flutter app built successfully! Serving on port ${servePort}...\n`,
+      promptLike: false,
+    })
+
+    // Emit server event so frontend opens the preview
+    socket.emit('server', { port: servePort, host: '127.0.0.1' })
+
+    // Start serving with python3 -m http.server
+    const child = spawn('python3', ['-m', 'http.server', servePort.toString(), '--directory', webBuildDir], {
+      cwd: webBuildDir,
+      env: { ...process.env } as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     })
 
+    // The server runs until killed (user clicks Stop or timeout)
     return child
   }
 
