@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript'
 
 interface PersistedState {
   code: string
@@ -170,6 +170,26 @@ name <- readline("What's your name? ")
 cat("Hello,", name, "!\\n")
 `
 
+const DEFAULT_JS_CODE = `// PyRunner — JavaScript (Node.js 24) playground
+// Press Run (or Ctrl/Cmd+Enter) to execute.
+// Supports both CommonJS (require) and ES modules (import).
+
+console.log("Hello, World!");
+
+// Array methods
+const nums = [1, 2, 3, 4, 5];
+console.log("Sum:", nums.reduce((a, b) => a + b, 0));
+console.log("Squared:", nums.map(n => n ** 2));
+
+// Read from stdin using readline (works with Program Input)
+const readline = require('readline');
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+rl.question("What's your name? ", (name) => {
+  console.log("Nice to meet you, " + name + "!");
+  rl.close();
+});
+`
+
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
 /* ------------------------------------------------------------------ */
@@ -183,7 +203,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: parsed.language === 'java' || parsed.language === 'c' || parsed.language === 'cpp' || parsed.language === 'r' ? parsed.language : 'python',
+      language: parsed.language === 'java' || parsed.language === 'c' || parsed.language === 'cpp' || parsed.language === 'r' || parsed.language === 'javascript' ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -227,7 +247,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: lang === 'java' || lang === 'c' || lang === 'cpp' || lang === 'r' ? lang : 'python',
+          language: lang === 'java' || lang === 'c' || lang === 'cpp' || lang === 'r' || lang === 'javascript' ? lang : 'python',
         }
       }
     } catch {
@@ -436,6 +456,7 @@ export default function Home() {
           language === 'c' ? 'Write some C first.' :
           language === 'cpp' ? 'Write some C++ first.' :
           language === 'r' ? 'Write some R first.' :
+          language === 'javascript' ? 'Write some JavaScript first.' :
           'Write some Python first.',
       })
       return
@@ -518,6 +539,7 @@ export default function Home() {
       lang === 'c' ? DEFAULT_C_CODE :
       lang === 'cpp' ? DEFAULT_CPP_CODE :
       lang === 'r' ? DEFAULT_R_CODE :
+      lang === 'javascript' ? DEFAULT_JS_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -558,12 +580,14 @@ export default function Home() {
       language === 'c' ? 'c' :
       language === 'cpp' ? 'cpp' :
       language === 'r' ? 'R' :
+      language === 'javascript' ? 'js' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
       language === 'c' ? 'text/x-csrc;charset=utf-8' :
       language === 'cpp' ? 'text/x-c++src;charset=utf-8' :
       language === 'r' ? 'text/x-r;charset=utf-8' :
+      language === 'javascript' ? 'text/javascript;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -647,7 +671,9 @@ export default function Home() {
                           ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
                           : language === 'r'
                             ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20'
-                            : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                            : language === 'javascript'
+                              ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20'
+                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
                   {language === 'java'
@@ -658,7 +684,9 @@ export default function Home() {
                         ? 'C++ (g++ 14)'
                         : language === 'r'
                           ? 'R 4.5'
-                          : 'Python 3.12'}
+                          : language === 'javascript'
+                            ? 'Node.js 24'
+                            : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -670,7 +698,9 @@ export default function Home() {
                       ? 'Interactive C++ console with live stdin'
                       : language === 'r'
                         ? 'Interactive R console with live stdin'
-                        : 'Interactive Python console with live input()'}
+                        : language === 'javascript'
+                          ? 'Interactive JavaScript console with live stdin'
+                          : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -732,6 +762,17 @@ export default function Home() {
                 }`}
               >
                 R
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('javascript')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'javascript'
+                    ? 'bg-yellow-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                JS
               </button>
             </div>
           </div>
@@ -822,6 +863,23 @@ export default function Home() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {EXAMPLES.filter((ex) => ex.language === 'r').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  JavaScript examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'javascript').map((ex) => (
                   <DropdownMenuItem
                     key={ex.id}
                     onSelect={() => handleSelectExample(ex)}
@@ -967,7 +1025,9 @@ export default function Home() {
                           ? 'code.cpp'
                           : language === 'r'
                             ? 'code.R'
-                            : 'code.py'}
+                            : language === 'javascript'
+                              ? 'code.js'
+                              : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button

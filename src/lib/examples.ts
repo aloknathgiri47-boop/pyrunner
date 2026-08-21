@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript'
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -1465,6 +1465,320 @@ cat("Column means (apply):", apply(A, 2, mean), "\\n")
 # Eigenvalues
 cat("\\nEigenvalues of A:\\n")
 print(eigen(A)$values)
+`,
+  },
+  {
+    id: 'js-hello',
+    name: 'JS: Hello World',
+    description: 'Basic JavaScript with console.log and arrays.',
+    language: 'javascript',
+    code: `// Welcome to PyRunner — JavaScript (Node.js 24) playground
+// Press Run (or Ctrl/Cmd+Enter) to execute.
+
+console.log("Hello, World!");
+
+// Array methods — functional programming style
+const nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+console.log("Original:", nums);
+console.log("Sum:", nums.reduce((a, b) => a + b, 0));
+console.log("Evens:", nums.filter(n => n % 2 === 0));
+console.log("Squared:", nums.map(n => n ** 2));
+console.log("Max:", Math.max(...nums));
+console.log("Min:", Math.min(...nums));
+
+// String methods
+const names = ["alice", "bob", "charlie"];
+console.log("\\nUppercase:", names.map(n => n.toUpperCase()));
+console.log("Joined:", names.join(", "));
+console.log("Sorted:", [...names].sort());
+
+// Object destructuring
+const user = { name: "Ada", age: 36, city: "London" };
+const { name, age, city } = user;
+console.log("\\n" + name + " is " + age + " years old, lives in " + city);
+`,
+  },
+  {
+    id: 'js-interactive',
+    name: 'JS: Interactive Input',
+    description: 'Read from stdin with readline.',
+    language: 'javascript',
+    code: `// This program reads input from the console.
+// Open the "Program Input" panel below the editor
+// and type your input values (one per line) before Run.
+// Example input:
+//   Alice
+//   30
+
+const readline = require('readline');
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+rl.question("What's your name? ", (name) => {
+  rl.question("How old are you? ", (ageStr) => {
+    const age = parseInt(ageStr, 10);
+    console.log("\\nHello, " + name + "!");
+    console.log("In 10 years you'll be " + (age + 10) + ".");
+    rl.close();
+  });
+});
+`,
+  },
+  {
+    id: 'js-async',
+    name: 'JS: Async/Await',
+    description: 'Promises, async/await, and timers.',
+    language: 'javascript',
+    code: `// Modern JavaScript with async/await and Promises.
+// Demonstrates async programming patterns.
+
+// Simulate an async API call
+function fetchUser(id) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({ id, name: "User " + id, email: "user" + id + "@example.com" });
+    }, 100);
+  });
+}
+
+function fetchPosts(userId) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve([
+        { id: 1, title: "First post by " + userId },
+        { id: 2, title: "Second post by " + userId },
+      ]);
+    }, 100);
+  });
+}
+
+// Using async/await
+async function main() {
+  console.log("Fetching user...");
+  const user = await fetchUser(42);
+  console.log("Got user:", user);
+
+  console.log("\\nFetching posts...");
+  const posts = await fetchPosts(user.id);
+  console.log("Got " + posts.length + " posts:");
+  posts.forEach(p => console.log("  - " + p.title));
+
+  // Promise.all — parallel execution
+  console.log("\\nFetching 3 users in parallel...");
+  const users = await Promise.all([fetchUser(1), fetchUser(2), fetchUser(3)]);
+  users.forEach(u => console.log("  - " + u.name + " (" + u.email + ")"));
+
+  console.log("\\nDone!");
+}
+
+main().catch(console.error);
+`,
+  },
+  {
+    id: 'js-classes',
+    name: 'JS: Classes & OOP',
+    description: 'ES6 classes, inheritance, getters/setters.',
+    language: 'javascript',
+    code: `// Modern JavaScript with ES6 classes.
+// Demonstrates inheritance, static methods, getters/setters.
+
+class Animal {
+  constructor(name, sound) {
+    this._name = name;
+    this._sound = sound;
+  }
+
+  get name() { return this._name; }
+  set name(value) { this._name = value; }
+
+  speak() {
+    return this._name + " says " + this._sound;
+  }
+
+  static create(name, sound) {
+    return new Animal(name, sound);
+  }
+}
+
+class Dog extends Animal {
+  constructor(name) {
+    super(name, "Woof");
+  }
+
+  fetch() {
+    return this._name + " fetches the ball!";
+  }
+}
+
+class Cat extends Animal {
+  constructor(name) {
+    super(name, "Meow");
+  }
+
+  purr() {
+    return this._name + " purrs softly...";
+  }
+}
+
+// Create instances
+const animals = [
+  new Dog("Rex"),
+  new Cat("Whiskers"),
+  Animal.create("Cow", "Moo"),
+];
+
+console.log("Animals:");
+animals.forEach(a => console.log("  " + a.speak()));
+
+console.log("\\n" + animals[0].fetch());
+console.log(animals[1].purr());
+
+// Use setter
+animals[0].name = "Buddy";
+console.log("\\nRenamed: " + animals[0].speak());
+`,
+  },
+  {
+    id: 'js-functional',
+    name: 'JS: Functional Programming',
+    description: 'Map, filter, reduce, closures, currying.',
+    language: 'javascript',
+    code: `// Functional programming patterns in JavaScript.
+// Demonstrates higher-order functions, closures, and currying.
+
+// Currying — create a function that returns functions
+const multiply = (a) => (b) => a * b;
+const double = multiply(2);
+const triple = multiply(3);
+
+console.log("double(5):", double(5));
+console.log("triple(5):", triple(5));
+
+// Composition — combine functions
+const compose = (...fns) => (x) => fns.reduceRight((acc, fn) => fn(acc), x);
+const addOne = (x) => x + 1;
+const square = (x) => x * x;
+
+const addOneThenSquare = compose(square, addOne);
+console.log("\\n(add 1, then square)(4):", addOneThenSquare(4));
+
+// Closure — counter factory
+const createCounter = () => {
+  let count = 0;
+  return {
+    increment: () => ++count,
+    decrement: () => --count,
+    value: () => count,
+  };
+};
+
+const counter = createCounter();
+counter.increment();
+counter.increment();
+counter.increment();
+counter.decrement();
+console.log("\\nCounter:", counter.value());
+
+// Map/Filter/Reduce chain
+const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const result = numbers
+  .filter(n => n % 2 === 0)    // [2, 4, 6, 8, 10]
+  .map(n => n * n)              // [4, 16, 36, 64, 100]
+  .reduce((sum, n) => sum + n, 0);  // 220
+
+console.log("\\nSum of squares of even numbers 1-10:", result);
+
+// Memoization — cache expensive results
+const memoize = (fn) => {
+  const cache = new Map();
+  return (...args) => {
+    const key = JSON.stringify(args);
+    if (cache.has(key)) return cache.get(key);
+    const result = fn(...args);
+    cache.set(key, result);
+    return result;
+  };
+};
+
+const slowFactorial = memoize((n) => {
+  if (n <= 1) return 1;
+  return n * slowFactorial(n - 1);
+});
+
+console.log("\\n5!:", slowFactorial(5));
+console.log("10!:", slowFactorial(10));
+`,
+  },
+  {
+    id: 'js-json',
+    name: 'JS: JSON & Objects',
+    description: 'Parse, stringify, and manipulate JSON.',
+    language: 'javascript',
+    code: `// JSON manipulation in JavaScript.
+// Demonstrates parse, stringify, and object operations.
+
+// Create a JavaScript object
+const user = {
+  id: 42,
+  name: "Ada Lovelace",
+  email: "ada@example.com",
+  roles: ["admin", "user"],
+  address: {
+    street: "100 Math Street",
+    city: "London",
+    country: "UK",
+  },
+  active: true,
+};
+
+// Serialize to JSON string (pretty-printed)
+const json = JSON.stringify(user, null, 2);
+console.log("JSON string:");
+console.log(json);
+
+// Parse JSON back to object
+const parsed = JSON.parse(json);
+console.log("\\nParsed back:");
+console.log("Name:", parsed.name);
+console.log("City:", parsed.address.city);
+console.log("Roles:", parsed.roles.join(", "));
+
+// Object destructuring and spread
+const { name, email, address: { city } } = user;
+console.log("\\nDestructured:");
+console.log("  name:", name);
+console.log("  email:", email);
+console.log("  city:", city);
+
+// Object spread — merge objects
+const updates = { email: "ada.lovelace@example.com", active: false };
+const updatedUser = { ...user, ...updates };
+console.log("\\nUpdated user:");
+console.log("  email:", updatedUser.email);
+console.log("  active:", updatedUser.active);
+
+// Object.keys / Object.values / Object.entries
+console.log("\\nObject entries:");
+Object.entries(user).forEach(([key, value]) => {
+  if (typeof value !== 'object') {
+    console.log("  " + key + ":", value);
+  }
+});
+
+// Map to JSON array
+const products = [
+  { name: "Laptop", price: 999 },
+  { name: "Phone", price: 599 },
+  { name: "Tablet", price: 399 },
+];
+
+const productsJson = JSON.stringify(products, null, 2);
+console.log("\\nProducts JSON:");
+console.log(productsJson);
+
+const total = JSON.parse(productsJson)
+  .reduce((sum, p) => sum + p.price, 0);
+console.log("\\nTotal price: $" + total);
 `,
   },
 ]

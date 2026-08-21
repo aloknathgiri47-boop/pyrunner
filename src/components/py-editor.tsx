@@ -9,6 +9,7 @@ import { StreamLanguage } from '@codemirror/language'
 import { python } from '@codemirror/lang-python'
 import { java } from '@codemirror/lang-java'
 import { cpp } from '@codemirror/lang-cpp'
+import { javascript } from '@codemirror/lang-javascript'
 import { r } from '@codemirror/legacy-modes/mode/r'
 import { oneDark } from '@codemirror/theme-one-dark'
 
@@ -18,7 +19,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript'
 }
 
 const customLightTheme = EditorView.theme(
@@ -110,10 +111,12 @@ export default function PyEditor({
   const extensions = useMemo<Extension[]>(() => {
     // For C and C++ we use the cpp() extension.
     // For R we use the legacy StreamLanguage mode.
+    // For JavaScript we use javascript() (supports both CommonJS and ESM).
     const langExt =
       language === 'java' ? java() :
       language === 'c' || language === 'cpp' ? cpp() :
       language === 'r' ? StreamLanguage.define(r) :
+      language === 'javascript' ? javascript() :
       python()
     const exts: Extension[] = [
       langExt,

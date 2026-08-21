@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript'
   stdin?: string
 }
 
@@ -794,6 +794,53 @@ readline <- function(prompt = "") {
     return child
   }
 
+  /**
+   * Spawn a JavaScript (Node.js) child process for the given code.
+   * - Writes code to snippet_<sessionId>.js
+   * - Runs with node (no compilation needed — interpreted like Python)
+   * - Streams stdout/stderr/stdin to the client
+   * Node.js supports both CommonJS (require) and ES modules (import).
+   */
+  async function spawnJavaScript(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const jsFilePath = join(sandboxDir, `snippet_${sessionId}.js`)
+
+    try {
+      await writeFile(jsFilePath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write JavaScript file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
+      })
+      return null
+    }
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `Running JavaScript with Node.js...\n`,
+      promptLike: false,
+    })
+
+    // Run with node. Use --input-type=module is NOT needed because
+    // we're running a .js file which defaults to CommonJS.
+    // For ESM (import/export), users can use .mjs extension or "type":"module".
+    const child = spawn('node', [jsFilePath], {
+      cwd: sandboxDir,
+      env: {
+        ...process.env,
+        // Force unbuffered I/O so output appears immediately
+        NODE_NO_WARNINGS: '1',
+      } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
 
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
@@ -838,6 +885,8 @@ readline <- function(prompt = "") {
       child = await spawnCpp(code, sessionId, socket)
     } else if (language === 'r') {
       child = await spawnR(code, sessionId, socket)
+    } else if (language === 'javascript') {
+      child = await spawnJavaScript(code, sessionId, socket)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }
