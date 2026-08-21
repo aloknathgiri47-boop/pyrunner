@@ -21,7 +21,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter'
 }
 
 // Dart keywords for syntax highlighting via clike mode
@@ -139,7 +139,7 @@ export default function PyEditor({
       language === 'r' ? StreamLanguage.define(r) :
       language === 'javascript' ? javascript() :
       language === 'php' ? phpLang() :
-      language === 'dart' ? StreamLanguage.define(clike({ keywords: dartKeywords })) :
+      language === 'dart' || language === 'flutter' ? StreamLanguage.define(clike({ keywords: dartKeywords })) :
       python()
     const exts: Extension[] = [
       langExt,

@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter'
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -2334,6 +2334,167 @@ void main() async {
     }
   }
 }
+`,
+  },
+  {
+    id: 'flutter-hello',
+    name: 'Flutter: Hello Widget',
+    description: 'Simple Flutter app with MaterialApp.',
+    language: 'flutter',
+    code: `// Flutter widget test - runs headlessly
+// Write your widget code and press Run.
+// The code runs inside testWidgets().
+
+await tester.pumpWidget(
+  MaterialApp(
+    home: Scaffold(
+      appBar: AppBar(title: Text('My Flutter App')),
+      body: Center(
+        child: Text(
+          'Hello from Flutter!',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        ),
+      ),
+    ),
+  ),
+);
+
+expect(find.text('Hello from Flutter!'), findsOneWidget);
+print('Widget rendered successfully!');
+print('AppBar: My Flutter App');
+print('Body: Hello from Flutter!');
+`,
+  },
+  {
+    id: 'flutter-counter',
+    name: 'Flutter: Counter App',
+    description: 'Stateful widget with button tap.',
+    language: 'flutter',
+    code: `// A simple counter app as a widget test
+
+int counter = 0;
+
+await tester.pumpWidget(
+  MaterialApp(
+    home: Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Counter: 0'),
+            ElevatedButton(
+              key: Key('increment'),
+              onPressed: () {},
+              child: Icon(Icons.add),
+            ),
+          ],
+        ),
+      ),
+    ),
+  ),
+);
+
+expect(find.text('Counter: 0'), findsOneWidget);
+expect(find.byIcon(Icons.add), findsOneWidget);
+print('Counter app rendered!');
+print('  Initial value: 0');
+
+// Simulate button tap
+await tester.tap(find.byKey(Key('increment')));
+await tester.pump();
+print('  Button tapped!');
+`,
+  },
+  {
+    id: 'flutter-list',
+    name: 'Flutter: ListView',
+    description: 'A list of items with ListTile.',
+    language: 'flutter',
+    code: `// Build a ListView with multiple items
+
+final items = List.generate(5, (i) => 'Item ' + (i + 1).toString());
+
+await tester.pumpWidget(
+  MaterialApp(
+    home: Scaffold(
+      appBar: AppBar(title: Text('My List')),
+      body: ListView.builder(
+        itemCount: items.length,
+        itemBuilder: (context, index) {
+          return ListTile(
+            leading: CircleAvatar(child: Text((index + 1).toString())),
+            title: Text(items[index]),
+            subtitle: Text('Subtitle for item ' + (index + 1).toString()),
+            trailing: Icon(Icons.arrow_forward),
+          );
+        },
+      ),
+    ),
+  ),
+);
+
+expect(find.text('Item 1'), findsOneWidget);
+expect(find.text('Item 5'), findsOneWidget);
+print('ListView rendered with 5 items!');
+for (var item in items) {
+  print('  - ' + item);
+}
+`,
+  },
+  {
+    id: 'flutter-form',
+    name: 'Flutter: Form Widgets',
+    description: 'TextField, Checkbox, Switch, Slider.',
+    language: 'flutter',
+    code: `// Form widgets demo
+
+await tester.pumpWidget(
+  MaterialApp(
+    home: Scaffold(
+      appBar: AppBar(title: Text('Form Demo')),
+      body: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+              decoration: InputDecoration(
+                labelText: 'Enter your name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                Checkbox(value: true, onChanged: null),
+                Text('I agree to terms'),
+              ],
+            ),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                Switch(value: false, onChanged: null),
+                Text('Enable notifications'),
+              ],
+            ),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: null,
+              child: Text('Submit'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  ),
+);
+
+expect(find.text('Enter your name'), findsOneWidget);
+expect(find.text('Submit'), findsOneWidget);
+print('Form rendered successfully!');
+print('  - TextField: Enter your name');
+print('  - Checkbox: checked');
+print('  - Switch: off');
+print('  - Button: Submit');
 `,
   },
 ]

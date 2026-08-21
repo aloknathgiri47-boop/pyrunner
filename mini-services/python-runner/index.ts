@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter'
   stdin?: string
 }
 
@@ -1204,6 +1204,102 @@ if (!function_exists('readline')) {
     return child
   }
 
+  /**
+   * Spawn a Flutter test child process.
+   * - Wraps user's Flutter widget code in a testWidgets block
+   * - Runs in the pre-warmed Flutter test project at /tmp/py-compiler/flutter_project
+   * - Uses `flutter test` which runs headlessly (no display needed)
+   * - Streams test results + print() output to the console
+   * The user writes code that returns a Widget, which is pumped into a MaterialApp.
+   */
+  async function spawnFlutter(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const home = process.env.HOME || '/home/z'
+    const flutterProjectDir = '/tmp/py-compiler/flutter_project'
+    const testDir = join(flutterProjectDir, 'test')
+    const testFilePath = join(testDir, `user_${sessionId}.dart`)
+
+    // Ensure the Flutter project exists with pubspec.yaml
+    if (!existsSync(join(flutterProjectDir, 'pubspec.yaml'))) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: 'Flutter project not found. Cannot run Flutter code.\n',
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'NO_PROJECT',
+      })
+      return null
+    }
+
+    // Wrap the user's code in a testWidgets block.
+    // The user's code should be the body of a testWidgets callback,
+    // or they can write their own testWidgets() calls.
+    // If the code doesn't contain 'testWidgets', we wrap it automatically.
+    let testCode: string
+    if (code.includes('testWidgets') || code.includes('test(')) {
+      // User wrote their own tests — use as-is but add imports
+      testCode = `import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+${code}
+`
+    } else {
+      // Wrap user code in a testWidgets block
+      // The user code should return a Widget (e.g., MaterialApp, Scaffold, etc.)
+      testCode = `import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  testWidgets('User Flutter App', (WidgetTester tester) async {
+    // --- User code starts ---
+${code}
+    // --- User code ends ---
+
+    await tester.pumpAndSettle();
+    print('Flutter app rendered successfully!');
+  });
+}
+`
+    }
+
+    try {
+      await writeFile(testFilePath, testCode, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write Flutter test file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
+      })
+      return null
+    }
+
+    // Locate the Flutter SDK
+    const flutterBin = join(home, '.local', 'flutter', 'bin', 'flutter')
+    const actualFlutter = existsSync(flutterBin) ? flutterBin : 'flutter'
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `Running Flutter test...\n`,
+      promptLike: false,
+    })
+
+    // Run flutter test in the project directory
+    const child = spawn(actualFlutter, ['test', testFilePath, '--no-pub'], {
+      cwd: flutterProjectDir,
+      env: {
+        ...process.env,
+        PATH: join(home, '.local', 'flutter', 'bin') + ':' + (process.env.PATH || ''),
+      } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
 
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
@@ -1256,6 +1352,8 @@ if (!function_exists('readline')) {
       child = await spawnCSharp(code, sessionId, socket)
     } else if (language === 'dart') {
       child = await spawnDart(code, sessionId, socket)
+    } else if (language === 'flutter') {
+      child = await spawnFlutter(code, sessionId, socket)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }

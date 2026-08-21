@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter'
 
 interface PersistedState {
   code: string
@@ -248,6 +248,34 @@ void main() {
 }
 `
 
+const DEFAULT_FLUTTER_CODE = `// PyRunner - Flutter 3.47 playground
+// Write Flutter widget code and press Run.
+// The code runs as a headless widget test.
+
+// Build your widget and pump it into the tester
+await tester.pumpWidget(
+  MaterialApp(
+    home: Scaffold(
+      appBar: AppBar(title: Text('My Flutter App')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Hello from Flutter!',
+              style: TextStyle(fontSize: 24)),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {},
+              child: Text('Click me'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  ),
+);
+`
+
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
 /* ------------------------------------------------------------------ */
@@ -261,7 +289,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php','csharp','dart'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -305,7 +333,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp','dart'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
@@ -514,6 +542,7 @@ export default function Home() {
           language === 'php' ? 'Write some PHP first.' :
           language === 'csharp' ? 'Write some C# first.' :
           language === 'dart' ? 'Write some Dart first.' :
+          language === 'flutter' ? 'Write some Flutter code first.' :
           'Write some Python first.',
       })
       return
@@ -606,6 +635,7 @@ export default function Home() {
       lang === 'php' ? DEFAULT_PHP_CODE :
       lang === 'csharp' ? DEFAULT_CSHARP_CODE :
       lang === 'dart' ? DEFAULT_DART_CODE :
+      lang === 'flutter' ? DEFAULT_FLUTTER_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -650,6 +680,7 @@ export default function Home() {
       language === 'php' ? 'php' :
       language === 'csharp' ? 'cs' :
       language === 'dart' ? 'dart' :
+      language === 'flutter' ? 'dart' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -660,6 +691,7 @@ export default function Home() {
       language === 'php' ? 'text/x-php;charset=utf-8' :
       language === 'csharp' ? 'text/x-csharp;charset=utf-8' :
       language === 'dart' ? 'text/x-dart;charset=utf-8' :
+      language === 'flutter' ? 'text/x-dart;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -751,7 +783,9 @@ export default function Home() {
                                   ? 'bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-500/20'
                                   : language === 'dart'
                                     ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20'
-                                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                    : language === 'flutter'
+                                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                                      : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
                   {language === 'java'
@@ -770,7 +804,9 @@ export default function Home() {
                                 ? 'C# (.NET 8)'
                                 : language === 'dart'
                                   ? 'Dart 3.13'
-                                  : 'Python 3.12'}
+                                  : language === 'flutter'
+                                    ? 'Flutter 3.47'
+                                    : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -790,7 +826,9 @@ export default function Home() {
                               ? 'Interactive C# console with live stdin'
                               : language === 'dart'
                                 ? 'Interactive Dart console with live stdin'
-                                : 'Interactive Python console with live input()'}
+                                : language === 'flutter'
+                                  ? 'Flutter widget tests (headless rendering)'
+                                  : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -896,6 +934,17 @@ export default function Home() {
                 }`}
               >
                 Dart
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('flutter')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'flutter'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Flutter
               </button>
             </div>
           </div>
@@ -1065,6 +1114,23 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Flutter examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'flutter').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1207,7 +1273,9 @@ export default function Home() {
                                   ? 'code.cs'
                                   : language === 'dart'
                                     ? 'code.dart'
-                                    : 'code.py'}
+                                    : language === 'flutter'
+                                      ? 'widget_test.dart'
+                                      : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button
