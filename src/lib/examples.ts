@@ -2497,4 +2497,95 @@ print('  - Switch: off');
 print('  - Button: Submit');
 `,
   },
+  {
+    id: 'flutter-full-app',
+    name: 'Flutter: Full App (Preview)',
+    description: 'Complete Flutter app with interactivity — opens in preview panel.',
+    language: 'flutter',
+    code: `import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'PyRunner Demo',
+      theme: ThemeData(
+        colorSchemeSeed: const Color(0xFF6366F1),
+        useMaterial3: true,
+      ),
+      home: const CounterPage(),
+    );
+  }
+}
+
+class CounterPage extends StatefulWidget {
+  const CounterPage({super.key});
+
+  @override
+  State<CounterPage> createState() => _CounterPageState();
+}
+
+class _CounterPageState extends State<CounterPage> {
+  int _counter = 0;
+
+  void _increment() => setState(() => _counter++);
+  void _decrement() => setState(() => _counter--);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Flutter Live Preview'),
+        centerTitle: true,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.flutter_dash, size: 72, color: theme.colorScheme.primary),
+            const SizedBox(height: 16),
+            Text('Counter value', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              '\$_counter',
+              style: TextStyle(
+                fontSize: 48,
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: _decrement,
+                  icon: const Icon(Icons.remove),
+                  label: const Text('Decrement'),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  onPressed: _increment,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Increment'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _increment,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+`,
+  },
 ]

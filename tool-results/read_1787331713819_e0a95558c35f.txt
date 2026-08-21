@@ -1,0 +1,1789 @@
+     1→'use client'
+     2→
+     3→import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+     4→import { io, type Socket } from 'socket.io-client'
+     5→import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
+     6→import { useTheme } from 'next-themes'
+     7→import { toast } from 'sonner'
+     8→import {
+     9→  Play,
+    10→  Square,
+    11→  Trash2,
+    12→  Download,
+    13→  Copy,
+    14→  Check,
+    15→  Sun,
+    16→  Moon,
+    17→  FileCode2,
+    18→  Terminal,
+    19→  ChevronDown,
+    20→  Loader2,
+    21→  CircleAlert,
+    22→  CircleCheck,
+    23→  Clock,
+    24→  Hash,
+    25→  Keyboard,
+    26→  Share2,
+    27→  Eraser,
+    28→  CornerDownLeft,
+    29→} from 'lucide-react'
+    30→
+    31→import PyEditor from '@/components/py-editor'
+    32→import { Button } from '@/components/ui/button'
+    33→import { Badge } from '@/components/ui/badge'
+    34→import { Separator } from '@/components/ui/separator'
+    35→import {
+    36→  DropdownMenu,
+    37→  DropdownMenuTrigger,
+    38→  DropdownMenuContent,
+    39→  DropdownMenuItem,
+    40→  DropdownMenuSeparator,
+    41→  DropdownMenuLabel,
+    42→} from '@/components/ui/dropdown-menu'
+    43→import { EXAMPLES, type Snippet } from '@/lib/examples'
+    44→import {
+    45→  Tooltip,
+    46→  TooltipContent,
+    47→  TooltipProvider,
+    48→  TooltipTrigger,
+    49→} from '@/components/ui/tooltip'
+    50→
+    51→/* ------------------------------------------------------------------ */
+    52→/* Types                                                               */
+    53→/* ------------------------------------------------------------------ */
+    54→
+    55→interface OutputChunk {
+    56→  id: number
+    57→  stream: 'stdout' | 'stderr' | 'input' | 'system' | 'image' | 'server'
+    58→  text: string
+    59→  // For input chunks: did the user enter this? For output chunks: was the
+    60→  // server hint that this looks like an input prompt?
+    61→  isPrompt?: boolean
+    62→  // For image chunks: data URL (data:image/png;base64,...)
+    63→  src?: string
+    64→  // For server chunks: the port the server is listening on
+    65→  port?: number
+    66→}
+    67→
+    68→interface RunResult {
+    69→  code: number | null
+    70→  signal: NodeJS.Signals | null
+    71→  timedOut: boolean
+    72→  durationMs: number
+    73→  error?: string
+    74→}
+    75→
+    76→const STORAGE_KEY = 'pyrunner:state:v3'
+    77→
+    78→type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter'
+    79→
+    80→interface PersistedState {
+    81→  code: string
+    82→  language: Language
+    83→}
+    84→
+    85→const DEFAULT_CODE = `# PyRunner — Python 3 playground
+    86→# Press Run (or Ctrl/Cmd+Enter) to execute.
+    87→
+    88→def greet(name: str) -> str:
+    89→    return f"Hello, {name}!"
+    90→
+    91→print(greet("world"))
+    92→
+    93→# Interactive: type your name in the input bar below
+    94→# the console when prompted, then press Enter.
+    95→name = input("What's your name? ")
+    96→print(f"Nice to meet you, {name}!")
+    97→`
+    98→
+    99→const DEFAULT_JAVA_CODE = `// PyRunner — Java 21 playground
+   100→// Press Run (or Ctrl/Cmd+Enter) to execute.
+   101→// The public class name is detected automatically.
+   102→
+   103→public class Hello {
+   104→    public static void main(String[] args) {
+   105→        System.out.println("Hello, World!");
+   106→
+   107→        // Use Scanner to read from stdin (interactive)
+   108→        var scanner = new java.util.Scanner(System.in);
+   109→        System.out.print("What's your name? ");
+   110→        String name = scanner.nextLine();
+   111→        System.out.println("Nice to meet you, " + name + "!");
+   112→    }
+   113→}
+   114→`
+   115→
+   116→const DEFAULT_C_CODE = `// PyRunner — C (gcc 14) playground
+   117→// Press Run (or Ctrl/Cmd+Enter) to execute.
+   118→// Compiled with: gcc -std=c11 -Wall -O2 -lm
+   119→
+   120→#include <stdio.h>
+   121→
+   122→int main(void) {
+   123→    printf("Hello, World!\\n");
+   124→
+   125→    // Use scanf to read from stdin (interactive)
+   126→    char name[64];
+   127→    printf("What's your name? ");
+   128→    scanf("%63s", name);
+   129→    printf("Nice to meet you, %s!\\n", name);
+   130→
+   131→    return 0;
+   132→}
+   133→`
+   134→
+   135→const DEFAULT_CPP_CODE = `// PyRunner — C++ (g++ 14, C++20) playground
+   136→// Press Run (or Ctrl/Cmd+Enter) to execute.
+   137→// Compiled with: g++ -std=c++20 -Wall -O2
+   138→
+   139→#include <iostream>
+   140→#include <string>
+   141→
+   142→int main() {
+   143→    std::cout << "Hello, World!" << std::endl;
+   144→
+   145→    // Read from stdin (interactive)
+   146→    std::string name;
+   147→    std::cout << "What's your name? ";
+   148→    std::getline(std::cin, name);
+   149→    std::cout << "Nice to meet you, " << name << "!" << std::endl;
+   150→
+   151→    return 0;
+   152→}
+   153→`
+   154→
+   155→const DEFAULT_R_CODE = `# PyRunner — R 4.5 playground
+   156→# Press Run (or Ctrl/Cmd+Enter) to execute.
+   157→
+   158→print("Hello, World!")
+   159→
+   160→# Basic vector operations
+   161→x <- c(1, 2, 3, 4, 5)
+   162→print(paste("Mean:", mean(x)))
+   163→print(paste("Sum:", sum(x)))
+   164→print(paste("Squared:", paste(x^2, collapse=", ")))
+   165→
+   166→# For interactive input, open "Program Input" below the editor,
+   167→# type your values (one per line), then Run.
+   168→# Or load the "R: Interactive Input" example from the Examples menu.
+   169→`
+   170→
+   171→const DEFAULT_JS_CODE = `// PyRunner — JavaScript (Node.js 24) playground
+   172→// Press Run (or Ctrl/Cmd+Enter) to execute.
+   173→// Supports both CommonJS (require) and ES modules (import).
+   174→
+   175→console.log("Hello, World!");
+   176→
+   177→// Array methods — functional programming style
+   178→const nums = [1, 2, 3, 4, 5];
+   179→console.log("Sum:", nums.reduce((a, b) => a + b, 0));
+   180→console.log("Squared:", nums.map(n => n ** 2));
+   181→
+   182→// Object destructuring
+   183→const user = { name: "Ada", age: 36 };
+   184→console.log(user.name + " is " + user.age + " years old.");
+   185→
+   186→// For interactive input, open "Program Input" below the editor,
+   187→// type your values (one per line), then Run.
+   188→// Or load the "JS: Interactive Input" example from the Examples menu.
+   189→`
+   190→
+   191→const DEFAULT_PHP_CODE = `<?php
+   192→// PyRunner — PHP 8.4 playground
+   193→// Press Run (or Ctrl/Cmd+Enter) to execute.
+   194→
+   195→echo "Hello, World!\\n";
+   196→
+   197→// Array functions
+   198→$nums = [1, 2, 3, 4, 5];
+   199→echo "Sum: " . array_sum($nums) . "\\n";
+   200→echo "Squared: " . implode(", ", array_map(fn($n) => $n * $n, $nums)) . "\\n";
+   201→
+   202→// Interactive: type your name in the input bar below
+   203→echo "What's your name? ";
+   204→$name = trim(fgets(STDIN));
+   205→echo "Nice to meet you, $name!\\n";
+   206→`
+   207→
+   208→const DEFAULT_CSHARP_CODE = `// PyRunner - C# (.NET 8) playground
+   209→// Press Run (or Ctrl/Cmd+Enter) to execute.
+   210→
+   211→using System;
+   212→using System.Linq;
+   213→
+   214→class Program {
+   215→    static void Main() {
+   216→        Console.WriteLine("Hello, World!");
+   217→
+   218→        // LINQ
+   219→        int[] nums = { 1, 2, 3, 4, 5 };
+   220→        Console.WriteLine("Sum: " + nums.Sum());
+   221→        Console.WriteLine("Squared: " + string.Join(", ", nums.Select(n => n * n)));
+   222→
+   223→        // Interactive: type your name in the input bar
+   224→        Console.Write("What's your name? ");
+   225→        string name = Console.ReadLine();
+   226→        Console.WriteLine("Nice to meet you, " + name + "!");
+   227→    }
+   228→}
+   229→`
+   230→
+   231→const DEFAULT_DART_CODE = `// PyRunner - Dart 3.13 playground
+   232→// Press Run (or Ctrl/Cmd+Enter) to execute.
+   233→
+   234→import 'dart:io';
+   235→
+   236→void main() {
+   237→  print('Hello, World!');
+   238→
+   239→  // List methods
+   240→  var nums = [1, 2, 3, 4, 5];
+   241→  print('Sum: ' + nums.reduce((a, b) => a + b).toString());
+   242→  print('Squared: ' + nums.map((n) => n * n).join(', '));
+   243→
+   244→  // Interactive: type your name in the input bar
+   245→  stdout.write("What's your name? ");
+   246→  var name = stdin.readLineSync() ?? '';
+   247→  print('Nice to meet you, ' + name + '!');
+   248→}
+   249→`
+   250→
+   251→const DEFAULT_FLUTTER_CODE = `import 'package:flutter/material.dart';
+   252→
+   253→void main() {
+   254→  runApp(const MyApp());
+   255→}
+   256→
+   257→class MyApp extends StatelessWidget {
+   258→  const MyApp({super.key});
+   259→
+   260→  @override
+   261→  Widget build(BuildContext context) {
+   262→    return MaterialApp(
+   263→      home: Scaffold(
+   264→        appBar: AppBar(title: const Text('My Flutter App')),
+   265→        body: Center(
+   266→          child: Column(
+   267→            mainAxisAlignment: MainAxisAlignment.center,
+   268→            children: [
+   269→              const Text('Hello from Flutter!',
+   270→                style: TextStyle(fontSize: 24)),
+   271→              const SizedBox(height: 16),
+   272→              ElevatedButton(
+   273→                onPressed: () {},
+   274→                child: const Text('Click me'),
+   275→              ),
+   276→            ],
+   277→          ),
+   278→        ),
+   279→      ),
+   280→    );
+   281→  }
+   282→}`
+   283→
+   284→
+   285→/* ------------------------------------------------------------------ */
+   286→/* Persistence helpers                                                 */
+   287→/* ------------------------------------------------------------------ */
+   288→
+   289→function loadState(): PersistedState | null {
+   290→  if (typeof window === 'undefined') return null
+   291→  try {
+   292→    const raw = window.localStorage.getItem(STORAGE_KEY)
+   293→    if (!raw) return null
+   294→    const parsed = JSON.parse(raw) as PersistedState
+   295→    if (typeof parsed.code !== 'string') return null
+   296→    return {
+   297→      code: parsed.code,
+   298→      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter'].includes(parsed.language) ? parsed.language : 'python',
+   299→    }
+   300→  } catch {
+   301→    return null
+   302→  }
+   303→}
+   304→
+   305→function encodeToHash(code: string, language: Language): string {
+   306→  const encode = (s: string) => {
+   307→    const bytes = new TextEncoder().encode(s)
+   308→    let bin = ''
+   309→    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+   310→    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+   311→  }
+   312→  const params = new URLSearchParams()
+   313→  params.set('c', encode(code))
+   314→  params.set('l', language)
+   315→  return `#$\{params.toString()}`
+   316→}
+   317→
+   318→/* ------------------------------------------------------------------ */
+   319→/* Main component                                                      */
+   320→/* ------------------------------------------------------------------ */
+   321→
+   322→function getInitialState(): { code: string; language: Language } {
+   323→  if (typeof window === 'undefined') return { code: DEFAULT_CODE, language: 'python' }
+   324→  // URL hash takes priority, then localStorage, then default.
+   325→  const hash = window.location.hash
+   326→  if (hash && hash.length > 2) {
+   327→    try {
+   328→      const params = new URLSearchParams(hash.slice(1))
+   329→      const codeB64 = params.get('c')
+   330→      const lang = params.get('l')
+   331→      if (codeB64) {
+   332→        const decode = (s: string) => {
+   333→          const padded = s.replace(/-/g, '+').replace(/_/g, '/')
+   334→          const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4))
+   335→          const bin = atob(padded + pad)
+   336→          const bytes = new Uint8Array(bin.length)
+   337→          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+   338→          return new TextDecoder('utf-8').decode(bytes)
+   339→        }
+   340→        return {
+   341→          code: decode(codeB64),
+   342→          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter'].includes(lang) ? lang : 'python',
+   343→        }
+   344→      }
+   345→    } catch {
+   346→      /* fall through */
+   347→    }
+   348→  }
+   349→  const persisted = loadState()
+   350→  if (persisted) {
+   351→    return { code: persisted.code, language: persisted.language }
+   352→  }
+   353→  return { code: DEFAULT_CODE, language: 'python' }
+   354→}
+   355→
+   356→export default function Home() {
+   357→  const { setTheme, resolvedTheme } = useTheme()
+   358→  // Lazy initializer: runs once on the client during the very first render.
+   359→  // On the server it returns DEFAULT_CODE (window is undefined). This avoids
+   360→  // any useEffect-based hydration that would trip react-hooks/set-state-in-effect.
+   361→  // suppressHydrationWarning on <html> covers the resulting markup difference.
+   362→  const [initialState] = useState(() => getInitialState())
+   363→  const [code, setCode] = useState<string>(initialState.code)
+   364→  const [language, setLanguage] = useState<Language>(initialState.language)
+   365→  const [activeExampleId, setActiveExampleId] = useState<string | null>(null)
+   366→
+   367→  const [chunks, setChunks] = useState<OutputChunk[]>([])
+   368→  const [isRunning, setIsRunning] = useState(false)
+   369→  const [result, setResult] = useState<RunResult | null>(null)
+   370→  const [copied, setCopied] = useState(false)
+   371→  const [shared, setShared] = useState(false)
+   372→  const [inputValue, setInputValue] = useState('')
+   373→  const [awaitingInput, setAwaitingInput] = useState(false)
+   374→  const [stdinText, setStdinText] = useState('')
+   375→  const [showStdin, setShowStdin] = useState(false)
+   376→  const [flutterPort, setFlutterPort] = useState<number | null>(null)
+   377→
+   378→  const socketRef = useRef<Socket | null>(null)
+   379→  const chunkIdRef = useRef(0)
+   380→  const consoleEndRef = useRef<HTMLDivElement | null>(null)
+   381→  const inputRef = useRef<HTMLInputElement | null>(null)
+   382→  const isRunningRef = useRef(false)
+   383→  const languageRef = useRef<Language>(language)
+   384→
+   385→  // No hydration effect needed — the lazy initializer handles it.
+   386→
+   387→  // Keep languageRef in sync so the socket callbacks can read the current value
+   388→  useEffect(() => {
+   389→    languageRef.current = language
+   390→  }, [language])
+   391→
+   392→  // ---- Persist code + language (debounced) ----
+   393→  useEffect(() => {
+   394→    const t = setTimeout(() => {
+   395→      try {
+   396→        window.localStorage.setItem(
+   397→          STORAGE_KEY,
+   398→          JSON.stringify({ code, language } satisfies PersistedState),
+   399→        )
+   400→      } catch {
+   401→        /* ignore */
+   402→      }
+   403→    }, 400)
+   404→    return () => clearTimeout(t)
+   405→  }, [code, language])
+   406→
+   407→  // ---- WebSocket connection (lazy: only connect when running) ----
+   408→  const ensureSocket = useCallback((): Socket => {
+   409→    if (socketRef.current) return socketRef.current
+   410→    // Use polling+websocket transports so the XTransformPort query parameter
+   411→    // is preserved during the initial HTTP handshake (websocket-only skips
+   412→    // the polling handshake and the query gets dropped by the gateway).
+   413→    // Enable reconnection so if the runner restarts (watchdog auto-restart),
+   414→    // the client automatically reconnects without showing "xhr poll error".
+   415→    const sock = io('/?XTransformPort=3003', {
+   416→      transports: ['polling', 'websocket'],
+   417→      forceNew: true,
+   418→      reconnection: true,
+   419→      reconnectionAttempts: 10,
+   420→      reconnectionDelay: 500,
+   421→      reconnectionDelayMax: 3000,
+   422→      timeout: 10_000,
+   423→    })
+   424→
+   425→    sock.on('connect', () => {
+   426→      /* ready */
+   427→    })
+   428→
+   429→    sock.on('connect_error', (err: { message: string }) => {
+   430→      // Only show the error toast if we're actively trying to run code.
+   431→      // During reconnection attempts, socket.io fires many of these
+   432→      // and we don't want to spam the user.
+   433→      if (!isRunningRef.current) return
+   434→      toast.error('Cannot connect to runner', {
+   435→        description: err.message || 'WebSocket connection failed',
+   436→      })
+   437→      setIsRunning(false)
+   438→      isRunningRef.current = false
+   439→    })
+   440→
+   441→    sock.on('started', () => {
+   442→      // Server has spawned the python process
+   443→      setAwaitingInput(false)
+   444→    })
+   445→
+   446→    sock.on('output', (msg: { stream: string; data: string; promptLike?: boolean }) => {
+   447→      const stream = msg.stream === 'stderr' ? 'stderr' : 'stdout'
+   448→      const id = ++chunkIdRef.current
+   449→      setChunks((prev) => [
+   450→        ...prev,
+   451→        { id, stream, text: msg.data, isPrompt: msg.promptLike },
+   452→      ])
+   453→      // If the server hints this looks like an input prompt (no trailing newline),
+   454→      // focus the input bar.
+   455→      if (msg.promptLike) {
+   456→        setAwaitingInput(true)
+   457→        setTimeout(() => inputRef.current?.focus(), 30)
+   458→      } else if (stream === 'stdout') {
+   459→        // A newline ended, so the prompt is resolved.
+   460→        setAwaitingInput(false)
+   461→      }
+   462→    })
+   463→
+   464→    sock.on('image', (msg: { data: string; mime?: string }) => {
+   465→      // Inline image (matplotlib figure rendered as PNG). The runner already
+   466→      // base64-encoded the bytes — we wrap it as a data URL for <img src>.
+   467→      const mime = msg.mime ?? 'image/png'
+   468→      const src = `data:$\{mime};base64,$\{msg.data}`
+   469→      const id = ++chunkIdRef.current
+   470→      setChunks((prev) => [
+   471→        ...prev,
+   472→        { id, stream: 'image', text: '', src },
+   473→      ])
+   474→    })
+   475→
+   476→    sock.on('server', (msg: { port: number; host?: string }) => {
+   477→      if (languageRef.current === 'flutter') {
+   478→        // Set the port for the preview status panel
+   479→        setFlutterPort(msg.port)
+   480→        // Automatically open the Flutter app in a new browser tab.
+   481→        // Use setTimeout to ensure the current page state is saved first
+   482→        // and the window.open call happens in a clean event loop.
+   483→        const port = msg.port
+   484→        setTimeout(() => {
+   485→          const previewUrl = window.location.origin + `/?XTransformPort=${port}`
+   486→          window.open(previewUrl, '_blank', 'noopener,noreferrer')
+   487→        }, 100)
+   488→        toast.success('Flutter app is live!', {
+   489→          description: `Opening preview in new tab (port ${port})...`,
+   490→          duration: 4000,
+   491→        })
+   492→      } else {
+   493→        const id = ++chunkIdRef.current
+   494→        setChunks((prev) => [
+   495→          ...prev,
+   496→          {
+   497→            id,
+   498→            stream: 'server',
+   499→            text: `Server started on port $\{msg.port}`,
+   500→            port: msg.port,
+   501→          },
+   502→        ])
+   503→        toast.success('Server started', {
+   504→          description: `Listening on port $\{msg.port} — click the link in the console to open it.`,
+   505→          duration: 8000,
+   506→        })
+   507→      }
+   508→    })
+   509→
+   510→    sock.on('exit', (res: RunResult) => {
+   511→      setResult(res)
+   512→      setIsRunning(false)
+   513→      isRunningRef.current = false
+   514→      setAwaitingInput(false)
+   515→      const ok =
+   516→        res.code === 0 && !res.timedOut && !res.error
+   517→      if (ok) {
+   518→        toast.success('Program finished')
+   519→      } else if (res.timedOut) {
+   520→        toast.error('Timed out')
+   521→      } else if (res.code !== null && res.code !== 0) {
+   522→        toast.error(`Exited with code $\{res.code}`)
+   523→      } else if (res.error) {
+   524→        toast.error('Failed to run', { description: res.error })
+   525→      }
+   526→    })
+   527→
+   528→    sock.on('timeout', () => {
+   529→      toast.error('Timed out')
+   530→    })
+   531→
+   532→    socketRef.current = sock
+   533→    return sock
+   534→  }, [])
+   535→
+   536→  // ---- Auto-scroll console ----
+   537→  useEffect(() => {
+   538→    if (consoleEndRef.current) {
+   539→      consoleEndRef.current.scrollIntoView({ block: 'end' })
+   540→    }
+   541→  }, [chunks])
+   542→
+   543→  // ---- Focus input when awaitingInput turns true ----
+   544→  useEffect(() => {
+   545→    if (awaitingInput && inputRef.current) {
+   546→      inputRef.current.focus()
+   547→    }
+   548→  }, [awaitingInput])
+   549→
+   550→  // ---- Cleanup on unmount ----
+   551→  useEffect(() => {
+   552→    return () => {
+   553→      socketRef.current?.disconnect()
+   554→      socketRef.current = null
+   555→    }
+   556→  }, [])
+   557→
+   558→  // ---- Run handler ----
+   559→  const handleRun = useCallback(() => {
+   560→    if (isRunningRef.current) return
+   561→    if (!code.trim()) {
+   562→      toast.info('Nothing to run', {
+   563→        description:
+   564→          language === 'java' ? 'Write some Java first.' :
+   565→          language === 'c' ? 'Write some C first.' :
+   566→          language === 'cpp' ? 'Write some C++ first.' :
+   567→          language === 'r' ? 'Write some R first.' :
+   568→          language === 'javascript' ? 'Write some JavaScript first.' :
+   569→          language === 'php' ? 'Write some PHP first.' :
+   570→          language === 'csharp' ? 'Write some C# first.' :
+   571→          language === 'dart' ? 'Write some Dart first.' :
+   572→          language === 'flutter' ? 'Write some Flutter code first.' :
+   573→          'Write some Python first.',
+   574→      })
+   575→      return
+   576→    }
+   577→    isRunningRef.current = true
+   578→    setIsRunning(true)
+   579→    setResult(null)
+   580→    setChunks([])
+   581→    setAwaitingInput(false)
+   582→    setFlutterPort(null)
+   583→    chunkIdRef.current = 0
+   584→
+   585→    const sock = ensureSocket()
+   586→    const emitRun = () => sock.emit('run', { code, language, timeout: language === 'flutter' ? 120000 : 30000, stdin: stdinText })
+   587→    if (sock.connected) {
+   588→      emitRun()
+   589→    } else {
+   590→      // Wait for connection. The runner might be restarting (watchdog
+   591→      // auto-restart), so give it extra time to come back up.
+   592→      sock.once('connect', emitRun)
+   593→      if (!sock.active) sock.connect()
+   594→      // Safety timeout: if we never connect after 10s, surface the error
+   595→      setTimeout(() => {
+   596→        if (isRunningRef.current && !sock.connected) {
+   597→          toast.error('Cannot connect to Python runner', {
+   598→            description: 'The runner service may be restarting. Try again in a moment.',
+   599→          })
+   600→          isRunningRef.current = false
+   601→          setIsRunning(false)
+   602→        }
+   603→      }, 10000)
+   604→    }
+   605→  }, [code, language, stdinText, ensureSocket])
+   606→
+   607→  // ---- Submit input line ----
+   608→  const handleSubmitInput = useCallback(() => {
+   609→    // Read the value directly from the input element to avoid stale closures.
+   610→    // The `inputValue` state might be stale if the user types fast and the
+   611→    // useCallback hasn't re-rendered yet.
+   612→    const text = inputRef.current?.value ?? inputValue
+   613→    if (!text.trim()) return
+   614→    if (!isRunningRef.current) return
+   615→    const sock = socketRef.current
+   616→    if (!sock) return
+   617→    sock.emit('input', { text })
+   618→    // Echo the user input into the console so they can see what they typed.
+   619→    const id = ++chunkIdRef.current
+   620→    setChunks((prev) => [
+   621→      ...prev,
+   622→      { id, stream: 'input', text: text + '\n' },
+   623→    ])
+   624→    setInputValue('')
+   625→    // Clear the input element directly too (in case React state is stale)
+   626→    if (inputRef.current) inputRef.current.value = ''
+   627→    // Keep focus for the next prompt
+   628→    setTimeout(() => inputRef.current?.focus(), 20)
+   629→  }, [inputValue])
+   630→
+   631→  const handleStop = useCallback(() => {
+   632→    const sock = socketRef.current
+   633→    if (sock) sock.emit('stop')
+   634→    isRunningRef.current = false
+   635→    setIsRunning(false)
+   636→    setAwaitingInput(false)
+   637→    toast.info('Execution stopped')
+   638→  }, [])
+   639→
+   640→  const handleClearConsole = useCallback(() => {
+   641→    setChunks([])
+   642→    setResult(null)
+   643→  }, [])
+   644→
+   645→  const handleClearAll = useCallback(() => {
+   646→    setCode('')
+   647→    setChunks([])
+   648→    setResult(null)
+   649→    setActiveExampleId(null)
+   650→    toast.info('Editor cleared')
+   651→  }, [])
+   652→
+   653→  // Switch language — load the default starter code for that language.
+   654→  const handleLanguageChange = useCallback((lang: Language) => {
+   655→    if (lang === language) return
+   656→    setLanguage(lang)
+   657→    setCode(
+   658→      lang === 'java' ? DEFAULT_JAVA_CODE :
+   659→      lang === 'c' ? DEFAULT_C_CODE :
+   660→      lang === 'cpp' ? DEFAULT_CPP_CODE :
+   661→      lang === 'r' ? DEFAULT_R_CODE :
+   662→      lang === 'javascript' ? DEFAULT_JS_CODE :
+   663→      lang === 'php' ? DEFAULT_PHP_CODE :
+   664→      lang === 'csharp' ? DEFAULT_CSHARP_CODE :
+   665→      lang === 'dart' ? DEFAULT_DART_CODE :
+   666→      lang === 'flutter' ? DEFAULT_FLUTTER_CODE :
+   667→      DEFAULT_CODE
+   668→    )
+   669→    setChunks([])
+   670→    setResult(null)
+   671→    setActiveExampleId(null)
+   672→  }, [language])
+   673→
+   674→  const handleCopy = useCallback(async () => {
+   675→    try {
+   676→      await navigator.clipboard.writeText(code)
+   677→      setCopied(true)
+   678→      toast.success('Code copied to clipboard')
+   679→      setTimeout(() => setCopied(false), 1500)
+   680→    } catch {
+   681→      toast.error('Failed to copy')
+   682→    }
+   683→  }, [code])
+   684→
+   685→  const handleShare = useCallback(async () => {
+   686→    try {
+   687→      const hash = encodeToHash(code, language)
+   688→      const newUrl = `$\{window.location.pathname}$\{hash}`
+   689→      window.history.replaceState(null, '', newUrl)
+   690→      await navigator.clipboard.writeText(window.location.href)
+   691→      setShared(true)
+   692→      toast.success('Share link copied to clipboard', {
+   693→        description: 'Anyone with the link can run this snippet.',
+   694→      })
+   695→      setTimeout(() => setShared(false), 1500)
+   696→    } catch {
+   697→      toast.error('Failed to create share link')
+   698→    }
+   699→  }, [code, language])
+   700→
+   701→  const handleDownload = useCallback(() => {
+   702→    const ext =
+   703→      language === 'java' ? 'java' :
+   704→      language === 'c' ? 'c' :
+   705→      language === 'cpp' ? 'cpp' :
+   706→      language === 'r' ? 'R' :
+   707→      language === 'javascript' ? 'js' :
+   708→      language === 'php' ? 'php' :
+   709→      language === 'csharp' ? 'cs' :
+   710→      language === 'dart' ? 'dart' :
+   711→      language === 'flutter' ? 'dart' :
+   712→      'py'
+   713→    const mime =
+   714→      language === 'java' ? 'text/x-java;charset=utf-8' :
+   715→      language === 'c' ? 'text/x-csrc;charset=utf-8' :
+   716→      language === 'cpp' ? 'text/x-c++src;charset=utf-8' :
+   717→      language === 'r' ? 'text/x-r;charset=utf-8' :
+   718→      language === 'javascript' ? 'text/javascript;charset=utf-8' :
+   719→      language === 'php' ? 'text/x-php;charset=utf-8' :
+   720→      language === 'csharp' ? 'text/x-csharp;charset=utf-8' :
+   721→      language === 'dart' ? 'text/x-dart;charset=utf-8' :
+   722→      language === 'flutter' ? 'text/x-dart;charset=utf-8' :
+   723→      'text/x-python;charset=utf-8'
+   724→    const blob = new Blob([code], { type: mime })
+   725→    const url = URL.createObjectURL(blob)
+   726→    const a = document.createElement('a')
+   727→    a.href = url
+   728→    a.download = `snippet.$\{ext}`
+   729→    document.body.appendChild(a)
+   730→    a.click()
+   731→    document.body.removeChild(a)
+   732→    URL.revokeObjectURL(url)
+   733→    toast.success(`Downloaded snippet.$\{ext}`)
+   734→  }, [code, language])
+   735→
+   736→  const handleSelectExample = useCallback((ex: Snippet) => {
+   737→    setCode(ex.code)
+   738→    // Auto-switch language if the example specifies one
+   739→    if (ex.language) {
+   740→      setLanguage(ex.language)
+   741→    }
+   742→    setActiveExampleId(ex.id)
+   743→    setChunks([])
+   744→    setResult(null)
+   745→    toast.success(`Loaded "$\{ex.name}"`, { description: ex.description })
+   746→  }, [])
+   747→
+   748→  // resolvedTheme is undefined on first render (SSR); default to dark to
+   749→  // match the ThemeProvider's `defaultTheme='dark'` setting.
+   750→  const editorTheme: 'light' | 'dark' =
+   751→    resolvedTheme === 'light' ? 'light' : 'dark'
+   752→
+   753→  const status = useMemo(() => {
+   754→    if (isRunning) {
+   755→      return awaitingInput
+   756→        ? { label: 'Awaiting input', tone: 'input' as const }
+   757→        : { label: 'Running', tone: 'running' as const }
+   758→    }
+   759→    if (!result) return { label: 'Ready', tone: 'idle' as const }
+   760→    if (result.timedOut) return { label: 'Timed out', tone: 'error' as const }
+   761→    if (result.error) return { label: 'Error', tone: 'error' as const }
+   762→    if (result.code === 0) return { label: 'Success', tone: 'success' as const }
+   763→    return { label: `Exit $\{result.code}`, tone: 'error' as const }
+   764→  }, [isRunning, awaitingInput, result])
+   765→
+   766→  const lineCount = useMemo(() => code.split('\n').length, [code])
+   767→  const charCount = code.length
+   768→
+   769→  // ---- Keyboard shortcut: Ctrl/Cmd+Enter runs ----
+   770→  useEffect(() => {
+   771→    const onKey = (e: KeyboardEvent) => {
+   772→      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+   773→        e.preventDefault()
+   774→        handleRun()
+   775→      }
+   776→    }
+   777→    window.addEventListener('keydown', onKey)
+   778→    return () => window.removeEventListener('keydown', onKey)
+   779→  }, [handleRun])
+   780→
+   781→  return (
+   782→    <TooltipProvider delayDuration={300}>
+   783→      <div className="flex h-screen flex-col bg-background text-foreground">
+   784→        {/* ============ Header ============ */}
+   785→        <header className="flex h-14 flex-none items-center justify-between border-b border-border bg-card/40 px-3 sm:px-4 backdrop-blur-sm">
+   786→          <div className="flex items-center gap-2.5 min-w-0">
+   787→            <div className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-rose-500 shadow-sm">
+   788→              <FileCode2 className="h-5 w-5 text-white" />
+   789→            </div>
+   790→            <div className="min-w-0">
+   791→              <div className="flex items-center gap-2">
+   792→                <h1 className="truncate text-base font-semibold tracking-tight">
+   793→                  PyRunner
+   794→                </h1>
+   795→                <Badge
+   796→                  variant="secondary"
+   797→                  className={`hidden sm:inline-flex border $\{
+   798→                    language === 'java'
+   799→                      ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
+   800→                      : language === 'c'
+   801→                        ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+   802→                        : language === 'cpp'
+   803→                          ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
+   804→                          : language === 'r'
+   805→                            ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20'
+   806→                            : language === 'javascript'
+   807→                              ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20'
+   808→                              : language === 'php'
+   809→                                ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'
+   810→                                : language === 'csharp'
+   811→                                  ? 'bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-500/20'
+   812→                                  : language === 'dart'
+   813→                                    ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20'
+   814→                                    : language === 'flutter'
+   815→                                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+   816→                                      : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+   817→                  }`}
+   818→                >
+   819→                  {language === 'java'
+   820→                    ? 'Java 21'
+   821→                    : language === 'c'
+   822→                      ? 'C (gcc 14)'
+   823→                      : language === 'cpp'
+   824→                        ? 'C++ (g++ 14)'
+   825→                        : language === 'r'
+   826→                          ? 'R 4.5'
+   827→                          : language === 'javascript'
+   828→                            ? 'Node.js 24'
+   829→                            : language === 'php'
+   830→                              ? 'PHP 8.4'
+   831→                              : language === 'csharp'
+   832→                                ? 'C# (.NET 8)'
+   833→                                : language === 'dart'
+   834→                                  ? 'Dart 3.13'
+   835→                                  : language === 'flutter'
+   836→                                    ? 'Flutter 3.47'
+   837→                                    : 'Python 3.12'}
+   838→                </Badge>
+   839→              </div>
+   840→              <p className="hidden sm:block text-xs text-muted-foreground truncate">
+   841→                {language === 'java'
+   842→                  ? 'Interactive Java console with live stdin'
+   843→                  : language === 'c'
+   844→                    ? 'Interactive C console with live stdin'
+   845→                    : language === 'cpp'
+   846→                      ? 'Interactive C++ console with live stdin'
+   847→                      : language === 'r'
+   848→                        ? 'Interactive R console with live stdin'
+   849→                        : language === 'javascript'
+   850→                          ? 'Interactive JavaScript console with live stdin'
+   851→                          : language === 'php'
+   852→                            ? 'Interactive PHP console with live stdin'
+   853→                            : language === 'csharp'
+   854→                              ? 'Interactive C# console with live stdin'
+   855→                              : language === 'dart'
+   856→                                ? 'Interactive Dart console with live stdin'
+   857→                                : language === 'flutter'
+   858→                                  ? 'Flutter widget tests (headless rendering)'
+   859→                                  : 'Interactive Python console with live input()'}
+   860→              </p>
+   861→            </div>
+   862→          </div>
+   863→
+   864→          {/* Language selector */}
+   865→          <div className="flex items-center gap-1 mr-1.5">
+   866→            <div className="flex items-center rounded-md border border-border bg-muted/50 p-0.5">
+   867→              <button
+   868→                type="button"
+   869→                onClick={() => handleLanguageChange('python')}
+   870→                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+   871→                  language === 'python'
+   872→                    ? 'bg-emerald-600 text-white shadow-sm'
+   873→                    : 'text-muted-foreground hover:text-foreground'
+   874→                }`}
+   875→              >
+   876→                Python
+   877→              </button>
+   878→              <button
+   879→                type="button"
+   880→                onClick={() => handleLanguageChange('java')}
+   881→                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+   882→                  language === 'java'
+   883→                    ? 'bg-orange-600 text-white shadow-sm'
+   884→                    : 'text-muted-foreground hover:text-foreground'
+   885→                }`}
+   886→              >
+   887→                Java
+   888→              </button>
+   889→              <button
+   890→                type="button"
+   891→                onClick={() => handleLanguageChange('c')}
+   892→                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+   893→                  language === 'c'
+   894→                    ? 'bg-blue-600 text-white shadow-sm'
+   895→                    : 'text-muted-foreground hover:text-foreground'
+   896→                }`}
+   897→              >
+   898→                C
+   899→              </button>
+   900→              <button
+   901→                type="button"
+   902→                onClick={() => handleLanguageChange('cpp')}
+   903→                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+   904→                  language === 'cpp'
+   905→                    ? 'bg-purple-600 text-white shadow-sm'
+   906→                    : 'text-muted-foreground hover:text-foreground'
+   907→                }`}
+   908→              >
+   909→                C++
+   910→              </button>
+   911→              <button
+   912→                type="button"
+   913→                onClick={() => handleLanguageChange('r')}
+   914→                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+   915→                  language === 'r'
+   916→                    ? 'bg-cyan-600 text-white shadow-sm'
+   917→                    : 'text-muted-foreground hover:text-foreground'
+   918→                }`}
+   919→              >
+   920→                R
+   921→              </button>
+   922→              <button
+   923→                type="button"
+   924→                onClick={() => handleLanguageChange('javascript')}
+   925→                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+   926→                  language === 'javascript'
+   927→                    ? 'bg-yellow-600 text-white shadow-sm'
+   928→                    : 'text-muted-foreground hover:text-foreground'
+   929→                }`}
+   930→              >
+   931→                JS
+   932→              </button>
+   933→              <button
+   934→                type="button"
+   935→                onClick={() => handleLanguageChange('php')}
+   936→                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+   937→                  language === 'php'
+   938→                    ? 'bg-indigo-600 text-white shadow-sm'
+   939→                    : 'text-muted-foreground hover:text-foreground'
+   940→                }`}
+   941→              >
+   942→                PHP
+   943→              </button>
+   944→              <button
+   945→                type="button"
+   946→                onClick={() => handleLanguageChange('csharp')}
+   947→                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+   948→                  language === 'csharp'
+   949→                    ? 'bg-pink-600 text-white shadow-sm'
+   950→                    : 'text-muted-foreground hover:text-foreground'
+   951→                }`}
+   952→              >
+   953→                C#
+   954→              </button>
+   955→              <button
+   956→                type="button"
+   957→                onClick={() => handleLanguageChange('dart')}
+   958→                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+   959→                  language === 'dart'
+   960→                    ? 'bg-teal-600 text-white shadow-sm'
+   961→                    : 'text-muted-foreground hover:text-foreground'
+   962→                }`}
+   963→              >
+   964→                Dart
+   965→              </button>
+   966→              <button
+   967→                type="button"
+   968→                onClick={() => handleLanguageChange('flutter')}
+   969→                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+   970→                  language === 'flutter'
+   971→                    ? 'bg-blue-600 text-white shadow-sm'
+   972→                    : 'text-muted-foreground hover:text-foreground'
+   973→                }`}
+   974→              >
+   975→                Flutter
+   976→              </button>
+   977→            </div>
+   978→          </div>
+   979→
+   980→          <div className="flex items-center gap-1.5">
+   981→            <DropdownMenu>
+   982→              <DropdownMenuTrigger asChild>
+   983→                <Button variant="ghost" size="sm" className="gap-1.5">
+   984→                  <FileCode2 className="h-4 w-4" />
+   985→                  <span className="hidden sm:inline">Examples</span>
+   986→                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+   987→                </Button>
+   988→              </DropdownMenuTrigger>
+   989→              <DropdownMenuContent
+   990→                align="end"
+   991→                className="w-72 max-h-[500px] overflow-y-auto"
+   992→              >
+   993→                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+   994→                  Python examples
+   995→                </DropdownMenuLabel>
+   996→                <DropdownMenuSeparator />
+   997→                {EXAMPLES.filter((ex) => ex.language === undefined).map((ex) => (
+   998→                  <DropdownMenuItem
+   999→                    key={ex.id}
+  1000→                    onSelect={() => handleSelectExample(ex)}
+  1001→                    className="flex flex-col items-start gap-0.5 py-2"
+  1002→                  >
+  1003→                    <div className="font-medium text-sm">{ex.name}</div>
+  1004→                    <div className="text-xs text-muted-foreground line-clamp-1">
+  1005→                      {ex.description}
+  1006→                    </div>
+  1007→                  </DropdownMenuItem>
+  1008→                ))}
+  1009→                <DropdownMenuSeparator />
+  1010→                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+  1011→                  Java examples
+  1012→                </DropdownMenuLabel>
+  1013→                <DropdownMenuSeparator />
+  1014→                {EXAMPLES.filter((ex) => ex.language === 'java').map((ex) => (
+  1015→                  <DropdownMenuItem
+  1016→                    key={ex.id}
+  1017→                    onSelect={() => handleSelectExample(ex)}
+  1018→                    className="flex flex-col items-start gap-0.5 py-2"
+  1019→                  >
+  1020→                    <div className="font-medium text-sm">{ex.name}</div>
+  1021→                    <div className="text-xs text-muted-foreground line-clamp-1">
+  1022→                      {ex.description}
+  1023→                    </div>
+  1024→                  </DropdownMenuItem>
+  1025→                ))}
+  1026→                <DropdownMenuSeparator />
+  1027→                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+  1028→                  C examples
+  1029→                </DropdownMenuLabel>
+  1030→                <DropdownMenuSeparator />
+  1031→                {EXAMPLES.filter((ex) => ex.language === 'c').map((ex) => (
+  1032→                  <DropdownMenuItem
+  1033→                    key={ex.id}
+  1034→                    onSelect={() => handleSelectExample(ex)}
+  1035→                    className="flex flex-col items-start gap-0.5 py-2"
+  1036→                  >
+  1037→                    <div className="font-medium text-sm">{ex.name}</div>
+  1038→                    <div className="text-xs text-muted-foreground line-clamp-1">
+  1039→                      {ex.description}
+  1040→                    </div>
+  1041→                  </DropdownMenuItem>
+  1042→                ))}
+  1043→                <DropdownMenuSeparator />
+  1044→                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+  1045→                  C++ examples
+  1046→                </DropdownMenuLabel>
+  1047→                <DropdownMenuSeparator />
+  1048→                {EXAMPLES.filter((ex) => ex.language === 'cpp').map((ex) => (
+  1049→                  <DropdownMenuItem
+  1050→                    key={ex.id}
+  1051→                    onSelect={() => handleSelectExample(ex)}
+  1052→                    className="flex flex-col items-start gap-0.5 py-2"
+  1053→                  >
+  1054→                    <div className="font-medium text-sm">{ex.name}</div>
+  1055→                    <div className="text-xs text-muted-foreground line-clamp-1">
+  1056→                      {ex.description}
+  1057→                    </div>
+  1058→                  </DropdownMenuItem>
+  1059→                ))}
+  1060→                <DropdownMenuSeparator />
+  1061→                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+  1062→                  R examples
+  1063→                </DropdownMenuLabel>
+  1064→                <DropdownMenuSeparator />
+  1065→                {EXAMPLES.filter((ex) => ex.language === 'r').map((ex) => (
+  1066→                  <DropdownMenuItem
+  1067→                    key={ex.id}
+  1068→                    onSelect={() => handleSelectExample(ex)}
+  1069→                    className="flex flex-col items-start gap-0.5 py-2"
+  1070→                  >
+  1071→                    <div className="font-medium text-sm">{ex.name}</div>
+  1072→                    <div className="text-xs text-muted-foreground line-clamp-1">
+  1073→                      {ex.description}
+  1074→                    </div>
+  1075→                  </DropdownMenuItem>
+  1076→                ))}
+  1077→                <DropdownMenuSeparator />
+  1078→                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+  1079→                  JavaScript examples
+  1080→                </DropdownMenuLabel>
+  1081→                <DropdownMenuSeparator />
+  1082→                {EXAMPLES.filter((ex) => ex.language === 'javascript').map((ex) => (
+  1083→                  <DropdownMenuItem
+  1084→                    key={ex.id}
+  1085→                    onSelect={() => handleSelectExample(ex)}
+  1086→                    className="flex flex-col items-start gap-0.5 py-2"
+  1087→                  >
+  1088→                    <div className="font-medium text-sm">{ex.name}</div>
+  1089→                    <div className="text-xs text-muted-foreground line-clamp-1">
+  1090→                      {ex.description}
+  1091→                    </div>
+  1092→                  </DropdownMenuItem>
+  1093→                ))}
+  1094→                <DropdownMenuSeparator />
+  1095→                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+  1096→                  PHP examples
+  1097→                </DropdownMenuLabel>
+  1098→                <DropdownMenuSeparator />
+  1099→                {EXAMPLES.filter((ex) => ex.language === 'php').map((ex) => (
+  1100→                  <DropdownMenuItem
+  1101→                    key={ex.id}
+  1102→                    onSelect={() => handleSelectExample(ex)}
+  1103→                    className="flex flex-col items-start gap-0.5 py-2"
+  1104→                  >
+  1105→                    <div className="font-medium text-sm">{ex.name}</div>
+  1106→                    <div className="text-xs text-muted-foreground line-clamp-1">
+  1107→                      {ex.description}
+  1108→                    </div>
+  1109→                  </DropdownMenuItem>
+  1110→                ))}
+  1111→                <DropdownMenuSeparator />
+  1112→                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+  1113→                  C# examples
+  1114→                </DropdownMenuLabel>
+  1115→                <DropdownMenuSeparator />
+  1116→                {EXAMPLES.filter((ex) => ex.language === 'csharp').map((ex) => (
+  1117→                  <DropdownMenuItem
+  1118→                    key={ex.id}
+  1119→                    onSelect={() => handleSelectExample(ex)}
+  1120→                    className="flex flex-col items-start gap-0.5 py-2"
+  1121→                  >
+  1122→                    <div className="font-medium text-sm">{ex.name}</div>
+  1123→                    <div className="text-xs text-muted-foreground line-clamp-1">
+  1124→                      {ex.description}
+  1125→                    </div>
+  1126→                  </DropdownMenuItem>
+  1127→                ))}
+  1128→                <DropdownMenuSeparator />
+  1129→                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+  1130→                  Dart examples
+  1131→                </DropdownMenuLabel>
+  1132→                <DropdownMenuSeparator />
+  1133→                {EXAMPLES.filter((ex) => ex.language === 'dart').map((ex) => (
+  1134→                  <DropdownMenuItem
+  1135→                    key={ex.id}
+  1136→                    onSelect={() => handleSelectExample(ex)}
+  1137→                    className="flex flex-col items-start gap-0.5 py-2"
+  1138→                  >
+  1139→                    <div className="font-medium text-sm">{ex.name}</div>
+  1140→                    <div className="text-xs text-muted-foreground line-clamp-1">
+  1141→                      {ex.description}
+  1142→                    </div>
+  1143→                  </DropdownMenuItem>
+  1144→                ))}
+  1145→                <DropdownMenuSeparator />
+  1146→                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+  1147→                  Flutter examples
+  1148→                </DropdownMenuLabel>
+  1149→                <DropdownMenuSeparator />
+  1150→                {EXAMPLES.filter((ex) => ex.language === 'flutter').map((ex) => (
+  1151→                  <DropdownMenuItem
+  1152→                    key={ex.id}
+  1153→                    onSelect={() => handleSelectExample(ex)}
+  1154→                    className="flex flex-col items-start gap-0.5 py-2"
+  1155→                  >
+  1156→                    <div className="font-medium text-sm">{ex.name}</div>
+  1157→                    <div className="text-xs text-muted-foreground line-clamp-1">
+  1158→                      {ex.description}
+  1159→                    </div>
+  1160→                  </DropdownMenuItem>
+  1161→                ))}
+  1162→              </DropdownMenuContent>
+  1163→            </DropdownMenu>
+  1164→
+  1165→            <Separator orientation="vertical" className="h-6 mx-0.5" />
+  1166→
+  1167→            <Tooltip>
+  1168→              <TooltipTrigger asChild>
+  1169→                <Button
+  1170→                  variant="ghost"
+  1171→                  size="icon"
+  1172→                  className="h-8 w-8"
+  1173→                  onClick={() =>
+  1174→                    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
+  1175→                  }
+  1176→                  aria-label="Toggle theme"
+  1177→                >
+  1178→                  {resolvedTheme === 'light' ? (
+  1179→                    <Moon className="h-4 w-4" />
+  1180→                  ) : (
+  1181→                    <Sun className="h-4 w-4" />
+  1182→                  )}
+  1183→                </Button>
+  1184→              </TooltipTrigger>
+  1185→              <TooltipContent>Toggle theme</TooltipContent>
+  1186→            </Tooltip>
+  1187→          </div>
+  1188→        </header>
+  1189→
+  1190→        {/* ============ Toolbar ============ */}
+  1191→        <div className="flex h-12 flex-none items-center gap-1.5 border-b border-border bg-muted/30 px-3 sm:px-4">
+  1192→          <Button
+  1193→            onClick={handleRun}
+  1194→            disabled={isRunning}
+  1195→            size="sm"
+  1196→            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+  1197→          >
+  1198→            {isRunning ? (
+  1199→              <Loader2 className="h-4 w-4 animate-spin" />
+  1200→            ) : (
+  1201→              <Play className="h-4 w-4" />
+  1202→            )}
+  1203→            <span className="hidden sm:inline">Run</span>
+  1204→            <kbd className="hidden md:inline text-[10px] font-mono opacity-70 ml-1 px-1 py-0.5 rounded bg-black/10">
+  1205→              ⌘↵
+  1206→            </kbd>
+  1207→          </Button>
+  1208→
+  1209→          {isRunning && (
+  1210→            <Button
+  1211→              onClick={handleStop}
+  1212→              variant="destructive"
+  1213→              size="sm"
+  1214→              className="gap-1.5"
+  1215→            >
+  1216→              <Square className="h-3.5 w-3.5" />
+  1217→              <span className="hidden sm:inline">Stop</span>
+  1218→            </Button>
+  1219→          )}
+  1220→
+  1221→          <Separator orientation="vertical" className="h-6 mx-0.5" />
+  1222→
+  1223→          <Tooltip>
+  1224→            <TooltipTrigger asChild>
+  1225→              <Button onClick={handleCopy} variant="ghost" size="sm" className="gap-1.5">
+  1226→                {copied ? (
+  1227→                  <Check className="h-4 w-4 text-emerald-500" />
+  1228→                ) : (
+  1229→                  <Copy className="h-4 w-4" />
+  1230→                )}
+  1231→                <span className="hidden md:inline">Copy</span>
+  1232→              </Button>
+  1233→            </TooltipTrigger>
+  1234→            <TooltipContent>Copy code</TooltipContent>
+  1235→          </Tooltip>
+  1236→
+  1237→          <Tooltip>
+  1238→            <TooltipTrigger asChild>
+  1239→              <Button onClick={handleShare} variant="ghost" size="sm" className="gap-1.5">
+  1240→                {shared ? (
+  1241→                  <Check className="h-4 w-4 text-emerald-500" />
+  1242→                ) : (
+  1243→                  <Share2 className="h-4 w-4" />
+  1244→                )}
+  1245→                <span className="hidden md:inline">Share</span>
+  1246→              </Button>
+  1247→            </TooltipTrigger>
+  1248→            <TooltipContent>Copy shareable link</TooltipContent>
+  1249→          </Tooltip>
+  1250→
+  1251→          <Tooltip>
+  1252→            <TooltipTrigger asChild>
+  1253→              <Button onClick={handleDownload} variant="ghost" size="sm" className="gap-1.5">
+  1254→                <Download className="h-4 w-4" />
+  1255→                <span className="hidden md:inline">Download</span>
+  1256→              </Button>
+  1257→            </TooltipTrigger>
+  1258→            <TooltipContent>Download as .py</TooltipContent>
+  1259→          </Tooltip>
+  1260→
+  1261→          <div className="flex-1" />
+  1262→
+  1263→          <Tooltip>
+  1264→            <TooltipTrigger asChild>
+  1265→              <Button
+  1266→                onClick={handleClearAll}
+  1267→                variant="ghost"
+  1268→                size="sm"
+  1269→                className="gap-1.5 text-muted-foreground hover:text-destructive"
+  1270→              >
+  1271→                <Eraser className="h-4 w-4" />
+  1272→                <span className="hidden md:inline">Clear</span>
+  1273→              </Button>
+  1274→            </TooltipTrigger>
+  1275→            <TooltipContent>Clear editor & console</TooltipContent>
+  1276→          </Tooltip>
+  1277→        </div>
+  1278→
+  1279→        {/* ============ Main split: editor | console ============ */}
+  1280→        <main className="flex-1 min-h-0 overflow-hidden">
+  1281→          <PanelGroup direction="horizontal" className="h-full">
+  1282→            {/* ---- Editor ---- */}
+  1283→            <Panel defaultSize={55} minSize={30}>
+  1284→              <div className="h-full flex flex-col">
+  1285→                <div className="flex-none flex h-9 items-center gap-2 border-b border-border bg-muted/30 px-3">
+  1286→                  <FileCode2 className="h-3.5 w-3.5 text-muted-foreground" />
+  1287→                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+  1288→                    {language === 'java'
+  1289→                      ? 'code.java'
+  1290→                      : language === 'c'
+  1291→                        ? 'code.c'
+  1292→                        : language === 'cpp'
+  1293→                          ? 'code.cpp'
+  1294→                          : language === 'r'
+  1295→                            ? 'code.R'
+  1296→                            : language === 'javascript'
+  1297→                              ? 'code.js'
+  1298→                              : language === 'php'
+  1299→                                ? 'code.php'
+  1300→                                : language === 'csharp'
+  1301→                                  ? 'code.cs'
+  1302→                                  : language === 'dart'
+  1303→                                    ? 'code.dart'
+  1304→                                    : language === 'flutter'
+  1305→                                      ? 'widget_test.dart'
+  1306→                                      : 'code.py'}
+  1307→                  </span>
+  1308→                  <div className="flex-1" />
+  1309→                  <button
+  1310→                    type="button"
+  1311→                    onClick={() => setShowStdin(!showStdin)}
+  1312→                    className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded transition-colors $\{
+  1313→                      showStdin
+  1314→                        ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400'
+  1315→                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+  1316→                    }`}
+  1317→                    title="Toggle Program Input panel"
+  1318→                  >
+  1319→                    <Terminal className="h-3 w-3" />
+  1320→                    Program Input
+  1321→                    {stdinText.trim() && (
+  1322→                      <span className="bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-[9px] px-1 rounded">
+  1323→                        {stdinText.split('\n').filter(l => l.trim()).length}
+  1324→                      </span>
+  1325→                    )}
+  1326→                  </button>
+  1327→                </div>
+  1328→                <div className="flex-1 min-h-0">
+  1329→                  <PyEditor
+  1330→                    value={code}
+  1331→                    onChange={setCode}
+  1332→                    onRun={handleRun}
+  1333→                    theme={editorTheme}
+  1334→                    language={language}
+  1335→                  />
+  1336→                </div>
+  1337→                {/* Program Input panel (collapsible) */}
+  1338→                {showStdin && (
+  1339→                  <div className="flex-none border-t border-border bg-muted/20">
+  1340→                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/10">
+  1341→                      <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+  1342→                        Program Input (stdin) — one value per line
+  1343→                      </span>
+  1344→                      {stdinText && (
+  1345→                        <button
+  1346→                          type="button"
+  1347→                          onClick={() => setStdinText('')}
+  1348→                          className="text-[10px] text-muted-foreground hover:text-foreground"
+  1349→                        >
+  1350→                          Clear
+  1351→                        </button>
+  1352→                      )}
+  1353→                    </div>
+  1354→                    <textarea
+  1355→                      value={stdinText}
+  1356→                      onChange={(e) => setStdinText(e.target.value)}
+  1357→                      placeholder="Type input values here, one per line.&#10;Example:&#10;Arun&#10;20"
+  1358→                      spellCheck={false}
+  1359→                      className="w-full h-24 resize-none bg-background font-mono text-[13px] leading-relaxed px-3 py-2 outline-none placeholder:text-muted-foreground/50"
+  1360→                      style={{
+  1361→                        fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
+  1362→                        whiteSpace: 'pre-wrap',
+  1363→                        overflowWrap: 'break-word',
+  1364→                      }}
+  1365→                    />
+  1366→                  </div>
+  1367→                )}
+  1368→              </div>
+  1369→            </Panel>
+  1370→
+  1371→            <PanelResizeHandle className="w-1.5 bg-border hover:bg-emerald-500/50 transition-colors flex items-center justify-center group">
+  1372→              <div className="h-10 w-0.5 rounded-full bg-border group-hover:bg-emerald-500" />
+  1373→            </PanelResizeHandle>
+  1374→
+  1375→            {/* ---- Interactive Console + Flutter Preview ---- */}
+  1376→            <Panel defaultSize={45} minSize={25}>
+  1377→              <div className="h-full flex flex-col bg-card/30">
+  1378→                {/* Console header */}
+  1379→                <div className="flex-none flex h-9 items-center justify-between border-b border-border px-3 bg-muted/30">
+  1380→                  <div className="flex items-center gap-2">
+  1381→                    <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
+  1382→                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+  1383→                      {language === 'flutter' && flutterPort ? 'Console (build logs)' : 'Console'}
+  1384→                    </span>
+  1385→                  </div>
+  1386→                  <div className="flex items-center gap-2">
+  1387→                    <StatusBadge status={status} />
+  1388→                    {result && (
+  1389→                      <Tooltip>
+  1390→                        <TooltipTrigger asChild>
+  1391→                          <Button
+  1392→                            variant="ghost"
+  1393→                            size="icon"
+  1394→                            className="h-7 w-7"
+  1395→                            onClick={handleClearConsole}
+  1396→                          >
+  1397→                            <Trash2 className="h-3.5 w-3.5" />
+  1398→                          </Button>
+  1399→                        </TooltipTrigger>
+  1400→                        <TooltipContent>Clear console</TooltipContent>
+  1401→                      </Tooltip>
+  1402→                    )}
+  1403→                  </div>
+  1404→                </div>
+  1405→
+  1406→                {/* Flutter Preview Panel (shows status, opens in new tab) */}
+  1407→                {language === 'flutter' && (
+  1408→                  <div className="flex-none border-b border-border bg-muted/20" style={{ height: '45%' }}>
+  1409→                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/10">
+  1410→                      <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+  1411→                        Flutter Preview
+  1412→                      </span>
+  1413→                      {flutterPort && (
+  1414→                        <button
+  1415→                          type="button"
+  1416→                          onClick={() => {
+  1417→                            const port = flutterPort
+  1418→                            setTimeout(() => {
+  1419→                              window.open(
+  1420→                                window.location.origin + `/?XTransformPort=${port}`,
+  1421→                                '_blank',
+  1422→                                'noopener,noreferrer'
+  1423→                              )
+  1424→                            }, 0)
+  1425→                          }}
+  1426→                          className="text-[10px] text-blue-500 hover:text-blue-400 font-mono underline"
+  1427→                        >
+  1428→                          Reopen preview tab
+  1429→                        </button>
+  1430→                      )}
+  1431→                    </div>
+  1432→                    <div className="h-[calc(100%-28px)] bg-muted/5">
+  1433→                      {flutterPort ? (
+  1434→                        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+  1435→                          <CircleCheck className="h-8 w-8 text-emerald-500" />
+  1436→                          <span className="text-sm text-emerald-500 font-medium">Flutter app is live!</span>
+  1437→                          <span className="text-xs text-muted-foreground">
+  1438→                            The app has been opened in a new browser tab.
+  1439→                          </span>
+  1440→                          <span className="text-[10px] text-muted-foreground/60 font-mono">
+  1441→                            Port: {flutterPort}
+  1442→                          </span>
+  1443→                          <button
+  1444→                            type="button"
+  1445→                            onClick={() => {
+  1446→                              const port = flutterPort
+  1447→                              setTimeout(() => {
+  1448→                                window.open(
+  1449→                                  window.location.origin + `/?XTransformPort=${port}`,
+  1450→                                  '_blank',
+  1451→                                  'noopener,noreferrer'
+  1452→                                )
+  1453→                              }, 0)
+  1454→                            }}
+  1455→                            className="mt-2 text-xs text-blue-500 hover:text-blue-400 underline"
+  1456→                          >
+  1457→                            Open again
+  1458→                          </button>
+  1459→                        </div>
+  1460→                      ) : isRunning ? (
+  1461→                        <div className="flex h-full flex-col items-center justify-center gap-3 bg-muted/10">
+  1462→                          <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+  1463→                          <span className="text-xs text-muted-foreground">
+  1464→                            Building Flutter web app...
+  1465→                          </span>
+  1466→                          <span className="text-[10px] text-muted-foreground/60">
+  1467→                            This takes ~20-30 seconds. The app will open in a new tab when ready.
+  1468→                          </span>
+  1469→                        </div>
+  1470→                      ) : result && !result.code ? (
+  1471→                        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+  1472→                          <CircleAlert className="h-6 w-6 text-rose-500" />
+  1473→                          <span className="text-xs text-rose-500">Build failed</span>
+  1474→                          <span className="text-[10px] text-muted-foreground">Check console for errors</span>
+  1475→                        </div>
+  1476→                      ) : (
+  1477→                        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+  1478→                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 border border-blue-500/20">
+  1479→                            <svg className="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+  1480→                              <path d="M12 2L2 12l10 10 10-10L12 2z"/>
+  1481→                            </svg>
+  1482→                          </div>
+  1483→                          <span className="text-xs text-muted-foreground">Press Run to build and preview your Flutter app</span>
+  1484→                          <span className="text-[10px] text-muted-foreground/60">
+  1485→                            The app will open in a new browser tab when ready.
+  1486→                          </span>
+  1487→                        </div>
+  1488→                      )}
+  1489→                    </div>
+  1490→                  </div>
+  1491→                )}
+  1492→
+  1493→                {/* Console body */}
+  1494→                <div className="flex-1 min-h-0 overflow-auto bg-[#0a0b10] dark:bg-[#0a0b10]">
+  1495→                  {chunks.length === 0 && !isRunning ? (
+  1496→                    <EmptyConsole />
+  1497→                  ) : (
+  1498→                    <div
+  1499→                      className="px-3 py-2.5 font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-words"
+  1500→                      style={{
+  1501→                        fontFamily:
+  1502→                          'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+  1503→                        whiteSpace: 'pre-wrap',
+  1504→                        overflowWrap: 'break-word',
+  1505→                        tabSize: 4,
+  1506→                      }}
+  1507→                    >
+  1508→                      {chunks.map((chunk) => (
+  1509→                        <ConsoleLine key={chunk.id} chunk={chunk} />
+  1510→                      ))}
+  1511→                      {isRunning && chunks.length === 0 && (
+  1512→                        <div className="flex items-center gap-2 text-muted-foreground py-1">
+  1513→                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+  1514→                          <span className="text-xs">
+  1515→                            {language === 'flutter' ? 'Building Flutter web app…' : 'Starting…'}
+  1516→                          </span>
+  1517→                        </div>
+  1518→                      )}
+  1519→                      <div ref={consoleEndRef} />
+  1520→                    </div>
+  1521→                  )}
+  1522→                </div>
+  1523→
+  1524→                {/* Input bar */}
+  1525→                <div className="flex-none border-t border-border bg-muted/20">
+  1526→                  <div className="flex items-center gap-2 px-3 py-2">
+  1527→                    <div
+  1528→                      className={`flex h-6 w-6 flex-none items-center justify-center rounded $\{
+  1529→                        awaitingInput
+  1530→                          ? 'bg-amber-500/20 text-amber-500'
+  1531→                          : isRunning
+  1532→                            ? 'bg-emerald-500/15 text-emerald-500'
+  1533→                            : 'bg-muted text-muted-foreground'
+  1534→                      }`}
+  1535→                    >
+  1536→                      {awaitingInput ? (
+  1537→                        <CornerDownLeft className="h-3.5 w-3.5" />
+  1538→                      ) : isRunning ? (
+  1539→                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+  1540→                      ) : (
+  1541→                        <span className="text-xs font-mono">›</span>
+  1542→                      )}
+  1543→                    </div>
+  1544→                    <input
+  1545→                      ref={inputRef}
+  1546→                      type="text"
+  1547→                      value={inputValue}
+  1548→                      onChange={(e) => setInputValue(e.target.value)}
+  1549→                      onKeyDown={(e) => {
+  1550→                        if (e.key === 'Enter') {
+  1551→                          e.preventDefault()
+  1552→                          handleSubmitInput()
+  1553→                        }
+  1554→                      }}
+  1555→                      disabled={!isRunning}
+  1556→                      placeholder={
+  1557→                        isRunning
+  1558→                          ? awaitingInput
+  1559→                            ? 'Type your answer and press Enter…'
+  1560→                            : 'Waiting for program output…'
+  1561→                          : 'Console input is enabled while a program is running'
+  1562→                      }
+  1563→                      spellCheck={false}
+  1564→                      autoComplete="off"
+  1565→                      className="flex-1 bg-transparent font-mono text-sm outline-none placeholder:text-muted-foreground/60 disabled:cursor-not-allowed"
+  1566→                      style={{ fontFamily: 'var(--font-geist-mono), ui-monospace, monospace' }}
+  1567→                    />
+  1568→                    {isRunning && (
+  1569→                      <Button
+  1570→                        size="sm"
+  1571→                        variant="ghost"
+  1572→                        className="h-7 gap-1 text-xs"
+  1573→                        onClick={handleSubmitInput}
+  1574→                        disabled={!inputValue}
+  1575→                      >
+  1576→                        Send
+  1577→                        <CornerDownLeft className="h-3 w-3" />
+  1578→                      </Button>
+  1579→                    )}
+  1580→                  </div>
+  1581→                </div>
+  1582→              </div>
+  1583→            </Panel>
+  1584→          </PanelGroup>
+  1585→        </main>
+  1586→
+  1587→        {/* ============ Footer ============ */}
+  1588→        <footer className="flex-none flex h-7 items-center justify-between border-t border-border bg-muted/30 px-3 sm:px-4 text-[11px] text-muted-foreground">
+  1589→          <div className="flex items-center gap-3">
+  1590→            <span className="flex items-center gap-1">
+  1591→              <Hash className="h-3 w-3" />
+  1592→              {lineCount} lines
+  1593→            </span>
+  1594→            <span className="hidden sm:inline opacity-50">·</span>
+  1595→            <span className="hidden sm:inline">{charCount} chars</span>
+  1596→          </div>
+  1597→          <div className="flex items-center gap-3">
+  1598→            <span className="hidden sm:flex items-center gap-1">
+  1599→              <Keyboard className="h-3 w-3" />
+  1600→              <kbd className="font-mono">Ctrl/⌘ + Enter</kbd>
+  1601→              <span className="opacity-60">to run</span>
+  1602→            </span>
+  1603→            <span className="hidden md:inline opacity-50">·</span>
+  1604→            <span className="hidden md:inline">30s timeout · interactive stdin</span>
+  1605→          </div>
+  1606→        </footer>
+  1607→      </div>
+  1608→    </TooltipProvider>
+  1609→  )
+  1610→}
+  1611→
+  1612→/* ------------------------------------------------------------------ */
+  1613→/* Sub-components                                                      */
+  1614→/* ------------------------------------------------------------------ */
+  1615→
+  1616→function StatusBadge({
+  1617→  status,
+  1618→}: {
+  1619→  status: {
+  1620→    label: string
+  1621→    tone: 'idle' | 'running' | 'success' | 'error' | 'input'
+  1622→  }
+  1623→}) {
+  1624→  const styles = {
+  1625→    idle: 'bg-muted text-muted-foreground',
+  1626→    running: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  1627→    success: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+  1628→    error: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+  1629→    input: 'bg-amber-500/20 text-amber-600 dark:text-amber-400',
+  1630→  }[status.tone]
+  1631→
+  1632→  const dot = {
+  1633→    idle: 'bg-muted-foreground/60',
+  1634→    running: 'bg-amber-500 animate-pulse',
+  1635→    success: 'bg-emerald-500',
+  1636→    error: 'bg-rose-500',
+  1637→    input: 'bg-amber-500 animate-pulse',
+  1638→  }[status.tone]
+  1639→
+  1640→  const icon =
+  1641→    status.tone === 'success' ? (
+  1642→      <CircleCheck className="h-3 w-3" />
+  1643→    ) : status.tone === 'error' ? (
+  1644→      <CircleAlert className="h-3 w-3" />
+  1645→    ) : status.tone === 'running' || status.tone === 'input' ? (
+  1646→      <Loader2 className="h-3 w-3 animate-spin" />
+  1647→    ) : null
+  1648→
+  1649→  return (
+  1650→    <span
+  1651→      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium $\{styles}`}
+  1652→    >
+  1653→      {icon ?? <span className={`h-1.5 w-1.5 rounded-full $\{dot}`} />}
+  1654→      {status.label}
+  1655→    </span>
+  1656→  )
+  1657→}
+  1658→
+  1659→function ConsoleLine({ chunk }: { chunk: OutputChunk }) {
+  1660→  // Image chunk (matplotlib figure rendered as inline PNG)
+  1661→  if (chunk.stream === 'image' && chunk.src) {
+  1662→    return (
+  1663→      <span className="my-2 block">
+  1664→        <img
+  1665→          src={chunk.src}
+  1666→          alt="matplotlib figure"
+  1667→          className="max-w-full h-auto rounded-md border border-zinc-700/50 bg-white"
+  1668→          style={{ display: 'block', maxHeight: '70vh' }}
+  1669→        />
+  1670→      </span>
+  1671→    )
+  1672→  }
+  1673→
+  1674→  // Server chunk: clickable link that opens the running server via Caddy.
+  1675→  // The URL uses ?XTransformPort=<port> so the gateway routes the request
+  1676→  // to the user's running Flask/Django/http.server app.
+  1677→  if (chunk.stream === 'server' && chunk.port) {
+  1678→    const port = chunk.port
+  1679→    const href = `/?XTransformPort=$\{port}`
+  1680→    return (
+  1681→      <span
+  1682→        className="my-2 block rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2"
+  1683→        style={{
+  1684→          fontFamily:
+  1685→            'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+  1686→          whiteSpace: 'pre-wrap',
+  1687→          overflowWrap: 'break-word',
+  1688→        }}
+  1689→      >
+  1690→        <span className="text-emerald-400 font-semibold">▶ Server ready</span>
+  1691→        <span className="text-zinc-300"> — listening on port </span>
+  1692→        <span className="text-emerald-400 font-mono font-semibold">{port}</span>
+  1693→        <span className="block mt-1">
+  1694→          <a
+  1695→            href={href}
+  1696→            target="_blank"
+  1697→            rel="noopener noreferrer"
+  1698→            className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 hover:underline underline-offset-2"
+  1699→          >
+  1700→            Open
+  1701→            <span className="text-zinc-500">/?XTransformPort={port}</span>
+  1702→            <svg
+  1703→              className="h-3 w-3"
+  1704→              viewBox="0 0 24 24"
+  1705→              fill="none"
+  1706→              stroke="currentColor"
+  1707→              strokeWidth="2"
+  1708→              strokeLinecap="round"
+  1709→              strokeLinejoin="round"
+  1710→            >
+  1711→              <path d="M7 17L17 7M17 7H7M17 7v10" />
+  1712→            </svg>
+  1713→          </a>
+  1714→        </span>
+  1715→        <span className="block mt-1 text-xs text-zinc-500">
+  1716→          Use Stop to terminate the server.
+  1717→        </span>
+  1718→      </span>
+  1719→    )
+  1720→  }
+  1721→
+  1722→  // Render with EXACT whitespace preservation.
+  1723→  // white-space: pre-wrap preserves leading spaces, multiple consecutive
+  1724→  // spaces, tabs, and line breaks exactly as the program produced them.
+  1725→  // It also wraps long lines at the right edge instead of horizontal scroll.
+  1726→  // overflow-wrap: break-word breaks very long unbreakable tokens (e.g.
+  1727→  // long file paths in tracebacks) to prevent overflow.
+  1728→  // tab-size: 4 renders tabs as 4 columns wide.
+  1729→  const text = chunk.text
+  1730→  const baseStyle: React.CSSProperties = {
+  1731→    fontFamily:
+  1732→      'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+  1733→    whiteSpace: 'pre-wrap',
+  1734→    overflowWrap: 'break-word',
+  1735→    tabSize: 4,
+  1736→  }
+  1737→
+  1738→  if (chunk.stream === 'input') {
+  1739→    return (
+  1740→      <span className="text-sky-400" style={baseStyle}>
+  1741→        {text}
+  1742→      </span>
+  1743→    )
+  1744→  }
+  1745→  if (chunk.stream === 'stderr') {
+  1746→    return (
+  1747→      <span className="text-rose-400" style={baseStyle}>
+  1748→        {text}
+  1749→      </span>
+  1750→    )
+  1751→  }
+  1752→  if (chunk.stream === 'system') {
+  1753→    return (
+  1754→      <span className="text-muted-foreground italic" style={baseStyle}>
+  1755→        {text}
+  1756→      </span>
+  1757→    )
+  1758→  }
+  1759→  // stdout
+  1760→  return (
+  1761→    <span className="text-zinc-100" style={baseStyle}>
+  1762→      {text}
+  1763→    </span>
+  1764→  )
+  1765→}
+  1766→
+  1767→function EmptyConsole() {
+  1768→  return (
+  1769→    <div className="h-full flex flex-col items-center justify-center px-6 text-center">
+  1770→      <div className="relative mb-4">
+  1771→        <div className="absolute inset-0 blur-2xl bg-emerald-500/20 rounded-full" />
+  1772→        <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/20">
+  1773→          <Terminal className="h-7 w-7 text-emerald-500" />
+  1774→        </div>
+  1775→      </div>
+  1776→      <h3 className="text-sm font-medium mb-1 text-zinc-200">Interactive console</h3>
+  1777→      <p className="text-xs text-zinc-400 max-w-[300px] leading-relaxed">
+  1778→        Write your Python code on the left and press{' '}
+  1779→        <kbd className="font-mono px-1 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-200">
+  1780→          Run
+  1781→        </kbd>
+  1782→        . <code className="text-emerald-400">input()</code> prompts appear
+  1783→        inline, and <code className="text-emerald-400">matplotlib</code> figures
+  1784→        render as images — try the examples menu.
+  1785→      </p>
+  1786→    </div>
+  1787→  )
+  1788→}
+  1789→

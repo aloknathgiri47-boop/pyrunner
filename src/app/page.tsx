@@ -475,18 +475,19 @@ export default function Home() {
 
     sock.on('server', (msg: { port: number; host?: string }) => {
       if (languageRef.current === 'flutter') {
-        // Set the port for the preview status panel
+        // Set the port — this immediately renders the live iframe preview.
         setFlutterPort(msg.port)
-        // Automatically open the Flutter app in a new browser tab.
-        // Use setTimeout to ensure the current page state is saved first
-        // and the window.open call happens in a clean event loop.
-        const port = msg.port
-        setTimeout(() => {
-          const previewUrl = window.location.origin + `/?XTransformPort=${port}`
-          window.open(previewUrl, '_blank', 'noopener,noreferrer')
-        }, 100)
+        // Also try to open the preview in a new browser tab (best-effort).
+        // Browsers may block this if not triggered by a user gesture, but the
+        // in-page iframe always works as a fallback.
+        try {
+          const url = window.location.origin + `/?XTransformPort=${msg.port}`
+          window.open(url, '_blank', 'noopener,noreferrer')
+        } catch (_) {
+          // ignore — iframe is the primary view
+        }
         toast.success('Flutter app is live!', {
-          description: `Opening preview in new tab (port ${port})...`,
+          description: `Preview loaded in panel (port ${msg.port}).`,
           duration: 4000,
         })
       } else {
@@ -1403,7 +1404,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Flutter Preview Panel (shows status, opens in new tab) */}
+                {/* Flutter Preview Panel (live iframe + open in new tab) */}
                 {language === 'flutter' && (
                   <div className="flex-none border-b border-border bg-muted/20" style={{ height: '45%' }}>
                     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/10">
@@ -1415,48 +1416,24 @@ export default function Home() {
                           type="button"
                           onClick={() => {
                             const port = flutterPort
-                            setTimeout(() => {
-                              window.open(
-                                window.location.origin + `/?XTransformPort=${port}`,
-                                '_blank',
-                                'noopener,noreferrer'
-                              )
-                            }, 0)
+                            const url = window.location.origin + `/?XTransformPort=${port}`
+                            window.open(url, '_blank', 'noopener,noreferrer')
                           }}
                           className="text-[10px] text-blue-500 hover:text-blue-400 font-mono underline"
                         >
-                          Reopen preview tab
+                          Open in new tab
                         </button>
                       )}
                     </div>
-                    <div className="h-[calc(100%-28px)] bg-muted/5">
+                    <div className="h-[calc(100%-28px)] bg-white dark:bg-[#0a0b10]">
                       {flutterPort ? (
-                        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-                          <CircleCheck className="h-8 w-8 text-emerald-500" />
-                          <span className="text-sm text-emerald-500 font-medium">Flutter app is live!</span>
-                          <span className="text-xs text-muted-foreground">
-                            The app has been opened in a new browser tab.
-                          </span>
-                          <span className="text-[10px] text-muted-foreground/60 font-mono">
-                            Port: {flutterPort}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const port = flutterPort
-                              setTimeout(() => {
-                                window.open(
-                                  window.location.origin + `/?XTransformPort=${port}`,
-                                  '_blank',
-                                  'noopener,noreferrer'
-                                )
-                              }, 0)
-                            }}
-                            className="mt-2 text-xs text-blue-500 hover:text-blue-400 underline"
-                          >
-                            Open again
-                          </button>
-                        </div>
+                        <iframe
+                          key={flutterPort}
+                          src={`/?XTransformPort=${flutterPort}`}
+                          title="Flutter Preview"
+                          className="h-full w-full border-0"
+                          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                        />
                       ) : isRunning ? (
                         <div className="flex h-full flex-col items-center justify-center gap-3 bg-muted/10">
                           <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
@@ -1464,7 +1441,7 @@ export default function Home() {
                             Building Flutter web app...
                           </span>
                           <span className="text-[10px] text-muted-foreground/60">
-                            This takes ~20-30 seconds. The app will open in a new tab when ready.
+                            Takes ~20-30 seconds. The app will appear here when ready.
                           </span>
                         </div>
                       ) : result && !result.code ? (
@@ -1482,7 +1459,7 @@ export default function Home() {
                           </div>
                           <span className="text-xs text-muted-foreground">Press Run to build and preview your Flutter app</span>
                           <span className="text-[10px] text-muted-foreground/60">
-                            The app will open in a new browser tab when ready.
+                            The app will appear here, with an option to open in a new tab.
                           </span>
                         </div>
                       )}
