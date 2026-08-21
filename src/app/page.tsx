@@ -474,12 +474,19 @@ export default function Home() {
     })
 
     sock.on('server', (msg: { port: number; host?: string }) => {
-      // For Flutter: automatically set the port so the preview iframe shows
-      // For other servers (Flask, etc.): show a clickable link in the console
       if (languageRef.current === 'flutter') {
+        // Set the port for the preview status panel
         setFlutterPort(msg.port)
+        // Automatically open the Flutter app in a new browser tab.
+        // Use setTimeout to ensure the current page state is saved first
+        // and the window.open call happens in a clean event loop.
+        const port = msg.port
+        setTimeout(() => {
+          const previewUrl = window.location.origin + `/?XTransformPort=${port}`
+          window.open(previewUrl, '_blank', 'noopener,noreferrer')
+        }, 100)
         toast.success('Flutter app is live!', {
-          description: 'Preview panel updated.',
+          description: `Opening preview in new tab (port ${port})...`,
           duration: 4000,
         })
       } else {
@@ -1396,7 +1403,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Flutter Preview Panel (shows iframe when app is running) */}
+                {/* Flutter Preview Panel (shows status, opens in new tab) */}
                 {language === 'flutter' && (
                   <div className="flex-none border-b border-border bg-muted/20" style={{ height: '45%' }}>
                     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/10">
@@ -1404,20 +1411,52 @@ export default function Home() {
                         Flutter Preview
                       </span>
                       {flutterPort && (
-                        <span className="text-[10px] text-emerald-500 font-mono">
-                          port: {flutterPort}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const port = flutterPort
+                            setTimeout(() => {
+                              window.open(
+                                window.location.origin + `/?XTransformPort=${port}`,
+                                '_blank',
+                                'noopener,noreferrer'
+                              )
+                            }, 0)
+                          }}
+                          className="text-[10px] text-blue-500 hover:text-blue-400 font-mono underline"
+                        >
+                          Reopen preview tab
+                        </button>
                       )}
                     </div>
-                    <div className="h-[calc(100%-28px)] bg-white">
+                    <div className="h-[calc(100%-28px)] bg-muted/5">
                       {flutterPort ? (
-                        <iframe
-                          key={flutterPort}
-                          src={`/?XTransformPort=${flutterPort}`}
-                          className="w-full h-full border-0"
-                          title="Flutter Preview"
-                          allow="fullscreen"
-                        />
+                        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+                          <CircleCheck className="h-8 w-8 text-emerald-500" />
+                          <span className="text-sm text-emerald-500 font-medium">Flutter app is live!</span>
+                          <span className="text-xs text-muted-foreground">
+                            The app has been opened in a new browser tab.
+                          </span>
+                          <span className="text-[10px] text-muted-foreground/60 font-mono">
+                            Port: {flutterPort}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const port = flutterPort
+                              setTimeout(() => {
+                                window.open(
+                                  window.location.origin + `/?XTransformPort=${port}`,
+                                  '_blank',
+                                  'noopener,noreferrer'
+                                )
+                              }, 0)
+                            }}
+                            className="mt-2 text-xs text-blue-500 hover:text-blue-400 underline"
+                          >
+                            Open again
+                          </button>
+                        </div>
                       ) : isRunning ? (
                         <div className="flex h-full flex-col items-center justify-center gap-3 bg-muted/10">
                           <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
@@ -1425,7 +1464,7 @@ export default function Home() {
                             Building Flutter web app...
                           </span>
                           <span className="text-[10px] text-muted-foreground/60">
-                            This takes ~20-30 seconds
+                            This takes ~20-30 seconds. The app will open in a new tab when ready.
                           </span>
                         </div>
                       ) : result && !result.code ? (
@@ -1442,6 +1481,9 @@ export default function Home() {
                             </svg>
                           </div>
                           <span className="text-xs text-muted-foreground">Press Run to build and preview your Flutter app</span>
+                          <span className="text-[10px] text-muted-foreground/60">
+                            The app will open in a new browser tab when ready.
+                          </span>
                         </div>
                       )}
                     </div>
