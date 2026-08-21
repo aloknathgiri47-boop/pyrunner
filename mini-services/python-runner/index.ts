@@ -1415,8 +1415,9 @@ void main() {
     // Emit server event so frontend opens the preview
     socket.emit('server', { port: servePort, host: '127.0.0.1' })
 
-    // Start serving with python3 -m http.server
-    const child = spawn('python3', ['-m', 'http.server', servePort.toString(), '--directory', webBuildDir], {
+    // Start serving using our custom Flutter server (rewrites HTML to inject XTransformPort)
+    const flutterServerScript = join(__dirname, 'flutter-server.py')
+    const child = spawn('python3', [flutterServerScript, servePort.toString(), webBuildDir], {
       cwd: webBuildDir,
       env: { ...process.env } as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
