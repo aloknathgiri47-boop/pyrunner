@@ -490,7 +490,11 @@ export default function Home() {
 
   // ---- Submit input line ----
   const handleSubmitInput = useCallback(() => {
-    const text = inputValue
+    // Read the value directly from the input element to avoid stale closures.
+    // The `inputValue` state might be stale if the user types fast and the
+    // useCallback hasn't re-rendered yet.
+    const text = inputRef.current?.value ?? inputValue
+    if (!text.trim()) return
     if (!isRunningRef.current) return
     const sock = socketRef.current
     if (!sock) return
@@ -502,6 +506,8 @@ export default function Home() {
       { id, stream: 'input', text: text + '\n' },
     ])
     setInputValue('')
+    // Clear the input element directly too (in case React state is stale)
+    if (inputRef.current) inputRef.current.value = ''
     // Keep focus for the next prompt
     setTimeout(() => inputRef.current?.focus(), 20)
   }, [inputValue])
