@@ -1,23 +1,46 @@
 :81 {
-	@transform_port_query {
-		query XTransformPort=*
-	}
+        # Flutter subpath routing: /__flutter/<port>/path → localhost:<port>/path
+        # Used by the Flutter preview iframe. Relative URLs in the Flutter HTML
+        # resolve against the base href and inherit the path prefix, so all
+        # asset requests (flutter.js, main.dart.js, canvaskit/*, assets/*) are
+        # automatically routed to the correct Flutter server.
+        @flutter_subpath path_regexp fp ^/__flutter/(\d+)(/.*)$
+        handle @flutter_subpath {
+                rewrite * {re.fp.2}
+                reverse_proxy localhost:{re.fp.1} {
+                        header_up Host {host}
+                        header_up X-Forwarded-For {remote_host}
+                        header_up X-Forwarded-Proto {scheme}
+                        header_up X-Real-IP {remote_host}
+                }
+        }
 
-	handle @transform_port_query {
-		reverse_proxy localhost:{query.XTransformPort} {
-			header_up Host {host}
-			header_up X-Forwarded-For {remote_host}
-			header_up X-Forwarded-Proto {scheme}
-			header_up X-Real-IP {remote_host}
-		}
-	}
+        # Redirect /__flutter/<port> → /__flutter/<port>/ (trailing slash)
+        @flutter_subpath_noslash path_regexp fpns ^/__flutter/(\d+)$
+        handle @flutter_subpath_noslash {
+                redir /__flutter/{re.fpns.1}/ 302
+        }
 
-	handle {
-		reverse_proxy localhost:3000 {
-			header_up Host {host}
-			header_up X-Forwarded-For {remote_host}
-			header_up X-Forwarded-Proto {scheme}
-			header_up X-Real-IP {remote_host}
-		}
-	}
+        # Legacy query-based routing (kept for backward compat / non-Flutter servers)
+        @transform_port_query {
+                query XTransformPort=*
+        }
+
+        handle @transform_port_query {
+                reverse_proxy localhost:{query.XTransformPort} {
+                        header_up Host {host}
+                        header_up X-Forwarded-For {remote_host}
+                        header_up X-Forwarded-Proto {scheme}
+                        header_up X-Real-IP {remote_host}
+                }
+        }
+
+        handle {
+                reverse_proxy localhost:3000 {
+                        header_up Host {host}
+                        header_up X-Forwarded-For {remote_host}
+                        header_up X-Forwarded-Proto {scheme}
+                        header_up X-Real-IP {remote_host}
+                }
+        }
 }

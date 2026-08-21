@@ -32,6 +32,16 @@ from pathlib import Path
 
 
 def make_handler(port: int, directory: str):
+    # Rewrite <base href="/"> to <base href="/flutter-preview/PORT/">
+    # Path-based (not query-based) so relative URL resolution preserves the prefix:
+    #   base: /flutter-preview/PORT/
+    #   rel:  flutter.js
+    #   res:  /flutter-preview/PORT/flutter.js   (path preserved, query would be dropped)
+    # The Next.js route handler at /flutter-preview/[port]/[[...path]] proxies these
+    # requests back to this server.
+    #
+    # NOTE: Folder name must NOT start with `_` (Next.js treats _-prefixed
+    # folders as private and excludes them from routing).
     base_re = re.compile(
         r'<base\s+href=["\']/["\']\s*/?>',
         re.IGNORECASE,
@@ -106,7 +116,7 @@ def make_handler(port: int, directory: str):
                 try:
                     text = data.decode("utf-8", errors="replace")
                     new_text = base_re.sub(
-                        f'<base href="/?XTransformPort={port}">',
+                        f'<base href="/flutter-preview/{port}/">',
                         text,
                         count=1,
                     )
