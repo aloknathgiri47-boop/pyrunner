@@ -1213,7 +1213,7 @@ if (!function_exists('readline')) {
    * - Runs in the pre-warmed Flutter test project
    * - Uses `flutter test` which runs headlessly (no display needed)
    */
-  async function spawnFlutter(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnFlutter(code: string, sessionId: string, socket: any, stdin?: string): Promise<ChildProcess | null> {
     const home = process.env.HOME || '/home/z'
     const flutterProjectDir = '/tmp/py-compiler/flutter_project'
     const testDir = join(flutterProjectDir, 'test')
@@ -1298,7 +1298,19 @@ ${appCode}
         return null
       }
 
-      // Create test file that imports the app and pumps it
+      // Create test file that imports the app and pumps it.
+      // The test also:
+      // 1. Enters text into TextFields (from Program Input, embedded as list)
+      // 2. Taps all buttons to trigger actions
+      // 3. Dumps all Text widgets after interaction
+      //
+      // NOTE: Flutter test subprocess doesn't inherit stdin, so we embed
+      // the input values as a Dart list literal in the test source code.
+      const stdinLines = (typeof stdin === 'string' && stdin.length > 0)
+        ? stdin.split('\n').filter((l: string) => l.length > 0)
+        : [] as string[]
+      // Build a Dart list literal: ['Arun', '20', 'Delhi', ...]
+      const inputListLiteral = stdinLines.map((l: string) => `'${l.replace(/'/g, "\\'")}'`).join(', ')
       testCode = `import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -1309,36 +1321,78 @@ void main() {
     await tester.pumpWidget(${rootWidget}());
     await tester.pumpAndSettle();
 
-    // Print the widget tree for debugging
     print('Flutter app rendered successfully!');
     print('Root widget: ${rootWidget}');
 
-    // Try to find common UI elements
-    try {
-      final scaffoldFinder = find.byType(Scaffold);
-      if (scaffoldFinder.evaluate().isNotEmpty) {
-        final scaffold = tester.widget<Scaffold>(scaffoldFinder.first);
-        final appBar = scaffold.appBar;
-        if (appBar != null) {
-          final appbarWidget = appBar as PreferredSizeWidget;
-          // Try to extract title text
-          print('App has AppBar');
+    // Input values from Program Input panel (embedded at compile time)
+    final inputs = <String>[${inputListLiteral}];
+    int inputIdx = 0;
+
+    // --- Enter text into TextFields ---
+    final textFields = find.byType(TextField);
+    final fieldCount = textFields.evaluate().length;
+    if (fieldCount > 0) {
+      print('TextFields found: ' + fieldCount.toString());
+      for (int i = 0; i < fieldCount; i++) {
+        String inputVal = '';
+        if (inputIdx < inputs.length) {
+          inputVal = inputs[inputIdx];
+          inputIdx++;
+        }
+        if (inputVal.isNotEmpty) {
+          await tester.enterText(textFields.at(i), inputVal);
+          await tester.pump();
+          try {
+            final tf = tester.widget<TextField>(textFields.at(i));
+            final label = tf.decoration?.labelText;
+            print('  Field[' + i.toString() + '] ' + (label ?? '') + ': ' + inputVal);
+          } catch (e) {
+            print('  Field[' + i.toString() + ']: ' + inputVal);
+          }
+        } else {
+          print('  Field[' + i.toString() + ']: (no input)');
         }
       }
-    } catch (e) {
-      // Ignore errors in debug output
+      await tester.pumpAndSettle();
     }
 
-    // Dump all Text widgets found in the tree
-    final textWidgets = find.byType(Text);
-    final count = textWidgets.evaluate().length;
-    print('Text widgets found: ' + count.toString());
-    for (int i = 0; i < count && i < 20; i++) {
-      final text = tester.widget<Text>(textWidgets.at(i));
-      if (text.data != null && text.data!.isNotEmpty) {
-        print('  Text[' + i.toString() + ']: ' + text.data!);
+    // --- Tap all buttons ---
+    final buttons = find.byType(ElevatedButton);
+    final btnCount = buttons.evaluate().length;
+    if (btnCount > 0) {
+      print('Buttons found: ' + btnCount.toString());
+      for (int i = 0; i < btnCount; i++) {
+        try {
+          final btn = tester.widget<ElevatedButton>(buttons.at(i));
+          if (btn.onPressed != null) {
+            await tester.tap(buttons.at(i));
+            await tester.pumpAndSettle();
+            print('  Button[' + i.toString() + '] tapped!');
+          } else {
+            print('  Button[' + i.toString() + '] disabled, skipping');
+          }
+        } catch (e) {
+          print('  Button[' + i.toString() + '] tap failed');
+        }
       }
     }
+
+    // --- Dump all Text widgets after interaction ---
+    print('');
+    print('=== App Output ===');
+    final textWidgets = find.byType(Text);
+    final count = textWidgets.evaluate().length;
+    for (int i = 0; i < count; i++) {
+      try {
+        final text = tester.widget<Text>(textWidgets.at(i));
+        if (text.data != null && text.data!.isNotEmpty) {
+          print(text.data!);
+        }
+      } catch (e) {
+        // skip
+      }
+    }
+    print('=== End ===');
   });
 }
 `
@@ -1448,7 +1502,7 @@ ${code}
     } else if (language === 'dart') {
       child = await spawnDart(code, sessionId, socket)
     } else if (language === 'flutter') {
-      child = await spawnFlutter(code, sessionId, socket)
+      child = await spawnFlutter(code, sessionId, socket, payload.stdin)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }
