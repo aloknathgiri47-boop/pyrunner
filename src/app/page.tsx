@@ -90,21 +90,10 @@ def greet(name: str) -> str:
 
 print(greet("world"))
 
-# Quick demo: compute prime numbers below 50
-def primes(limit: int):
-    is_prime = [True] * (limit + 1)
-    is_prime[0] = is_prime[1] = False
-    for i in range(2, int(limit**0.5) + 1):
-        if is_prime[i]:
-            for j in range(i*i, limit + 1, i):
-                is_prime[j] = False
-    return [i for i, p in enumerate(is_prime) if p]
-
-print("Primes below 50:", primes(50))
-
-# For interactive input, open "Program Input" below the editor,
-# type your values (one per line), then Run.
-# Or load the "Interactive Input" example from the Examples menu.
+# Interactive: type your name in the input bar below
+# the console when prompted, then press Enter.
+name = input("What's your name? ")
+print(f"Nice to meet you, {name}!")
 `
 
 const DEFAULT_JAVA_CODE = `// PyRunner — Java 21 playground

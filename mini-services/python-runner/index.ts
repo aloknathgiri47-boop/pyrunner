@@ -44,10 +44,15 @@ interface Session {
   // True once we've detected the user's code started a long-running server
   // (Flask, Django, http.server, uvicorn, etc.) — used to cancel the timeout
   serverDetected: boolean
-  // Timer that closes stdin after 3s if no interactive input arrives,
+  // Timer that closes stdin after 10s if no interactive input arrives,
   // so programs that call input()/readline()/scanf() get EOF and exit
   // gracefully instead of hanging for the full timeout.
+  // Only fires if the user hasn't sent ANY interactive input yet.
   stdinIdleTimer: ReturnType<typeof setTimeout> | null
+  // True once the user has sent at least one interactive input line.
+  // Used to prevent the idle timer from closing stdin while the user
+  // is actively interacting with the program.
+  receivedInteractiveInput: boolean
 }
 
 const sessions = new Map<string, Session>()
@@ -961,6 +966,7 @@ globalThis.confirm = function(message = '') {
       stdoutBuffer: '',
       serverDetected: false,
       stdinIdleTimer: null,
+      receivedInteractiveInput: false,
     }
 
     sessions.set(socket.id, session)
@@ -985,19 +991,30 @@ globalThis.confirm = function(message = '') {
         /* stdin might be closed already */
       }
     } else {
-      // No Program Input provided. Start an "idle stdin" timer:
-      // if the program hasn't received any interactive input within 3 seconds,
-      // close stdin so programs that call input()/readline()/scanf() get EOF
-      // and exit gracefully instead of hanging for the full timeout.
+      // No Program Input provided. We'll keep stdin open and let the user
+      // type interactively via the console input bar. The stdin will be
+      // closed when:
+      //   - The process exits naturally (no more input needed)
+      //   - The user clicks Stop
+      //   - The timeout (30s) kills the process
+      //   - The process has been idle (no stdout) for 10 seconds AND
+      //     no interactive input has been sent (meaning the user probably
+      //     abandoned it)
+      //
+      // We do NOT auto-close stdin quickly because that would kill programs
+      // that are waiting for input before the user has time to type.
       session.stdinIdleTimer = setTimeout(() => {
-        if (!session.killed) {
+        if (!session.killed && !session.receivedInteractiveInput) {
+          // Only close if the program hasn't received ANY interactive input
+          // AND has been idle for 10 seconds. This prevents the 15s timeout
+          // hang while still giving the user plenty of time to type.
           try {
             child.stdin?.end()
           } catch {
             /* already closed */
           }
         }
-      }, 3000)
+      }, 10000) // 10 seconds — generous time for user to start typing
     }
 
     // Timeout watchdog
@@ -1028,6 +1045,9 @@ globalThis.confirm = function(message = '') {
   socket.on('input', (data: { text?: string } | string) => {
     const session = sessions.get(socket.id)
     if (!session || session.killed) return
+    // Mark that the user has sent interactive input — this prevents the
+    // idle stdin timer from closing stdin while the user is actively typing.
+    session.receivedInteractiveInput = true
     // Cancel the idle stdin timer — user is actively providing interactive input
     if (session.stdinIdleTimer) {
       clearTimeout(session.stdinIdleTimer)
