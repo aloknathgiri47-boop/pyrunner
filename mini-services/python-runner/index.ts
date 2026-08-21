@@ -591,10 +591,11 @@ ${code}
       promptLike: false,
     })
 
-    // Use stdbuf -oL to make stdout line-buffered so printf output appears
-    // immediately in the console (not buffered until 4KB or program exit).
-    // This is critical for interactive programs that block on scanf().
-    const child = spawn('stdbuf', ['-oL', binaryPath], {
+    // Use stdbuf -o0 to make stdout FULLY UNBUFFERED so every printf
+    // (including prompts without newlines like "Enter: ") appears immediately.
+    // C defaults to full buffering when stdout is a pipe, which causes
+    // interactive scanf() programs to appear hung — the prompt never shows.
+    const child = spawn('stdbuf', ['-o0', binaryPath], {
       cwd: sandboxDir,
       env: process.env as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
