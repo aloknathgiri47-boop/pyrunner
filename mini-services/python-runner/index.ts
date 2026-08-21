@@ -816,8 +816,54 @@ readline <- function(prompt = "") {
   async function spawnJavaScript(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
     const jsFilePath = join(sandboxDir, `snippet_${sessionId}.js`)
 
+    // JavaScript preamble: polyfill browser APIs (prompt, alert, confirm)
+    // that don't exist in Node.js. This lets users write browser-style code
+    // that works with stdin (via Program Input or interactive console).
+    const jsPreamble = `// --- PyRunner preamble: polyfill browser APIs ---
+const readline = require('readline');
+const _rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+// prompt(message) — shows message, reads one line from stdin, returns it
+globalThis.prompt = function(message = '') {
+  if (message) process.stdout.write(message);
+  // Synchronous read from stdin (blocking)
+  const fs = require('fs');
+  const fd = process.stdin.fd;
+  let line = '';
+  try {
+    const buf = Buffer.alloc(1);
+    while (true) {
+      const bytesRead = fs.readSync(fd, buf, 0, 1, null);
+      if (bytesRead === 0) break; // EOF
+      const char = buf.toString('utf8');
+      if (char === '\\n' || char === '\\r') break;
+      line += char;
+    }
+  } catch (e) {
+    // stdin might be closed or in non-blocking mode
+  }
+  return line;
+};
+
+// alert(message) — prints message to stdout
+globalThis.alert = function(message = '') {
+  console.log(String(message));
+};
+
+// confirm(message) — shows message, reads y/n from stdin, returns boolean
+globalThis.confirm = function(message = '') {
+  const response = globalThis.prompt(message + ' (y/n) ');
+  return response.toLowerCase().startsWith('y');
+};
+// --- End preamble ---
+
+`
+
+    // Wrap user code with the preamble
+    const wrappedCode = jsPreamble + code
+
     try {
-      await writeFile(jsFilePath, code, { encoding: 'utf8', mode: 0o600 })
+      await writeFile(jsFilePath, wrappedCode, { encoding: 'utf8', mode: 0o600 })
     } catch (e) {
       socket.emit('output', {
         stream: 'stderr',
@@ -838,12 +884,10 @@ readline <- function(prompt = "") {
 
     // Run with node. Use --input-type=module is NOT needed because
     // we're running a .js file which defaults to CommonJS.
-    // For ESM (import/export), users can use .mjs extension or "type":"module".
     const child = spawn('node', [jsFilePath], {
       cwd: sandboxDir,
       env: {
         ...process.env,
-        // Force unbuffered I/O so output appears immediately
         NODE_NO_WARNINGS: '1',
       } as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],

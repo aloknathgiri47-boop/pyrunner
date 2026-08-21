@@ -1781,4 +1781,34 @@ const total = JSON.parse(productsJson)
 console.log("\\nTotal price: $" + total);
 `,
   },
+  {
+    id: 'js-browser-apis',
+    name: 'JS: Browser APIs',
+    description: 'prompt(), alert(), confirm() polyfilled.',
+    language: 'javascript',
+    code: `// Browser APIs work in PyRunner!
+// prompt() reads from stdin (Program Input panel)
+// alert() prints to stdout
+// confirm() reads y/n from stdin
+
+// Open "Program Input" and type values, one per line:
+//   Alice
+//   25
+//   y
+
+let name = prompt("Enter your name: ");
+let ageStr = prompt("Enter your age: ");
+let age = parseInt(ageStr, 10);
+
+alert("Hello, " + name + "!");
+alert("In 10 years you'll be " + (age + 10) + ".");
+
+let likesPython = confirm("Do you like programming? ");
+if (likesPython) {
+  alert("Awesome! Keep coding!");
+} else {
+  alert("Give it another try!");
+}
+`,
+  },
 ]
