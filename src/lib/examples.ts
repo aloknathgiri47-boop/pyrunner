@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart'
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -2177,6 +2177,162 @@ class Program {
             );
         }
     }
+}
+`,
+  },
+  {
+    id: 'dart-hello',
+    name: 'Dart: Hello World',
+    description: 'Basic Dart with print and lists.',
+    language: 'dart',
+    code: `// PyRunner - Dart 3.13 playground
+// Press Run (or Ctrl/Cmd+Enter) to execute.
+
+void main() {
+  print('Hello, World!');
+
+  // List methods
+  var nums = [1, 2, 3, 4, 5];
+  print('Sum: ' + nums.reduce((a, b) => a + b).toString() + '');
+  print('Squared: ' + nums.map((n) => n * n).join(', ') + '');
+
+  // String interpolation
+  var name = 'Ada';
+  var age = 36;
+  print('\' + name + ' is \' + age.toString() + ' years old.');
+}
+`,
+  },
+  {
+    id: 'dart-interactive',
+    name: 'Dart: Interactive Input',
+    description: 'Read from stdin with readLineSync.',
+    language: 'dart',
+    code: `import 'dart:io';
+
+void main() {
+  // Open "Program Input" and type values (one per line):
+  //   Alice
+  //   25
+  stdout.write("What's your name? ");
+  var name = stdin.readLineSync();
+
+  stdout.write("How old are you? ");
+  var age = int.parse(stdin.readLineSync()!);
+
+  print('');
+  print('Hello, \' + name + '!');
+  print("In 10 years you'll be ' + (age + 10).toString() + '.");
+}
+`,
+  },
+  {
+    id: 'dart-classes',
+    name: 'Dart: Classes & Mixins',
+    description: 'Classes, mixins, abstract classes.',
+    language: 'dart',
+    code: `// Modern Dart with classes, mixins, and abstract classes.
+
+mixin Greetable {
+  String get name;
+  String greet() => 'Hi, I am \' + name + '!';
+}
+
+abstract class Animal {
+  final String name;
+  final String sound;
+
+  Animal(this.name, this.sound);
+
+  String speak() => '\' + name + ' says \\$sound';
+}
+
+class Dog extends Animal with Greetable {
+  Dog(String name) : super(name, 'Woof');
+  String fetch() => '\' + name + ' fetches the ball!';
+}
+
+class Cat extends Animal with Greetable {
+  Cat(String name) : super(name, 'Meow');
+  String purr() => '\' + name + ' purrs softly...';
+}
+
+void main() {
+  var animals = <Animal>[
+    Dog('Rex'),
+    Cat('Whiskers'),
+    Dog('Buddy'),
+  ];
+
+  for (var animal in animals) {
+    print(animal.speak());
+    if (animal is Dog) print('  ' + animal.fetch() + '');
+    if (animal is Cat) print('  ' + animal.purr() + '');
+    if (animal is Greetable) print('  ' + animal.greet() + '');
+  }
+}
+`,
+  },
+  {
+    id: 'dart-async',
+    name: 'Dart: Async/Await',
+    description: 'Futures, async/await, streams.',
+    language: 'dart',
+    code: `import 'dart:async';
+
+Future<String> fetchUser(int id) async {
+  await Future.delayed(Duration(milliseconds: 100));
+  return 'User \\$id';
+}
+
+Future<List<String>> fetchPosts(int userId) async {
+  await Future.delayed(Duration(milliseconds: 100));
+  return ['Post 1 by \' + user + 'Id', 'Post 2 by \' + user + 'Id'];
+}
+
+void main() async {
+  print('Fetching user...');
+  var user = await fetchUser(42);
+  print('Got: \' + user + '');
+
+  print('\\nFetching posts...');
+  var posts = await fetchPosts(42);
+  for (var post in posts) {
+    print('  - \' + post + '');
+  }
+
+  // Parallel execution with Future.wait
+  print('\\nFetching 3 users in parallel...');
+  var users = await Future.wait([
+    fetchUser(1),
+    fetchUser(2),
+    fetchUser(3),
+  ]);
+  for (var u in users) {
+    print('  - \' + u + '');
+  }
+
+  print('\\nDone!');
+}
+`,
+  },
+  {
+    id: 'dart-fizzbuzz',
+    name: 'Dart: FizzBuzz',
+    description: 'Classic FizzBuzz with collections.',
+    language: 'dart',
+    code: `void main() {
+  for (var i = 1; i <= 30; i++) {
+    if (i % 15 == 0) {
+      print('FizzBuzz');
+    } else if (i % 3 == 0) {
+      print('Fizz');
+    } else if (i % 5 == 0) {
+      print('Buzz');
+    } else {
+      print(i);
+    }
+  }
 }
 `,
   },

@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart'
 
 interface PersistedState {
   code: string
@@ -228,6 +228,26 @@ class Program {
 }
 `
 
+const DEFAULT_DART_CODE = `// PyRunner - Dart 3.13 playground
+// Press Run (or Ctrl/Cmd+Enter) to execute.
+
+import 'dart:io';
+
+void main() {
+  print('Hello, World!');
+
+  // List methods
+  var nums = [1, 2, 3, 4, 5];
+  print('Sum: ' + nums.reduce((a, b) => a + b).toString());
+  print('Squared: ' + nums.map((n) => n * n).join(', '));
+
+  // Interactive: type your name in the input bar
+  stdout.write("What's your name? ");
+  var name = stdin.readLineSync() ?? '';
+  print('Nice to meet you, ' + name + '!');
+}
+`
+
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
 /* ------------------------------------------------------------------ */
@@ -241,7 +261,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php','csharp'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp','dart'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -258,7 +278,7 @@ function encodeToHash(code: string, language: Language): string {
   const params = new URLSearchParams()
   params.set('c', encode(code))
   params.set('l', language)
-  return `#${params.toString()}`
+  return `#$\{params.toString()}`
 }
 
 /* ------------------------------------------------------------------ */
@@ -285,7 +305,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp','dart'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
@@ -404,7 +424,7 @@ export default function Home() {
       // Inline image (matplotlib figure rendered as PNG). The runner already
       // base64-encoded the bytes — we wrap it as a data URL for <img src>.
       const mime = msg.mime ?? 'image/png'
-      const src = `data:${mime};base64,${msg.data}`
+      const src = `data:$\{mime};base64,$\{msg.data}`
       const id = ++chunkIdRef.current
       setChunks((prev) => [
         ...prev,
@@ -422,12 +442,12 @@ export default function Home() {
         {
           id,
           stream: 'server',
-          text: `Server started on port ${msg.port}`,
+          text: `Server started on port $\{msg.port}`,
           port: msg.port,
         },
       ])
       toast.success('Server started', {
-        description: `Listening on port ${msg.port} — click the link in the console to open it.`,
+        description: `Listening on port $\{msg.port} — click the link in the console to open it.`,
         duration: 8000,
       })
     })
@@ -444,7 +464,7 @@ export default function Home() {
       } else if (res.timedOut) {
         toast.error('Timed out')
       } else if (res.code !== null && res.code !== 0) {
-        toast.error(`Exited with code ${res.code}`)
+        toast.error(`Exited with code $\{res.code}`)
       } else if (res.error) {
         toast.error('Failed to run', { description: res.error })
       }
@@ -493,6 +513,7 @@ export default function Home() {
           language === 'javascript' ? 'Write some JavaScript first.' :
           language === 'php' ? 'Write some PHP first.' :
           language === 'csharp' ? 'Write some C# first.' :
+          language === 'dart' ? 'Write some Dart first.' :
           'Write some Python first.',
       })
       return
@@ -584,6 +605,7 @@ export default function Home() {
       lang === 'javascript' ? DEFAULT_JS_CODE :
       lang === 'php' ? DEFAULT_PHP_CODE :
       lang === 'csharp' ? DEFAULT_CSHARP_CODE :
+      lang === 'dart' ? DEFAULT_DART_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -605,7 +627,7 @@ export default function Home() {
   const handleShare = useCallback(async () => {
     try {
       const hash = encodeToHash(code, language)
-      const newUrl = `${window.location.pathname}${hash}`
+      const newUrl = `$\{window.location.pathname}$\{hash}`
       window.history.replaceState(null, '', newUrl)
       await navigator.clipboard.writeText(window.location.href)
       setShared(true)
@@ -627,6 +649,7 @@ export default function Home() {
       language === 'javascript' ? 'js' :
       language === 'php' ? 'php' :
       language === 'csharp' ? 'cs' :
+      language === 'dart' ? 'dart' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -636,17 +659,18 @@ export default function Home() {
       language === 'javascript' ? 'text/javascript;charset=utf-8' :
       language === 'php' ? 'text/x-php;charset=utf-8' :
       language === 'csharp' ? 'text/x-csharp;charset=utf-8' :
+      language === 'dart' ? 'text/x-dart;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `snippet.${ext}`
+    a.download = `snippet.$\{ext}`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    toast.success(`Downloaded snippet.${ext}`)
+    toast.success(`Downloaded snippet.$\{ext}`)
   }, [code, language])
 
   const handleSelectExample = useCallback((ex: Snippet) => {
@@ -658,7 +682,7 @@ export default function Home() {
     setActiveExampleId(ex.id)
     setChunks([])
     setResult(null)
-    toast.success(`Loaded "${ex.name}"`, { description: ex.description })
+    toast.success(`Loaded "$\{ex.name}"`, { description: ex.description })
   }, [])
 
   // resolvedTheme is undefined on first render (SSR); default to dark to
@@ -676,7 +700,7 @@ export default function Home() {
     if (result.timedOut) return { label: 'Timed out', tone: 'error' as const }
     if (result.error) return { label: 'Error', tone: 'error' as const }
     if (result.code === 0) return { label: 'Success', tone: 'success' as const }
-    return { label: `Exit ${result.code}`, tone: 'error' as const }
+    return { label: `Exit $\{result.code}`, tone: 'error' as const }
   }, [isRunning, awaitingInput, result])
 
   const lineCount = useMemo(() => code.split('\n').length, [code])
@@ -710,7 +734,7 @@ export default function Home() {
                 </h1>
                 <Badge
                   variant="secondary"
-                  className={`hidden sm:inline-flex border ${
+                  className={`hidden sm:inline-flex border $\{
                     language === 'java'
                       ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
                       : language === 'c'
@@ -725,7 +749,9 @@ export default function Home() {
                                 ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'
                                 : language === 'csharp'
                                   ? 'bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-500/20'
-                                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                  : language === 'dart'
+                                    ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20'
+                                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
                   {language === 'java'
@@ -742,7 +768,9 @@ export default function Home() {
                               ? 'PHP 8.4'
                               : language === 'csharp'
                                 ? 'C# (.NET 8)'
-                                : 'Python 3.12'}
+                                : language === 'dart'
+                                  ? 'Dart 3.13'
+                                  : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -760,7 +788,9 @@ export default function Home() {
                             ? 'Interactive PHP console with live stdin'
                             : language === 'csharp'
                               ? 'Interactive C# console with live stdin'
-                              : 'Interactive Python console with live input()'}
+                              : language === 'dart'
+                                ? 'Interactive Dart console with live stdin'
+                                : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -771,7 +801,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('python')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
                   language === 'python'
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -782,7 +812,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('java')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
                   language === 'java'
                     ? 'bg-orange-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -793,7 +823,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('c')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
                   language === 'c'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -804,7 +834,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('cpp')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
                   language === 'cpp'
                     ? 'bg-purple-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -815,7 +845,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('r')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
                   language === 'r'
                     ? 'bg-cyan-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -826,7 +856,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('javascript')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
                   language === 'javascript'
                     ? 'bg-yellow-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -837,7 +867,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('php')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
                   language === 'php'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -848,13 +878,24 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('csharp')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
                   language === 'csharp'
                     ? 'bg-pink-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 C#
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('dart')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                  language === 'dart'
+                    ? 'bg-teal-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Dart
               </button>
             </div>
           </div>
@@ -1007,6 +1048,23 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Dart examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'dart').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1147,13 +1205,15 @@ export default function Home() {
                                 ? 'code.php'
                                 : language === 'csharp'
                                   ? 'code.cs'
-                                  : 'code.py'}
+                                  : language === 'dart'
+                                    ? 'code.dart'
+                                    : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button
                     type="button"
                     onClick={() => setShowStdin(!showStdin)}
-                    className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded transition-colors ${
+                    className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded transition-colors $\{
                       showStdin
                         ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -1280,7 +1340,7 @@ export default function Home() {
                 <div className="flex-none border-t border-border bg-muted/20">
                   <div className="flex items-center gap-2 px-3 py-2">
                     <div
-                      className={`flex h-6 w-6 flex-none items-center justify-center rounded ${
+                      className={`flex h-6 w-6 flex-none items-center justify-center rounded $\{
                         awaitingInput
                           ? 'bg-amber-500/20 text-amber-500'
                           : isRunning
@@ -1403,9 +1463,9 @@ function StatusBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${styles}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium $\{styles}`}
     >
-      {icon ?? <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}
+      {icon ?? <span className={`h-1.5 w-1.5 rounded-full $\{dot}`} />}
       {status.label}
     </span>
   )
@@ -1431,7 +1491,7 @@ function ConsoleLine({ chunk }: { chunk: OutputChunk }) {
   // to the user's running Flask/Django/http.server app.
   if (chunk.stream === 'server' && chunk.port) {
     const port = chunk.port
-    const href = `/?XTransformPort=${port}`
+    const href = `/?XTransformPort=$\{port}`
     return (
       <span
         className="my-2 block rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2"

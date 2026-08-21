@@ -12,6 +12,7 @@ import { cpp } from '@codemirror/lang-cpp'
 import { javascript } from '@codemirror/lang-javascript'
 import { php as phpLang } from '@codemirror/lang-php'
 import { r } from '@codemirror/legacy-modes/mode/r'
+import { clike } from '@codemirror/legacy-modes/mode/clike'
 import { oneDark } from '@codemirror/theme-one-dark'
 
 interface PyEditorProps {
@@ -20,7 +21,26 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart'
+}
+
+// Dart keywords for syntax highlighting via clike mode
+const dartKeywords = {
+  'abstract': true, 'as': true, 'assert': true, 'async': true, 'await': true,
+  'break': true, 'case': true, 'catch': true, 'class': true, 'const': true,
+  'continue': true, 'default': true, 'deferred': true, 'do': true, 'dynamic': true,
+  'else': true, 'enum': true, 'export': true, 'extends': true, 'extension': true,
+  'external': true, 'factory': true, 'false': true, 'final': true, 'finally': true,
+  'for': true, 'Function': true, 'get': true, 'hide': true, 'if': true,
+  'implements': true, 'import': true, 'in': true, 'interface': true, 'is': true,
+  'library': true, 'mixin': true, 'new': true, 'null': true, 'on': true,
+  'operator': true, 'part': true, 'rethrow': true, 'return': true, 'set': true,
+  'show': true, 'static': true, 'super': true, 'switch': true, 'sync': true,
+  'this': true, 'throw': true, 'true': true, 'try': true, 'typedef': true,
+  'var': true, 'void': true, 'while': true, 'with': true, 'yield': true,
+  'print': true, 'main': true, 'int': true, 'double': true, 'String': true,
+  'bool': true, 'List': true, 'Map': true, 'Set': true, 'Future': true,
+  'Stream': true, 'stdout': true, 'stdin': true,
 }
 
 const customLightTheme = EditorView.theme(
@@ -119,6 +139,7 @@ export default function PyEditor({
       language === 'r' ? StreamLanguage.define(r) :
       language === 'javascript' ? javascript() :
       language === 'php' ? phpLang() :
+      language === 'dart' ? StreamLanguage.define(clike({ keywords: dartKeywords })) :
       python()
     const exts: Extension[] = [
       langExt,

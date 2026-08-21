@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart'
   stdin?: string
 }
 
@@ -1159,6 +1159,51 @@ if (!function_exists('readline')) {
     return child
   }
 
+  /**
+   * Spawn a Dart child process for the given code.
+   * - Writes code to snippet_<sessionId>.dart
+   * - Runs with dart run (interpreted — no separate compile step needed)
+   * - Streams stdout/stderr/stdin to the client
+   */
+  async function spawnDart(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const dartFilePath = join(sandboxDir, `snippet_${sessionId}.dart`)
+
+    try {
+      await writeFile(dartFilePath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write Dart file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
+      })
+      return null
+    }
+
+    // Locate the Dart SDK
+    const home = process.env.HOME || '/home/z'
+    const dartBin = join(home, '.local', 'dart-sdk', 'bin', 'dart')
+    const actualDart = existsSync(dartBin) ? dartBin : 'dart'
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `Running Dart script...\n`,
+      promptLike: false,
+    })
+
+    // Run with dart run (JIT mode — no compilation needed)
+    const child = spawn(actualDart, ['run', dartFilePath], {
+      cwd: sandboxDir,
+      env: { ...process.env } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
 
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
@@ -1209,6 +1254,8 @@ if (!function_exists('readline')) {
       child = await spawnPHP(code, sessionId, socket)
     } else if (language === 'csharp') {
       child = await spawnCSharp(code, sessionId, socket)
+    } else if (language === 'dart') {
+      child = await spawnDart(code, sessionId, socket)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }
