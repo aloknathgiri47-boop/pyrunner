@@ -1206,19 +1206,22 @@ if (!function_exists('readline')) {
 
   /**
    * Spawn a Flutter test child process.
-   * - Wraps user's Flutter widget code in a testWidgets block
-   * - Runs in the pre-warmed Flutter test project at /tmp/py-compiler/flutter_project
+   * - Three modes:
+   *   1. User wrote testWidgets() — run as-is
+   *   2. User wrote a full Flutter app (main + runApp + classes) — extract app, create test
+   *   3. User wrote widget code (pumpWidget etc.) — wrap in testWidgets
+   * - Runs in the pre-warmed Flutter test project
    * - Uses `flutter test` which runs headlessly (no display needed)
-   * - Streams test results + print() output to the console
-   * The user writes code that returns a Widget, which is pumped into a MaterialApp.
    */
   async function spawnFlutter(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
     const home = process.env.HOME || '/home/z'
     const flutterProjectDir = '/tmp/py-compiler/flutter_project'
     const testDir = join(flutterProjectDir, 'test')
-    const testFilePath = join(testDir, `user_${sessionId}.dart`)
+    const libDir = join(flutterProjectDir, 'lib')
+    const testFilePath = join(testDir, `user_${sessionId}_test.dart`)
+    const appFilePath = join(libDir, `user_${sessionId}_app.dart`)
 
-    // Ensure the Flutter project exists with pubspec.yaml
+    // Ensure the Flutter project exists
     if (!existsSync(join(flutterProjectDir, 'pubspec.yaml'))) {
       socket.emit('output', {
         stream: 'stderr',
@@ -1231,21 +1234,116 @@ if (!function_exists('readline')) {
       return null
     }
 
-    // Wrap the user's code in a testWidgets block.
-    // The user's code should be the body of a testWidgets callback,
-    // or they can write their own testWidgets() calls.
-    // If the code doesn't contain 'testWidgets', we wrap it automatically.
+    // Ensure lib directory exists
+    if (!existsSync(libDir)) {
+      await mkdir(libDir, { recursive: true }).catch(() => {})
+    }
+
+    const flutterBin = join(home, '.local', 'flutter', 'bin', 'flutter')
+    const actualFlutter = existsSync(flutterBin) ? flutterBin : 'flutter'
+
+    // Determine the mode based on user's code
+    const hasTestWidgets = code.includes('testWidgets') || code.includes('test(')
+    const hasRunApp = code.includes('runApp(') || code.includes('runApp (')
+    const hasMain = code.includes('void main(') || code.includes('main() {') || code.includes('main() {')
+
     let testCode: string
-    if (code.includes('testWidgets') || code.includes('test(')) {
-      // User wrote their own tests — use as-is but add imports
+    let needsAppFile = false
+
+    if (hasTestWidgets) {
+      // Mode 1: User wrote their own testWidgets — run as-is
       testCode = `import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 ${code}
 `
+    } else if (hasRunApp || hasMain || code.includes('class ')) {
+      // Mode 2: Full Flutter app (has runApp, main, or class definitions)
+      // Write the user's code as a library file, then create a test that imports it
+      needsAppFile = true
+
+      // Strip the user's import statements (we'll add our own)
+      // and strip void main() { runApp(...) } (we'll pump the widget ourselves)
+      let appCode = code
+      // Remove import lines
+      appCode = appCode.replace(/^import\s+['"][^'"]+['"];?\s*$/gm, '')
+      // Remove void main() { runApp(...) } block
+      appCode = appCode.replace(/void\s+main\s*\([^)]*\)\s*\{[^}]*runApp\s*\([^)]*\)[^}]*\}/g, '')
+      // Remove "main() { runApp(...) }" without void
+      appCode = appCode.replace(/main\s*\(\s*\)\s*\{[^}]*runApp\s*\([^)]*\)[^}]*\}/g, '')
+
+      // Try to find the root widget class name from runApp()
+      let rootWidget = 'MaterialApp'
+      const runAppMatch = code.match(/runApp\s*\(\s*(?:const\s+)?(\w+)/)
+      if (runAppMatch) {
+        rootWidget = runAppMatch[1]
+      }
+
+      // Write the app code to lib/
+      const fullAppCode = `import 'package:flutter/material.dart';
+
+${appCode}
+`
+      try {
+        await writeFile(appFilePath, fullAppCode, { encoding: 'utf8', mode: 0o600 })
+      } catch (e) {
+        socket.emit('output', {
+          stream: 'stderr',
+          data: `Failed to write app file: ${(e as Error).message}\n`,
+          promptLike: false,
+        })
+        socket.emit('exit', {
+          code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
+        })
+        return null
+      }
+
+      // Create test file that imports the app and pumps it
+      testCode = `import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../lib/user_${sessionId}_app.dart';
+
+void main() {
+  testWidgets('User Flutter App', (WidgetTester tester) async {
+    await tester.pumpWidget(${rootWidget}());
+    await tester.pumpAndSettle();
+
+    // Print the widget tree for debugging
+    print('Flutter app rendered successfully!');
+    print('Root widget: ${rootWidget}');
+
+    // Try to find common UI elements
+    try {
+      final scaffoldFinder = find.byType(Scaffold);
+      if (scaffoldFinder.evaluate().isNotEmpty) {
+        final scaffold = tester.widget<Scaffold>(scaffoldFinder.first);
+        final appBar = scaffold.appBar;
+        if (appBar != null) {
+          final appbarWidget = appBar as PreferredSizeWidget;
+          // Try to extract title text
+          print('App has AppBar');
+        }
+      }
+    } catch (e) {
+      // Ignore errors in debug output
+    }
+
+    // Dump all Text widgets found in the tree
+    final textWidgets = find.byType(Text);
+    final count = textWidgets.evaluate().length;
+    print('Text widgets found: ' + count.toString());
+    for (int i = 0; i < count && i < 20; i++) {
+      final text = tester.widget<Text>(textWidgets.at(i));
+      if (text.data != null && text.data!.isNotEmpty) {
+        print('  Text[' + i.toString() + ']: ' + text.data!);
+      }
+    }
+  });
+}
+`
     } else {
-      // Wrap user code in a testWidgets block
-      // The user code should return a Widget (e.g., MaterialApp, Scaffold, etc.)
+      // Mode 3: Widget code (pumpWidget etc.) — wrap in testWidgets
       testCode = `import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -1262,6 +1360,7 @@ ${code}
 `
     }
 
+    // Write the test file
     try {
       await writeFile(testFilePath, testCode, { encoding: 'utf8', mode: 0o600 })
     } catch (e) {
@@ -1275,10 +1374,6 @@ ${code}
       })
       return null
     }
-
-    // Locate the Flutter SDK
-    const flutterBin = join(home, '.local', 'flutter', 'bin', 'flutter')
-    const actualFlutter = existsSync(flutterBin) ? flutterBin : 'flutter'
 
     socket.emit('output', {
       stream: 'system',
