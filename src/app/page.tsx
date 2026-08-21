@@ -490,15 +490,6 @@ export default function Home() {
       if (languageRef.current === 'flutter') {
         // Set the port — this immediately renders the live iframe preview.
         setFlutterPort(msg.port)
-        // Also try to open the preview in a new browser tab (best-effort).
-        // Browsers may block this if not triggered by a user gesture, but the
-        // in-page iframe always works as a fallback.
-        try {
-          const url = window.location.origin + `/?XTransformPort=${msg.port}`
-          window.open(url, '_blank', 'noopener,noreferrer')
-        } catch (_) {
-          // ignore — iframe is the primary view
-        }
         toast.success('Flutter app is live!', {
           description: `Preview loaded in panel (port ${msg.port}).`,
           duration: 4000,
@@ -1403,8 +1394,6 @@ export default function Home() {
                  * Full-screen Flutter Preview
                  * - Takes 100% of the available panel area
                  * - NO console header / input bar / footer strip
-                 * - "Open in new tab" is a floating chip (top-right) so it
-                 *   does NOT steal space from the iframe itself
                  * - Loading / error / empty states are full-screen overlays
                  * ============================================================ */
                 <div className="relative h-full w-full overflow-hidden bg-white dark:bg-black">
@@ -1448,36 +1437,6 @@ export default function Home() {
                         The preview will fill this entire panel when ready.
                       </span>
                     </div>
-                  )}
-
-                  {/* Floating "Open in new tab" chip — overlaid top-right so it
-                      does NOT consume any of the iframe area. Hidden until the
-                      server is live so we don't show an empty link. */}
-                  {flutterPort && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const url = window.location.origin + `/?XTransformPort=${flutterPort}`
-                        window.open(url, '_blank', 'noopener,noreferrer')
-                      }}
-                      className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-md bg-black/60 backdrop-blur-sm px-2 py-1 text-[10px] font-mono text-white/90 hover:bg-black/80 hover:text-white transition-colors border border-white/10"
-                      title="Open Flutter preview in a new browser tab"
-                    >
-                      <svg
-                        className="h-3 w-3"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M15 3h6v6" />
-                        <path d="M10 14 21 3" />
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      </svg>
-                      Open in new tab
-                    </button>
                   )}
                 </div>
               ) : (
