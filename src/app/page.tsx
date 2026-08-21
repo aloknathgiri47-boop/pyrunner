@@ -1298,7 +1298,10 @@ export default function Home() {
         <main className="flex-1 min-h-0 overflow-hidden">
           <PanelGroup direction="horizontal" className="h-full">
             {/* ---- Editor ---- */}
-            <Panel defaultSize={55} minSize={30}>
+            <Panel
+              defaultSize={language === 'flutter' ? 40 : 55}
+              minSize={20}
+            >
               <div className="h-full flex flex-col">
                 <div className="flex-none flex h-9 items-center gap-2 border-b border-border bg-muted/30 px-3">
                   <FileCode2 className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1390,190 +1393,215 @@ export default function Home() {
               <div className="h-10 w-0.5 rounded-full bg-border group-hover:bg-emerald-500" />
             </PanelResizeHandle>
 
-            {/* ---- Interactive Console + Flutter Preview ---- */}
-            <Panel defaultSize={45} minSize={25}>
-              <div className="h-full flex flex-col bg-card/30">
-                {/* Console header */}
-                <div className="flex-none flex h-9 items-center justify-between border-b border-border px-3 bg-muted/30">
-                  <div className="flex items-center gap-2">
-                    <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      {language === 'flutter' && flutterPort ? 'Console (build logs)' : 'Console'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={status} />
-                    {result && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={handleClearConsole}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Clear console</TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-                </div>
-
-                {/* Flutter Preview Panel (live iframe + open in new tab) */}
-                {language === 'flutter' && (
-                  <div className="flex-none border-b border-border bg-muted/20" style={{ height: '45%' }}>
-                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/10">
-                      <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                        Flutter Preview
+            {/* ---- Right panel: Console (non-Flutter) OR Full-screen Flutter Preview ---- */}
+            <Panel
+              defaultSize={language === 'flutter' ? 60 : 45}
+              minSize={25}
+            >
+              {language === 'flutter' ? (
+                /* ============================================================
+                 * Full-screen Flutter Preview
+                 * - Takes 100% of the available panel area
+                 * - NO console header / input bar / footer strip
+                 * - "Open in new tab" is a floating chip (top-right) so it
+                 *   does NOT steal space from the iframe itself
+                 * - Loading / error / empty states are full-screen overlays
+                 * ============================================================ */
+                <div className="relative h-full w-full overflow-hidden bg-white dark:bg-black">
+                  {flutterPort ? (
+                    <iframe
+                      key={flutterPort}
+                      src={`/?XTransformPort=${flutterPort}`}
+                      title="Flutter Preview"
+                      className="absolute inset-0 h-full w-full border-0"
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                    />
+                  ) : isRunning ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/5">
+                      <Loader2 className="h-7 w-7 animate-spin text-blue-500" />
+                      <span className="text-xs text-muted-foreground">
+                        Building Flutter web app...
                       </span>
-                      {flutterPort && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const port = flutterPort
-                            const url = window.location.origin + `/?XTransformPort=${port}`
-                            window.open(url, '_blank', 'noopener,noreferrer')
-                          }}
-                          className="text-[10px] text-blue-500 hover:text-blue-400 font-mono underline"
-                        >
-                          Open in new tab
-                        </button>
-                      )}
+                      <span className="text-[10px] text-muted-foreground/60">
+                        Takes ~20-30 seconds. The app will appear here when ready.
+                      </span>
                     </div>
-                    <div className="h-[calc(100%-28px)] bg-white dark:bg-[#0a0b10]">
-                      {flutterPort ? (
-                        <iframe
-                          key={flutterPort}
-                          src={`/?XTransformPort=${flutterPort}`}
-                          title="Flutter Preview"
-                          className="h-full w-full border-0"
-                          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-                        />
-                      ) : isRunning ? (
-                        <div className="flex h-full flex-col items-center justify-center gap-3 bg-muted/10">
-                          <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-                          <span className="text-xs text-muted-foreground">
-                            Building Flutter web app...
-                          </span>
-                          <span className="text-[10px] text-muted-foreground/60">
-                            Takes ~20-30 seconds. The app will appear here when ready.
-                          </span>
-                        </div>
-                      ) : result && !result.code ? (
-                        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-                          <CircleAlert className="h-6 w-6 text-rose-500" />
-                          <span className="text-xs text-rose-500">Build failed</span>
-                          <span className="text-[10px] text-muted-foreground">Check console for errors</span>
-                        </div>
-                      ) : (
-                        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 border border-blue-500/20">
-                            <svg className="h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M12 2L2 12l10 10 10-10L12 2z"/>
-                            </svg>
-                          </div>
-                          <span className="text-xs text-muted-foreground">Press Run to build and preview your Flutter app</span>
-                          <span className="text-[10px] text-muted-foreground/60">
-                            The app will appear here, with an option to open in a new tab.
-                          </span>
-                        </div>
-                      )}
+                  ) : result && !result.code ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/5">
+                      <CircleAlert className="h-7 w-7 text-rose-500" />
+                      <span className="text-xs text-rose-500">Build failed</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        Check the editor or your Flutter code for errors.
+                      </span>
                     </div>
-                  </div>
-                )}
-
-                {/* Console body */}
-                <div className="flex-1 min-h-0 overflow-auto bg-[#0a0b10] dark:bg-[#0a0b10]">
-                  {chunks.length === 0 && !isRunning ? (
-                    <EmptyConsole />
                   ) : (
-                    <div
-                      className="px-3 py-2.5 font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-words"
-                      style={{
-                        fontFamily:
-                          'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
-                        whiteSpace: 'pre-wrap',
-                        overflowWrap: 'break-word',
-                        tabSize: 4,
-                      }}
-                    >
-                      {chunks.map((chunk) => (
-                        <ConsoleLine key={chunk.id} chunk={chunk} />
-                      ))}
-                      {isRunning && chunks.length === 0 && (
-                        <div className="flex items-center gap-2 text-muted-foreground py-1">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          <span className="text-xs">
-                            {language === 'flutter' ? 'Building Flutter web app…' : 'Starting…'}
-                          </span>
-                        </div>
-                      )}
-                      <div ref={consoleEndRef} />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/5 px-6 text-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 border border-blue-500/20">
+                        <svg className="h-6 w-6 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2L2 12l10 10 10-10L12 2z" />
+                        </svg>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        Press <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">Run</kbd> to build and preview your Flutter app
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/60">
+                        The preview will fill this entire panel when ready.
+                      </span>
                     </div>
                   )}
-                </div>
 
-                {/* Input bar */}
-                <div className="flex-none border-t border-border bg-muted/20">
-                  <div className="flex items-center gap-2 px-3 py-2">
-                    <div
-                      className={`flex h-6 w-6 flex-none items-center justify-center rounded $\{
-                        awaitingInput
-                          ? 'bg-amber-500/20 text-amber-500'
-                          : isRunning
-                            ? 'bg-emerald-500/15 text-emerald-500'
-                            : 'bg-muted text-muted-foreground'
-                      }`}
+                  {/* Floating "Open in new tab" chip — overlaid top-right so it
+                      does NOT consume any of the iframe area. Hidden until the
+                      server is live so we don't show an empty link. */}
+                  {flutterPort && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = window.location.origin + `/?XTransformPort=${flutterPort}`
+                        window.open(url, '_blank', 'noopener,noreferrer')
+                      }}
+                      className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-md bg-black/60 backdrop-blur-sm px-2 py-1 text-[10px] font-mono text-white/90 hover:bg-black/80 hover:text-white transition-colors border border-white/10"
+                      title="Open Flutter preview in a new browser tab"
                     >
-                      {awaitingInput ? (
-                        <CornerDownLeft className="h-3.5 w-3.5" />
-                      ) : isRunning ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <span className="text-xs font-mono">›</span>
+                      <svg
+                        className="h-3 w-3"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M15 3h6v6" />
+                        <path d="M10 14 21 3" />
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                      </svg>
+                      Open in new tab
+                    </button>
+                  )}
+                </div>
+              ) : (
+                /* ============================================================
+                 * Normal Interactive Console (non-Flutter languages)
+                 * ============================================================ */
+                <div className="h-full flex flex-col bg-card/30">
+                  {/* Console header */}
+                  <div className="flex-none flex h-9 items-center justify-between border-b border-border px-3 bg-muted/30">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Console
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={status} />
+                      {result && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={handleClearConsole}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Clear console</TooltipContent>
+                        </Tooltip>
                       )}
                     </div>
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          handleSubmitInput()
-                        }
-                      }}
-                      disabled={!isRunning}
-                      placeholder={
-                        isRunning
-                          ? awaitingInput
-                            ? 'Type your answer and press Enter…'
-                            : 'Waiting for program output…'
-                          : 'Console input is enabled while a program is running'
-                      }
-                      spellCheck={false}
-                      autoComplete="off"
-                      className="flex-1 bg-transparent font-mono text-sm outline-none placeholder:text-muted-foreground/60 disabled:cursor-not-allowed"
-                      style={{ fontFamily: 'var(--font-geist-mono), ui-monospace, monospace' }}
-                    />
-                    {isRunning && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 gap-1 text-xs"
-                        onClick={handleSubmitInput}
-                        disabled={!inputValue}
+                  </div>
+
+                  {/* Console body */}
+                  <div className="flex-1 min-h-0 overflow-auto bg-[#0a0b10] dark:bg-[#0a0b10]">
+                    {chunks.length === 0 && !isRunning ? (
+                      <EmptyConsole />
+                    ) : (
+                      <div
+                        className="px-3 py-2.5 font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-words"
+                        style={{
+                          fontFamily:
+                            'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+                          whiteSpace: 'pre-wrap',
+                          overflowWrap: 'break-word',
+                          tabSize: 4,
+                        }}
                       >
-                        Send
-                        <CornerDownLeft className="h-3 w-3" />
-                      </Button>
+                        {chunks.map((chunk) => (
+                          <ConsoleLine key={chunk.id} chunk={chunk} />
+                        ))}
+                        {isRunning && chunks.length === 0 && (
+                          <div className="flex items-center gap-2 text-muted-foreground py-1">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <span className="text-xs">Starting…</span>
+                          </div>
+                        )}
+                        <div ref={consoleEndRef} />
+                      </div>
                     )}
                   </div>
+
+                  {/* Input bar */}
+                  <div className="flex-none border-t border-border bg-muted/20">
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <div
+                        className={`flex h-6 w-6 flex-none items-center justify-center rounded ${
+                          awaitingInput
+                            ? 'bg-amber-500/20 text-amber-500'
+                            : isRunning
+                              ? 'bg-emerald-500/15 text-emerald-500'
+                              : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {awaitingInput ? (
+                          <CornerDownLeft className="h-3.5 w-3.5" />
+                        ) : isRunning ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <span className="text-xs font-mono">›</span>
+                        )}
+                      </div>
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleSubmitInput()
+                          }
+                        }}
+                        disabled={!isRunning}
+                        placeholder={
+                          isRunning
+                            ? awaitingInput
+                              ? 'Type your answer and press Enter…'
+                              : 'Waiting for program output…'
+                            : 'Console input is enabled while a program is running'
+                        }
+                        spellCheck={false}
+                        autoComplete="off"
+                        className="flex-1 bg-transparent font-mono text-sm outline-none placeholder:text-muted-foreground/60 disabled:cursor-not-allowed"
+                        style={{ fontFamily: 'var(--font-geist-mono), ui-monospace, monospace' }}
+                      />
+                      {isRunning && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 gap-1 text-xs"
+                          onClick={handleSubmitInput}
+                          disabled={!inputValue}
+                        >
+                          Send
+                          <CornerDownLeft className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </Panel>
           </PanelGroup>
         </main>
