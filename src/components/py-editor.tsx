@@ -16,7 +16,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c'
+  language?: 'python' | 'java' | 'c' | 'cpp'
 }
 
 const customLightTheme = EditorView.theme(
@@ -106,11 +106,13 @@ export default function PyEditor({
   }, [onRun])
 
   const extensions = useMemo<Extension[]>(() => {
-    // For C we use the cpp() extension with C language detection.
-    // @codemirror/lang-cpp supports both C and C++ based on file type.
+    // For C and C++ we use the cpp() extension.
+    // @codemirror/lang-cpp supports both C and C++ syntax highlighting.
+    // For C++ we pass { cppLanguage: true } to use C++ mode; for C we use
+    // the default (also C++ but with C keywords too).
     const langExt =
       language === 'java' ? java() :
-      language === 'c' ? cpp() :
+      language === 'c' || language === 'cpp' ? cpp() :
       python()
     const exts: Extension[] = [
       langExt,

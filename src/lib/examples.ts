@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c'
+  language?: 'python' | 'java' | 'c' | 'cpp'
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -998,6 +998,310 @@ int main(void) {
 
     // Missing semicolon
     int z = 42
+
+    return 0;
+}
+`,
+  },
+  {
+    id: 'cpp-hello',
+    name: 'C++: Hello World',
+    description: 'Classic first C++ program with iostream.',
+    language: 'cpp',
+    code: `// Welcome to PyRunner — C++ (g++ 14, C++20) playground.
+// Compiled with: g++ -std=c++20 -Wall -O2
+// Press Run (or Ctrl/Cmd+Enter) to execute.
+
+#include <iostream>
+#include <vector>
+#include <algorithm>
+
+int main() {
+    std::cout << "Hello, World!" << std::endl;
+
+    // Range-based for loop with auto
+    std::vector<int> nums = {5, 2, 8, 1, 9, 3};
+    std::sort(nums.begin(), nums.end());
+
+    std::cout << "Sorted: ";
+    for (auto n : nums) {
+        std::cout << n << " ";
+    }
+    std::cout << std::endl;
+
+    return 0;
+}
+`,
+  },
+  {
+    id: 'cpp-interactive',
+    name: 'C++: Interactive Input',
+    description: 'Read from stdin with getline and cin.',
+    language: 'cpp',
+    code: `// This program reads input from the console.
+// When you press Run, the prompt will appear in
+// the console — type your answer and press Enter.
+
+#include <iostream>
+#include <string>
+#include <limits>
+
+int main() {
+    std::string name;
+    int age;
+
+    std::cout << "What's your name? ";
+    std::getline(std::cin, name);
+
+    std::cout << "How old are you? ";
+    std::cin >> age;
+    // Clear the newline left in the buffer after cin >> age
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\\n');
+
+    std::cout << "\\nHello, " << name << "!" << std::endl;
+    std::cout << "In 10 years you'll be " << age + 10 << "." << std::endl;
+
+    // Read a favorite color
+    std::string color;
+    std::cout << "\\nWhat's your favorite color? ";
+    std::getline(std::cin, color);
+    std::cout << color << "? Great choice!" << std::endl;
+
+    return 0;
+}
+`,
+  },
+  {
+    id: 'cpp-stl',
+    name: 'C++: STL Containers',
+    description: 'Vectors, maps, sets, and algorithms.',
+    language: 'cpp',
+    code: `// Modern C++ with STL containers and algorithms.
+// Demonstrates vector, map, set, and range-based for loops.
+
+#include <iostream>
+#include <vector>
+#include <map>
+#include <set>
+#include <algorithm>
+#include <string>
+
+int main() {
+    // Vector with iterator-based operations
+    std::vector<int> nums = {3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5};
+    std::cout << "Original: ";
+    for (auto n : nums) std::cout << n << " ";
+    std::cout << std::endl;
+
+    // Sort and remove duplicates
+    std::sort(nums.begin(), nums.end());
+    nums.erase(std::unique(nums.begin(), nums.end()), nums.end());
+    std::cout << "Sorted unique: ";
+    for (auto n : nums) std::cout << n << " ";
+    std::cout << std::endl;
+
+    // Map (sorted key-value store)
+    std::map<std::string, int> ages;
+    ages["Alice"] = 30;
+    ages["Bob"] = 25;
+    ages["Charlie"] = 35;
+    ages["Diana"] = 28;
+
+    std::cout << "\\nPeople (sorted by name):" << std::endl;
+    for (const auto& [name, age] : ages) {
+        std::cout << "  " << name << " is " << age << " years old" << std::endl;
+    }
+
+    // Set operations
+    std::set<int> set1 = {1, 2, 3, 4, 5};
+    std::set<int> set2 = {3, 4, 5, 6, 7};
+    std::set<int> intersection;
+    std::set_intersection(set1.begin(), set1.end(),
+                          set2.begin(), set2.end(),
+                          std::inserter(intersection, intersection.begin()));
+    std::cout << "\\nIntersection of {1,2,3,4,5} and {3,4,5,6,7}: ";
+    for (auto n : intersection) std::cout << n << " ";
+    std::cout << std::endl;
+
+    // Find min/max with algorithms
+    auto [min_it, max_it] = std::minmax_element(ages.begin(), ages.end(),
+        [](const auto& a, const auto& b) { return a.second < b.second; });
+    std::cout << "\\nYoungest: " << min_it->first << " (" << min_it->second << ")" << std::endl;
+    std::cout << "Oldest: " << max_it->first << " (" << max_it->second << ")" << std::endl;
+
+    return 0;
+}
+`,
+  },
+  {
+    id: 'cpp-classes',
+    name: 'C++: Classes & Templates',
+    description: 'OOP with inheritance, virtual methods, templates.',
+    language: 'cpp',
+    code: `// Modern C++ with classes, inheritance, and templates.
+// Demonstrates virtual methods, smart pointers, and std::format-like output.
+
+#include <iostream>
+#include <memory>
+#include <vector>
+#include <string>
+#include <cmath>
+
+// Abstract base class
+class Shape {
+public:
+    virtual ~Shape() = default;
+    virtual double area() const = 0;
+    virtual std::string name() const = 0;
+
+    // Virtual method that derived classes can override
+    virtual void describe() const {
+        std::cout << name() << " with area " << area() << std::endl;
+    }
+};
+
+// Derived class: Circle
+class Circle : public Shape {
+    double radius;
+public:
+    Circle(double r) : radius(r) {}
+    double area() const override { return M_PI * radius * radius; }
+    std::string name() const override { return "Circle"; }
+};
+
+// Derived class: Rectangle
+class Rectangle : public Shape {
+    double width, height;
+public:
+    Rectangle(double w, double h) : width(w), height(h) {}
+    double area() const override { return width * height; }
+    std::string name() const override { return "Rectangle"; }
+};
+
+// Template function — works with any Shape
+template <typename T>
+void printArea(const T& shape) {
+    std::cout << "Area: " << shape.area() << std::endl;
+}
+
+int main() {
+    // Use smart pointers for automatic memory management
+    std::vector<std::unique_ptr<Shape>> shapes;
+    shapes.push_back(std::make_unique<Circle>(5.0));
+    shapes.push_back(std::make_unique<Rectangle>(3.0, 4.0));
+    shapes.push_back(std::make_unique<Circle>(2.5));
+
+    std::cout << "Shapes:" << std::endl;
+    for (const auto& shape : shapes) {
+        shape->describe();
+    }
+
+    // Find the shape with the largest area
+    auto max_it = std::max_element(shapes.begin(), shapes.end(),
+        [](const auto& a, const auto& b) { return a->area() < b->area(); });
+    std::cout << "\\nLargest: " << (*max_it)->name()
+              << " (area = " << (*max_it)->area() << ")" << std::endl;
+
+    // Total area using a lambda
+    double total = 0;
+    std::for_each(shapes.begin(), shapes.end(),
+        [&total](const auto& s) { total += s->area(); });
+    std::cout << "Total area: " << total << std::endl;
+
+    return 0;
+}
+`,
+  },
+  {
+    id: 'cpp-lambdas',
+    name: 'C++: Lambdas & Algorithms',
+    description: 'Modern C++ with functional programming style.',
+    language: 'cpp',
+    code: `// Modern C++20 with lambdas, ranges-style algorithms,
+// and functional programming patterns.
+
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <numeric>
+#include <string>
+
+int main() {
+    std::vector<int> nums = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+
+    // Lambda that captures by reference
+    auto print = [](const auto& v, const std::string& label) {
+        std::cout << label << ": ";
+        for (const auto& x : v) std::cout << x << " ";
+        std::cout << std::endl;
+    };
+
+    print(nums, "Original");
+
+    // Filter: keep even numbers
+    std::vector<int> evens;
+    std::copy_if(nums.begin(), nums.end(), std::back_inserter(evens),
+        [](int n) { return n % 2 == 0; });
+    print(evens, "Evens");
+
+    // Transform: square each number
+    std::vector<int> squares;
+    std::transform(nums.begin(), nums.end(), std::back_inserter(squares),
+        [](int n) { return n * n; });
+    print(squares, "Squares");
+
+    // Reduce: sum of all numbers
+    int sum = std::accumulate(nums.begin(), nums.end(), 0);
+    std::cout << "Sum: " << sum << std::endl;
+
+    // Reduce with a lambda: product of all numbers
+    int product = std::accumulate(nums.begin(), nums.end(), 1,
+        [](int acc, int n) { return acc * n; });
+    std::cout << "Product: " << product << std::endl;
+
+    // Find min and max
+    auto [min_it, max_it] = std::minmax_element(nums.begin(), nums.end());
+    std::cout << "Min: " << *min_it << ", Max: " << *max_it << std::endl;
+
+    // Count elements greater than 5
+    auto count = std::count_if(nums.begin(), nums.end(),
+        [](int n) { return n > 5; });
+    std::cout << "Count > 5: " << count << std::endl;
+
+    // Sort in descending order with a lambda comparator
+    std::vector<int> desc = nums;
+    std::sort(desc.begin(), desc.end(), [](int a, int b) { return a > b; });
+    print(desc, "Descending");
+
+    return 0;
+}
+`,
+  },
+  {
+    id: 'cpp-error',
+    name: 'C++: Compile Error',
+    description: 'See how g++ errors appear in the console.',
+    language: 'cpp',
+    code: `// This file has deliberate compile errors.
+// The runner will show g++ error messages
+// in the console so you can see the format.
+
+#include <iostream>
+#include <vector>
+
+int main() {
+    // Using undeclared variable
+    std::cout << x << std::endl;
+
+    // Type mismatch
+    int y = "hello";
+
+    // Missing semicolon
+    int z = 42
+
+    // Template error: no matching function
+    std::vector<int> v;
+    v.push_back("not a number");
 
     return 0;
 }

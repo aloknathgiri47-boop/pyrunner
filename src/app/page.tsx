@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c'
+type Language = 'python' | 'java' | 'c' | 'cpp'
 
 interface PersistedState {
   code: string
@@ -132,6 +132,26 @@ int main(void) {
 }
 `
 
+const DEFAULT_CPP_CODE = `// PyRunner — C++ (g++ 14, C++20) playground
+// Press Run (or Ctrl/Cmd+Enter) to execute.
+// Compiled with: g++ -std=c++20 -Wall -O2
+
+#include <iostream>
+#include <string>
+
+int main() {
+    std::cout << "Hello, World!" << std::endl;
+
+    // Read from stdin (interactive)
+    std::string name;
+    std::cout << "What's your name? ";
+    std::getline(std::cin, name);
+    std::cout << "Nice to meet you, " << name << "!" << std::endl;
+
+    return 0;
+}
+`
+
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
 /* ------------------------------------------------------------------ */
@@ -145,7 +165,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: parsed.language === 'java' || parsed.language === 'c' ? parsed.language : 'python',
+      language: parsed.language === 'java' || parsed.language === 'c' || parsed.language === 'cpp' ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -189,7 +209,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: lang === 'java' || lang === 'c' ? lang : 'python',
+          language: lang === 'java' || lang === 'c' || lang === 'cpp' ? lang : 'python',
         }
       }
     } catch {
@@ -394,6 +414,7 @@ export default function Home() {
         description:
           language === 'java' ? 'Write some Java first.' :
           language === 'c' ? 'Write some C first.' :
+          language === 'cpp' ? 'Write some C++ first.' :
           'Write some Python first.',
       })
       return
@@ -474,6 +495,7 @@ export default function Home() {
     setCode(
       lang === 'java' ? DEFAULT_JAVA_CODE :
       lang === 'c' ? DEFAULT_C_CODE :
+      lang === 'cpp' ? DEFAULT_CPP_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -509,10 +531,15 @@ export default function Home() {
   }, [code, language])
 
   const handleDownload = useCallback(() => {
-    const ext = language === 'java' ? 'java' : language === 'c' ? 'c' : 'py'
+    const ext =
+      language === 'java' ? 'java' :
+      language === 'c' ? 'c' :
+      language === 'cpp' ? 'cpp' :
+      'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
       language === 'c' ? 'text/x-csrc;charset=utf-8' :
+      language === 'cpp' ? 'text/x-c++src;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -592,10 +619,18 @@ export default function Home() {
                       ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
                       : language === 'c'
                         ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
-                        : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                        : language === 'cpp'
+                          ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
+                          : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
-                  {language === 'java' ? 'Java 21' : language === 'c' ? 'C (gcc 14)' : 'Python 3.12'}
+                  {language === 'java'
+                    ? 'Java 21'
+                    : language === 'c'
+                      ? 'C (gcc 14)'
+                      : language === 'cpp'
+                        ? 'C++ (g++ 14)'
+                        : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -603,7 +638,9 @@ export default function Home() {
                   ? 'Interactive Java console with live stdin'
                   : language === 'c'
                     ? 'Interactive C console with live stdin'
-                    : 'Interactive Python console with live input()'}
+                    : language === 'cpp'
+                      ? 'Interactive C++ console with live stdin'
+                      : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -643,6 +680,17 @@ export default function Home() {
                 }`}
               >
                 C
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('cpp')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'cpp'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                C++
               </button>
             </div>
           </div>
@@ -699,6 +747,23 @@ export default function Home() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {EXAMPLES.filter((ex) => ex.language === 'c').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  C++ examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'cpp').map((ex) => (
                   <DropdownMenuItem
                     key={ex.id}
                     onSelect={() => handleSelectExample(ex)}
@@ -836,7 +901,13 @@ export default function Home() {
                 <div className="flex-none flex h-9 items-center gap-2 border-b border-border bg-muted/30 px-3">
                   <FileCode2 className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    {language === 'java' ? 'code.java' : language === 'c' ? 'code.c' : 'code.py'}
+                    {language === 'java'
+                      ? 'code.java'
+                      : language === 'c'
+                        ? 'code.c'
+                        : language === 'cpp'
+                          ? 'code.cpp'
+                          : 'code.py'}
                   </span>
                 </div>
                 <div className="flex-1 min-h-0">

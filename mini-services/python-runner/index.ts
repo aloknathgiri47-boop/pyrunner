@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c'
+  language?: 'python' | 'java' | 'c' | 'cpp'
 }
 
 interface Session {
@@ -605,6 +605,107 @@ ${code}
     return child
   }
 
+  /**
+   * Spawn a C++ child process for the given code.
+   * - Writes code to snippet_<sessionId>.cpp
+   * - Compiles with g++ -std=c++20 -Wall -o <binary>
+   * - If compilation succeeds, runs the binary with stdbuf -o0
+   * - Streams compile errors (stderr) and runtime output to the client
+   * Returns the ChildProcess (the binary run), or null on compile error.
+   */
+  async function spawnCpp(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const cppFilePath = join(sandboxDir, `snippet_${sessionId}.cpp`)
+    const binaryPath = join(sandboxDir, `snippet_${sessionId}.bin`)
+
+    try {
+      await writeFile(cppFilePath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write C++ file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
+      })
+      return null
+    }
+
+    // Compile step
+    socket.emit('output', {
+      stream: 'system',
+      data: `Compiling snippet.cpp with g++...\n`,
+      promptLike: false,
+    })
+
+    const compileResult = await new Promise<{ ok: boolean; stderr: string; stdout: string }>((resolve) => {
+      const gpp = spawn('g++', [
+        '-std=c++20',    // Modern C++ standard (2020)
+        '-Wall',         // All warnings
+        '-Wno-unused',  // Don't nag about unused vars in examples
+        '-O2',           // Basic optimization
+        '-o', binaryPath,
+        cppFilePath,
+        '-lm',           // Math library
+      ], {
+        cwd: sandboxDir,
+        env: process.env as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+
+      let stderr = ''
+      let stdout = ''
+      gpp.stdout?.on('data', (c: Buffer) => { stdout += c.toString('utf8') })
+      gpp.stderr?.on('data', (c: Buffer) => { stderr += c.toString('utf8') })
+      gpp.on('error', (err) => {
+        resolve({ ok: false, stderr: `Failed to spawn g++: ${err.message}\nIs g++ installed?\n`, stdout })
+      })
+      gpp.on('close', (code) => {
+        resolve({ ok: code === 0, stderr, stdout })
+      })
+      gpp.stdin?.end()
+    })
+
+    if (!compileResult.ok) {
+      const strippedStderr = compileResult.stderr.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+      if (strippedStderr) {
+        socket.emit('output', {
+          stream: 'stderr',
+          data: strippedStderr,
+          promptLike: false,
+        })
+      }
+      socket.emit('output', {
+        stream: 'system',
+        data: `\nCompilation failed.\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: 1, signal: null, timedOut: false, durationMs: 0,
+      })
+      return null
+    }
+
+    // Compilation succeeded — run the binary
+    socket.emit('output', {
+      stream: 'system',
+      data: `Compiled. Running binary...\n`,
+      promptLike: false,
+    })
+
+    // Use stdbuf -o0 to make stdout FULLY UNBUFFERED so every cout output
+    // (including prompts without newlines like "Enter: ") appears immediately.
+    const child = spawn('stdbuf', ['-o0', binaryPath], {
+      cwd: sandboxDir,
+      env: process.env as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
 
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
@@ -638,13 +739,15 @@ ${code}
     }
 
     const sessionId = randomUUID()
-    // For Python we spawn directly. For Java/C we compile first, then spawn.
+    // For Python we spawn directly. For Java/C/C++ we compile first, then spawn.
     let child: ChildProcess
 
     if (language === 'java') {
       child = await spawnJava(code, sessionId, socket)
     } else if (language === 'c') {
       child = await spawnC(code, sessionId, socket)
+    } else if (language === 'cpp') {
+      child = await spawnCpp(code, sessionId, socket)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }
