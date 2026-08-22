@@ -1215,21 +1215,65 @@ if (!function_exists('readline')) {
    */
   async function spawnFlutter(code: string, sessionId: string, socket: any, stdin?: string): Promise<ChildProcess | null> {
     const home = process.env.HOME || '/home/z'
-    const flutterProjectDir = '/tmp/py-compiler/flutter_project'
+    // Use a PERSISTENT location (not /tmp) so /tmp cleanups don't wipe the project.
+    const flutterProjectDir = join(home, 'flutter_workspace', 'flutter_project')
     const libDir = join(flutterProjectDir, 'lib')
     const mainDartPath = join(libDir, 'main.dart')
 
-    // Ensure the Flutter project exists
+    // Auto-create the Flutter project if missing (e.g. after /tmp cleanup or
+    // first run on a fresh machine). This makes the runner self-healing.
     if (!existsSync(join(flutterProjectDir, 'pubspec.yaml'))) {
       socket.emit('output', {
-        stream: 'stderr',
-        data: 'Flutter project not found. Cannot run Flutter code.\n',
+        stream: 'system',
+        data: `Flutter project not found at ${flutterProjectDir}. Creating it now (one-time setup, ~1 min)...\n`,
         promptLike: false,
       })
-      socket.emit('exit', {
-        code: null, signal: null, timedOut: false, durationMs: 0, error: 'NO_PROJECT',
+      const flutterBinInit = join(home, '.local', 'flutter', 'bin', 'flutter')
+      const actualFlutterInit = existsSync(flutterBinInit) ? flutterBinInit : 'flutter'
+      const flutterPathInit = join(home, '.local', 'flutter', 'bin')
+      const workspaceDir = join(home, 'flutter_workspace')
+      await mkdir(workspaceDir, { recursive: true }).catch(() => {})
+
+      const initResult = await new Promise<{ ok: boolean; stderr: string }>((resolve) => {
+        const init = spawn(actualFlutterInit, [
+          'create', '--platforms', 'web', 'flutter_project',
+        ], {
+          cwd: workspaceDir,
+          env: {
+            ...process.env,
+            PATH: flutterPathInit + ':' + (process.env.PATH || ''),
+          } as NodeJS.ProcessEnv,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          windowsHide: true,
+        })
+        let stderr = ''
+        init.stdout?.on('data', (c: Buffer) => {
+          socket.emit('output', { stream: 'stdout', data: c.toString('utf8'), promptLike: false })
+        })
+        init.stderr?.on('data', (c: Buffer) => {
+          stderr += c.toString('utf8')
+          socket.emit('output', { stream: 'stderr', data: c.toString('utf8'), promptLike: false })
+        })
+        init.on('error', (err) => resolve({ ok: false, stderr: `Failed to run flutter create: ${err.message}` }))
+        init.on('close', (code) => resolve({ ok: code === 0, stderr }))
       })
-      return null
+
+      if (!initResult.ok || !existsSync(join(flutterProjectDir, 'pubspec.yaml'))) {
+        socket.emit('output', {
+          stream: 'stderr',
+          data: `Failed to create Flutter project.\n${initResult.stderr}\n`,
+          promptLike: false,
+        })
+        socket.emit('exit', {
+          code: 1, signal: null, timedOut: false, durationMs: 0,
+        })
+        return null
+      }
+      socket.emit('output', {
+        stream: 'system',
+        data: `Flutter project created successfully.\n`,
+        promptLike: false,
+      })
     }
 
     // Ensure lib directory exists
