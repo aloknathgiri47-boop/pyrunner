@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html'
 
 interface PersistedState {
   code: string
@@ -295,7 +295,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -339,7 +339,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
@@ -487,10 +487,10 @@ export default function Home() {
     })
 
     sock.on('server', (msg: { port: number; host?: string }) => {
-      if (languageRef.current === 'flutter') {
+      if (languageRef.current === 'flutter' || languageRef.current === 'html') {
         // Set the port — this immediately renders the live iframe preview.
         setFlutterPort(msg.port)
-        toast.success('Flutter app is live!', {
+        toast.success(languageRef.current === 'flutter' ? 'Flutter app is live!' : 'HTML preview is live!', {
           description: `Preview loaded in panel (port ${msg.port}).`,
           duration: 4000,
         })
@@ -575,6 +575,7 @@ export default function Home() {
           language === 'csharp' ? 'Write some C# first.' :
           language === 'dart' ? 'Write some Dart first.' :
           language === 'flutter' ? 'Write some Flutter code first.' :
+          language === 'html' ? 'Write some HTML/CSS first.' :
           'Write some Python first.',
       })
       return
@@ -588,7 +589,7 @@ export default function Home() {
     chunkIdRef.current = 0
 
     const sock = ensureSocket()
-    const emitRun = () => sock.emit('run', { code, language, timeout: language === 'flutter' ? 120000 : 30000, stdin: stdinText })
+    const emitRun = () => sock.emit('run', { code, language, timeout: (language === 'flutter' || language === 'html') ? 120000 : 30000, stdin: stdinText })
     if (sock.connected) {
       emitRun()
     } else {
@@ -714,6 +715,7 @@ export default function Home() {
       language === 'csharp' ? 'cs' :
       language === 'dart' ? 'dart' :
       language === 'flutter' ? 'dart' :
+      language === 'html' ? 'html' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -725,6 +727,7 @@ export default function Home() {
       language === 'csharp' ? 'text/x-csharp;charset=utf-8' :
       language === 'dart' ? 'text/x-dart;charset=utf-8' :
       language === 'flutter' ? 'text/x-dart;charset=utf-8' :
+      language === 'html' ? 'text/html;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -819,7 +822,9 @@ export default function Home() {
                                     ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20'
                                     : language === 'flutter'
                                       ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
-                                      : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                      : language === 'html'
+                                        ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
+                                        : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
                   {language === 'java'
@@ -840,7 +845,9 @@ export default function Home() {
                                   ? 'Dart 3.13'
                                   : language === 'flutter'
                                     ? 'Flutter 3.47'
-                                    : 'Python 3.12'}
+                                    : language === 'html'
+                                      ? 'HTML/CSS'
+                                      : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -862,7 +869,9 @@ export default function Home() {
                                 ? 'Interactive Dart console with live stdin'
                                 : language === 'flutter'
                                   ? 'Flutter widget tests (headless rendering)'
-                                  : 'Interactive Python console with live input()'}
+                                  : language === 'html'
+                                    ? 'Live HTML/CSS/JS preview in iframe'
+                                    : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -979,6 +988,17 @@ export default function Home() {
                 }`}
               >
                 Flutter
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('html')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'html'
+                    ? 'bg-orange-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                HTML
               </button>
             </div>
           </div>
@@ -1165,6 +1185,23 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  HTML/CSS examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'html').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1290,7 +1327,7 @@ export default function Home() {
           <PanelGroup direction="horizontal" className="h-full">
             {/* ---- Editor ---- */}
             <Panel
-              defaultSize={language === 'flutter' ? 40 : 55}
+              defaultSize={language === 'flutter' || language === 'html' ? 40 : 55}
               minSize={20}
             >
               <div className="h-full flex flex-col">
@@ -1315,7 +1352,9 @@ export default function Home() {
                                     ? 'code.dart'
                                     : language === 'flutter'
                                       ? 'widget_test.dart'
-                                      : 'code.py'}
+                                      : language === 'html'
+                                        ? 'index.html'
+                                        : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button
@@ -1384,14 +1423,14 @@ export default function Home() {
               <div className="h-10 w-0.5 rounded-full bg-border group-hover:bg-emerald-500" />
             </PanelResizeHandle>
 
-            {/* ---- Right panel: Console (non-Flutter) OR Full-screen Flutter Preview ---- */}
+            {/* ---- Right panel: Console (non-preview langs) OR Full-screen Preview (Flutter/HTML) ---- */}
             <Panel
-              defaultSize={language === 'flutter' ? 60 : 45}
+              defaultSize={language === 'flutter' || language === 'html' ? 60 : 45}
               minSize={25}
             >
-              {language === 'flutter' ? (
+              {language === 'flutter' || language === 'html' ? (
                 /* ============================================================
-                 * Full-screen Flutter Preview
+                 * Full-screen Preview (Flutter OR HTML/CSS)
                  * - Takes 100% of the available panel area
                  * - NO console header / input bar / footer strip
                  * - Loading / error / empty states are full-screen overlays
@@ -1401,7 +1440,7 @@ export default function Home() {
                     <iframe
                       key={flutterPort}
                       src={`/?XTransformPort=${flutterPort}`}
-                      title="Flutter Preview"
+                      title={language === 'flutter' ? 'Flutter Preview' : 'HTML Preview'}
                       className="absolute inset-0 h-full w-full border-0"
                       sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
                     />
@@ -1409,18 +1448,24 @@ export default function Home() {
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/5">
                       <Loader2 className="h-7 w-7 animate-spin text-blue-500" />
                       <span className="text-xs text-muted-foreground">
-                        Building Flutter web app...
+                        {language === 'flutter'
+                          ? 'Building Flutter web app...'
+                          : 'Starting HTML preview server...'}
                       </span>
                       <span className="text-[10px] text-muted-foreground/60">
-                        Takes ~20-30 seconds. The app will appear here when ready.
+                        {language === 'flutter'
+                          ? 'Takes ~20-30 seconds. The app will appear here when ready.'
+                          : 'The preview will appear here in a moment.'}
                       </span>
                     </div>
                   ) : result && !result.code ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/5">
                       <CircleAlert className="h-7 w-7 text-rose-500" />
-                      <span className="text-xs text-rose-500">Build failed</span>
+                      <span className="text-xs text-rose-500">
+                        {language === 'flutter' ? 'Build failed' : 'Preview failed to start'}
+                      </span>
                       <span className="text-[10px] text-muted-foreground">
-                        Check the editor or your Flutter code for errors.
+                        Check the editor or your {language === 'flutter' ? 'Flutter' : 'HTML'} code for errors.
                       </span>
                     </div>
                   ) : (
@@ -1431,7 +1476,7 @@ export default function Home() {
                         </svg>
                       </div>
                       <span className="text-sm text-muted-foreground">
-                        Press <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">Run</kbd> to build and preview your Flutter app
+                        Press <kbd className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono">Run</kbd> to {language === 'flutter' ? 'build and preview your Flutter app' : 'preview your HTML/CSS in a live iframe'}
                       </span>
                       <span className="text-[10px] text-muted-foreground/60">
                         The preview will fill this entire panel when ready.

@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html'
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -2586,6 +2586,305 @@ class _CounterPageState extends State<CounterPage> {
     );
   }
 }
+`,
+  },
+  {
+    id: 'html-hello',
+    name: 'HTML: Hello World',
+    description: 'A simple HTML page with inline CSS.',
+    language: 'html',
+    code: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hello, HTML!</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      padding: 48px 64px;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+    h1 { margin: 0 0 8px; font-size: 36px; }
+    p { margin: 0; opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Hello, HTML!</h1>
+    <p>Edit this code and press Run to see the live preview.</p>
+  </div>
+</body>
+</html>
+`,
+  },
+  {
+    id: 'html-flex-layout',
+    name: 'HTML: Flexbox Layout',
+    description: 'Responsive flexbox with cards and hover effects.',
+    language: 'html',
+    code: `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f4f5f7;
+      padding: 24px;
+    }
+    h1 {
+      color: #1f2937;
+      margin-bottom: 24px;
+      font-size: 28px;
+    }
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .card {
+      flex: 1 1 250px;
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    }
+    .card .icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 16px;
+      color: white;
+    }
+    .card.blue .icon { background: #3b82f6; }
+    .card.green .icon { background: #10b981; }
+    .card.purple .icon { background: #8b5cf6; }
+    .card.orange .icon { background: #f59e0b; }
+    .card h3 { margin-bottom: 8px; color: #1f2937; }
+    .card p { color: #6b7280; font-size: 14px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <h1>Flexbox Cards</h1>
+  <div class="grid">
+    <div class="card blue">
+      <div class="icon">A</div>
+      <h3>Alpha</h3>
+      <p>Hover over this card to see the lift effect.</p>
+    </div>
+    <div class="card green">
+      <div class="icon">B</div>
+      <h3>Beta</h3>
+      <p>Cards auto-wrap on smaller screens.</p>
+    </div>
+    <div class="card purple">
+      <div class="icon">C</div>
+      <h3>Gamma</h3>
+      <p>Flexbox makes responsive layouts easy.</p>
+    </div>
+    <div class="card orange">
+      <div class="icon">D</div>
+      <h3>Delta</h3>
+      <p>Try resizing the browser window.</p>
+    </div>
+  </div>
+</body>
+</html>
+`,
+  },
+  {
+    id: 'html-counter',
+    name: 'HTML: Interactive Counter',
+    description: 'Counter app with HTML + CSS + JavaScript.',
+    language: 'html',
+    code: `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f172a;
+      color: white;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .counter {
+      text-align: center;
+    }
+    .value {
+      font-size: 96px;
+      font-weight: bold;
+      margin: 24px 0;
+      color: #10b981;
+      font-variant-numeric: tabular-nums;
+    }
+    button {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      margin: 0 8px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #059669; }
+    button.reset { background: #6b7280; }
+    button.reset:hover { background: #4b5563; }
+  </style>
+</head>
+<body>
+  <div class="counter">
+    <h2>Interactive Counter</h2>
+    <div class="value" id="count">0</div>
+    <button onclick="decrease()">- Decrease</button>
+    <button class="reset" onclick="reset()">Reset</button>
+    <button onclick="increase()">+ Increase</button>
+  </div>
+  <script>
+    let count = 0;
+    const el = document.getElementById('count');
+    function update() { el.textContent = count; }
+    function increase() { count++; update(); }
+    function decrease() { count--; update(); }
+    function reset() { count = 0; update(); }
+  </script>
+</body>
+</html>
+`,
+  },
+  {
+    id: 'html-form',
+    name: 'HTML: Styled Form',
+    description: 'A login form with animated gradient background.',
+    language: 'html',
+    code: `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: linear-gradient(135deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+      background-size: 400% 400%;
+      animation: gradient 15s ease infinite;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    @keyframes gradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .form-card {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #1f2937;
+      margin-bottom: 8px;
+      font-size: 28px;
+    }
+    .subtitle {
+      color: #6b7280;
+      margin-bottom: 24px;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      color: #374151;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 15px;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    input:focus { border-color: #3b82f6; }
+    button {
+      width: 100%;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 14px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.2s;
+    }
+    button:hover { background: #2563eb; }
+    .footer {
+      text-align: center;
+      margin-top: 16px;
+      color: #6b7280;
+      font-size: 13px;
+    }
+    .footer a { color: #3b82f6; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="form-card">
+    <h1>Welcome back</h1>
+    <p class="subtitle">Please sign in to your account</p>
+    <form onsubmit="event.preventDefault(); alert('Demo: form submitted!')">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" placeholder="you@example.com" required>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" placeholder="Password" required>
+      </div>
+      <button type="submit">Sign in</button>
+    </form>
+    <p class="footer">Don't have an account? <a href="#">Sign up</a></p>
+  </div>
+</body>
+</html>
 `,
   },
 ]

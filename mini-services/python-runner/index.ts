@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html'
   stdin?: string
 }
 
@@ -1472,6 +1472,98 @@ void main() {
     return child
   }
 
+  /**
+   * spawnHtml — serves a user's HTML/CSS/JS code in a live preview iframe.
+   *
+   * Strategy:
+   *   1. Create a unique temp directory per session
+   *   2. Write the user's code to `index.html` inside that directory
+   *   3. Find a free port and start the existing `flutter-server.py`
+   *      (which handles the base-href rewrite + correct Content-Length +
+   *      proper mime types + CORS for iframe embedding)
+   *   4. Emit a `server` event so the frontend iframe is updated
+   *
+   * The server runs until the user clicks Stop or the session times out.
+   * No build step is needed — HTML/CSS/JS is interpreted by the browser.
+   */
+  async function spawnHtml(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    // Create a per-session workspace directory
+    const workspaceRoot = join('/tmp/html-runner', sessionId)
+    await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
+
+    // Sanitize and normalize the user's code:
+    // - If user provided a full HTML document, use as-is
+    // - If user only provided HTML fragments or CSS, wrap in a basic document
+    let htmlContent: string
+    const trimmed = code.trim()
+    if (/<!doctype\s+html/i.test(trimmed) || /<html[\s>]/i.test(trimmed)) {
+      // Full document — use as-is
+      htmlContent = code
+    } else {
+      // Wrap in a basic HTML document so the browser renders it properly
+      htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML Preview</title>
+</head>
+<body>
+${code}
+</body>
+</html>`
+    }
+
+    const htmlPath = join(workspaceRoot, 'index.html')
+    try {
+      await writeFile(htmlPath, htmlContent, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write HTML file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: 1, signal: null, timedOut: false, durationMs: 0,
+      })
+      return null
+    }
+
+    // Find a free port for serving
+    const net = await import('net')
+    const findFreePort = (): Promise<number> => {
+      return new Promise((resolve) => {
+        const server = net.createServer()
+        server.listen(0, '127.0.0.1', () => {
+          const port = (server.address() as any).port
+          server.close(() => resolve(port))
+        })
+      })
+    }
+    const servePort = await findFreePort()
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `HTML preview ready — serving on port ${servePort}.\n`,
+      promptLike: false,
+    })
+
+    // Emit server event so frontend opens the preview iframe
+    socket.emit('server', { port: servePort, host: '127.0.0.1' })
+
+    // Serve the HTML using our existing flutter-server.py (it handles
+    // HTML base-href rewriting, correct Content-Length, CORS headers, etc.)
+    const serverScript = join(__dirname, 'flutter-server.py')
+    const child = spawn('python3', [serverScript, servePort.toString(), workspaceRoot], {
+      cwd: workspaceRoot,
+      env: { ...process.env } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
 
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
@@ -1526,6 +1618,8 @@ void main() {
       child = await spawnDart(code, sessionId, socket)
     } else if (language === 'flutter') {
       child = await spawnFlutter(code, sessionId, socket, payload.stdin)
+    } else if (language === 'html') {
+      child = await spawnHtml(code, sessionId, socket)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }
