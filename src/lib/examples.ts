@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql'
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -2885,6 +2885,262 @@ class _CounterPageState extends State<CounterPage> {
   </div>
 </body>
 </html>
+`,
+  },
+  {
+    id: 'sql-crud',
+    name: 'SQL: CRUD Basics',
+    description: 'CREATE TABLE, INSERT, SELECT, UPDATE, DELETE.',
+    language: 'sql',
+    code: `-- SQL basics: CREATE, INSERT, SELECT, UPDATE, DELETE
+-- Press Run to execute all statements and see results.
+
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  email TEXT UNIQUE,
+  age INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO users (name, email, age) VALUES
+  ('Alice', 'alice@example.com', 28),
+  ('Bob', 'bob@example.com', 34),
+  ('Charlie', 'charlie@example.com', 22),
+  ('Diana', 'diana@example.com', 41);
+
+-- Select all users
+SELECT id, name, email, age FROM users;
+
+-- Select with WHERE clause
+SELECT name, age FROM users WHERE age >= 30 ORDER BY age DESC;
+
+-- Update a record
+UPDATE users SET age = 29 WHERE name = 'Alice';
+
+-- Delete a record
+DELETE FROM users WHERE name = 'Charlie';
+
+-- Final state
+SELECT name, age FROM users ORDER BY name;
+`,
+  },
+  {
+    id: 'sql-joins',
+    name: 'SQL: Joins & Aggregates',
+    description: 'INNER JOIN, LEFT JOIN, GROUP BY, HAVING.',
+    language: 'sql',
+    code: `-- SQL Joins, GROUP BY, and aggregate functions
+-- Demonstrates a classic orders/customers/products schema.
+
+CREATE TABLE customers (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  country TEXT
+);
+
+CREATE TABLE products (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  price REAL
+);
+
+CREATE TABLE orders (
+  id INTEGER PRIMARY KEY,
+  customer_id INTEGER,
+  product_id INTEGER,
+  quantity INTEGER,
+  order_date TEXT
+);
+
+INSERT INTO customers VALUES
+  (1, 'Alice', 'USA'),
+  (2, 'Bob', 'UK'),
+  (3, 'Charlie', 'USA'),
+  (4, 'Diana', 'Canada');
+
+INSERT INTO products VALUES
+  (1, 'Laptop', 1200.00),
+  (2, 'Phone', 800.00),
+  (3, 'Headphones', 150.00),
+  (4, 'Monitor', 350.00);
+
+INSERT INTO orders VALUES
+  (1, 1, 1, 1, '2024-01-15'),
+  (2, 1, 3, 2, '2024-01-20'),
+  (3, 2, 2, 1, '2024-02-01'),
+  (4, 3, 4, 3, '2024-02-10'),
+  (5, 3, 2, 1, '2024-02-15'),
+  (6, 4, 3, 5, '2024-03-01');
+
+-- INNER JOIN: orders with customer + product names
+SELECT
+  o.order_date,
+  c.name AS customer,
+  p.name AS product,
+  o.quantity,
+  ROUND(p.price * o.quantity, 2) AS total
+FROM orders o
+  INNER JOIN customers c ON o.customer_id = c.id
+  INNER JOIN products p ON o.product_id = p.id
+ORDER BY o.order_date;
+
+-- GROUP BY: total spent per customer
+SELECT
+  c.name,
+  COUNT(o.id) AS orders,
+  ROUND(SUM(p.price * o.quantity), 2) AS total_spent
+FROM customers c
+  LEFT JOIN orders o ON c.id = o.customer_id
+  LEFT JOIN products p ON o.product_id = p.id
+GROUP BY c.id
+ORDER BY total_spent DESC;
+
+-- HAVING: customers with more than 1 order
+SELECT
+  c.name,
+  COUNT(o.id) AS order_count
+FROM customers c
+  INNER JOIN orders o ON c.id = o.customer_id
+GROUP BY c.id
+HAVING COUNT(o.id) > 1;
+`,
+  },
+  {
+    id: 'sql-aggregates',
+    name: 'SQL: Aggregates & Subqueries',
+    description: 'COUNT, AVG, MAX, MIN, subqueries, CASE.',
+    language: 'sql',
+    code: `-- Aggregate functions, subqueries, and CASE expressions
+
+CREATE TABLE employees (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  department TEXT,
+  salary REAL,
+  hire_date TEXT
+);
+
+INSERT INTO employees VALUES
+  (1, 'Alice', 'Engineering', 95000, '2020-03-15'),
+  (2, 'Bob', 'Engineering', 88000, '2019-07-01'),
+  (3, 'Charlie', 'Sales', 65000, '2021-01-20'),
+  (4, 'Diana', 'Sales', 72000, '2018-11-05'),
+  (5, 'Eve', 'Engineering', 105000, '2017-04-10'),
+  (6, 'Frank', 'Marketing', 60000, '2022-06-01'),
+  (7, 'Grace', 'Marketing', 68000, '2020-09-15');
+
+-- COUNT, AVG, MAX, MIN per department
+SELECT
+  department,
+  COUNT(*) AS headcount,
+  ROUND(AVG(salary), 0) AS avg_salary,
+  MAX(salary) AS max_salary,
+  MIN(salary) AS min_salary
+FROM employees
+GROUP BY department
+ORDER BY avg_salary DESC;
+
+-- Subquery: employees earning more than company average
+SELECT name, department, salary
+FROM employees
+WHERE salary > (SELECT AVG(salary) FROM employees)
+ORDER BY salary DESC;
+
+-- CASE expression: classify salary bands
+SELECT
+  name,
+  department,
+  salary,
+  CASE
+    WHEN salary >= 100000 THEN 'Senior'
+    WHEN salary >= 80000 THEN 'Mid'
+    WHEN salary >= 65000 THEN 'Junior'
+    ELSE 'Entry'
+  END AS level
+FROM employees
+ORDER BY salary DESC;
+
+-- Top earner per department (using window-like subquery)
+SELECT
+  e.department,
+  e.name,
+  e.salary
+FROM employees e
+WHERE e.salary = (
+  SELECT MAX(salary) FROM employees
+  WHERE department = e.department
+)
+ORDER BY e.salary DESC;
+`,
+  },
+  {
+    id: 'sql-advanced',
+    name: 'SQL: Advanced Features',
+    description: 'Indexes, views, CTEs, and PRAGMA.',
+    language: 'sql',
+    code: `-- Advanced SQL: indexes, views, CTEs, PRAGMA
+
+CREATE TABLE products (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  category TEXT,
+  price REAL,
+  stock INTEGER
+);
+
+INSERT INTO products VALUES
+  (1, 'Laptop', 'Electronics', 1200, 15),
+  (2, 'Phone', 'Electronics', 800, 30),
+  (3, 'Desk', 'Furniture', 350, 5),
+  (4, 'Chair', 'Furniture', 180, 12),
+  (5, 'Headphones', 'Electronics', 150, 50),
+  (6, 'Lamp', 'Furniture', 45, 25);
+
+-- Create an index (for demonstration)
+CREATE INDEX idx_products_category ON products(category);
+
+-- Show table schema
+SELECT sql FROM sqlite_master WHERE type='table' AND name='products';
+
+-- Show indexes
+SELECT name, tbl_name FROM sqlite_master WHERE type='index';
+
+-- Create a view
+CREATE VIEW expensive_products AS
+  SELECT name, category, price
+  FROM products
+  WHERE price > 200
+  ORDER BY price DESC;
+
+-- Query the view
+SELECT * FROM expensive_products;
+
+-- Common Table Expression (CTE) with window functions via subquery
+WITH category_stats AS (
+  SELECT
+    category,
+    COUNT(*) AS count,
+    ROUND(AVG(price), 2) AS avg_price,
+    SUM(stock) AS total_stock
+  FROM products
+  GROUP BY category
+)
+SELECT
+  category,
+  count,
+  avg_price,
+  total_stock,
+  ROUND(avg_price * total_stock, 2) AS potential_revenue
+FROM category_stats
+ORDER BY potential_revenue DESC;
+
+-- PRAGMA: SQLite-specific metadata
+PRAGMA table_info(products);
+
+-- Pagination using LIMIT/OFFSET
+SELECT id, name, price FROM products ORDER BY price DESC LIMIT 3 OFFSET 0;
+SELECT id, name, price FROM products ORDER BY price DESC LIMIT 3 OFFSET 3;
 `,
   },
 ]

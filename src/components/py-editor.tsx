@@ -12,6 +12,7 @@ import { cpp } from '@codemirror/lang-cpp'
 import { javascript } from '@codemirror/lang-javascript'
 import { php as phpLang } from '@codemirror/lang-php'
 import { html as htmlLang } from '@codemirror/lang-html'
+import { sql as sqlLang } from '@codemirror/lang-sql'
 import { r } from '@codemirror/legacy-modes/mode/r'
 import { clike } from '@codemirror/legacy-modes/mode/clike'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -22,7 +23,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql'
 }
 
 // Dart keywords for syntax highlighting via clike mode
@@ -142,6 +143,7 @@ export default function PyEditor({
       language === 'php' ? phpLang() :
       language === 'dart' || language === 'flutter' ? StreamLanguage.define(clike({ keywords: dartKeywords })) :
       language === 'html' ? htmlLang() :
+      language === 'sql' ? sqlLang() :
       python()
     const exts: Extension[] = [
       langExt,

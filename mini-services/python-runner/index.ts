@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql'
   stdin?: string
 }
 
@@ -1564,6 +1564,197 @@ ${code}
     return child
   }
 
+  /**
+   * spawnSql — executes user's SQL using Python's built-in sqlite3 module.
+   *
+   * Strategy:
+   *   1. Write a small Python wrapper script that:
+   *      - Opens an in-memory SQLite database
+   *      - Splits the user's SQL by `;` and executes each statement
+   *      - For SELECT statements, prints results as an ASCII table
+   *      - For INSERT/UPDATE/DELETE, prints the affected row count
+   *      - For CREATE TABLE/etc., prints a confirmation
+   *      - Catches and prints any errors with context
+   *   2. Pipe the user's SQL to the wrapper's stdin
+   *   3. Stream stdout/stderr to the client like other languages
+   *
+   * Using Python+sqlite3 means we get standard SQL syntax, in-memory
+   * isolation (each run starts fresh), and no need to install anything
+   * (sqlite3 is part of Python's stdlib).
+   */
+  async function spawnSql(code: string, sessionId: string, socket: any): Promise<ChildProcess> {
+    const wrapperScript = `#!/usr/bin/env python3
+import sys
+import sqlite3
+import re
+
+def fmt_table(headers, rows):
+    """Format query results as a markdown-style ASCII table."""
+    if not headers and not rows:
+        return "(no rows)"
+    # Compute column widths
+    str_rows = [[("" if v is None else str(v)) for v in row] for row in rows]
+    widths = [len(h) for h in headers]
+    for row in str_rows:
+        for i, v in enumerate(row):
+            if i < len(widths):
+                widths[i] = max(widths[i], len(v))
+    # Build separator
+    sep = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
+    # Header row
+    hdr = "|" + "|".join(" " + h.ljust(w) + " " for h, w in zip(headers, widths)) + "|"
+    out = [sep, hdr, sep]
+    # Data rows
+    for row in str_rows:
+        cells = []
+        for i, v in enumerate(row):
+            if i < len(widths):
+                cells.append(" " + v.ljust(widths[i]) + " ")
+        out.append("|" + "|".join(cells) + "|")
+    out.append(sep)
+    return "\\n".join(out)
+
+def split_sql(sql_text):
+    """Split SQL text into individual statements.
+    Handles strings with embedded semicolons and single-line / multi-line comments.
+    """
+    # Strip line comments (-- ...) and /* ... */ block comments first
+    cleaned = re.sub(r"/\\*.*?\\*/", " ", sql_text, flags=re.DOTALL)
+    lines = []
+    for line in cleaned.splitlines():
+        # Remove -- line comments (but keep ; inside them is fine since we drop the line)
+        # Be careful: -- inside a string should not be treated as a comment, but
+        # that's an edge case we can accept for now.
+        if line.strip().startswith("--"):
+            continue
+        # Truncate at -- if not inside a string
+        in_str = False
+        out_chars = []
+        i = 0
+        while i < len(line):
+            c = line[i]
+            if c == "'":
+                in_str = not in_str
+                out_chars.append(c)
+            elif c == "-" and i + 1 < len(line) and line[i+1] == "-" and not in_str:
+                break
+            else:
+                out_chars.append(c)
+            i += 1
+        lines.append("".join(out_chars))
+    text = "\\n".join(lines)
+    # Now split by ; (handling string literals)
+    statements = []
+    cur = []
+    in_str = False
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c == "'":
+            in_str = not in_str
+            cur.append(c)
+        elif c == ";" and not in_str:
+            stmt = "".join(cur).strip()
+            if stmt:
+                statements.append(stmt)
+            cur = []
+        else:
+            cur.append(c)
+        i += 1
+    # Trailing statement without semicolon
+    last = "".join(cur).strip()
+    if last:
+        statements.append(last)
+    return statements
+
+def main():
+    sql = sys.stdin.read()
+    if not sql.strip():
+        print("(no SQL provided)")
+        return 1
+    # In-memory database (per-run, isolated)
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = None  # use plain tuples
+    cur = conn.cursor()
+    statements = split_sql(sql)
+    print(f"SQLite {sqlite3.sqlite_version}  |  {len(statements)} statement(s)")
+    print("-" * 60)
+    exit_code = 0
+    for i, stmt in enumerate(statements, 1):
+        # Detect statement type for nicer output
+        first_word = re.match(r"\\s*(\\w+)", stmt, re.IGNORECASE)
+        kind = first_word.group(1).upper() if first_word else "?"
+        try:
+            cur.execute(stmt)
+            if stmt.lstrip().upper().startswith("SELECT") or kind in ("SELECT", "WITH", "PRAGMA", "EXPLAIN"):
+                rows = cur.fetchall()
+                headers = [d[0] for d in cur.description] if cur.description else []
+                if rows:
+                    print(f"[{i}] {kind} -> {len(rows)} row(s):")
+                    print(fmt_table(headers, rows))
+                else:
+                    print(f"[{i}] {kind} -> 0 rows")
+            elif kind in ("INSERT", "UPDATE", "DELETE"):
+                print(f"[{i}] {kind} -> {cur.rowcount} row(s) affected")
+            elif kind == "CREATE":
+                # Try to extract object type and name
+                m = re.match(r"\\s*CREATE\\s+(\\w+)\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(\\w+)", stmt, re.IGNORECASE)
+                if m:
+                    print(f"[{i}] CREATE {m.group(1).upper()} {m.group(2)} - OK")
+                else:
+                    print(f"[{i}] CREATE - OK")
+            elif kind == "DROP":
+                print(f"[{i}] DROP - OK")
+            elif kind == "INSERT" or kind == "BEGIN" or kind == "COMMIT" or kind == "ROLLBACK":
+                print(f"[{i}] {kind} - OK")
+            else:
+                print(f"[{i}] {kind} - OK")
+        except sqlite3.Error as e:
+            exit_code = 1
+            print(f"[{i}] ERROR ({kind}): {e}")
+            print(f"    Statement: {stmt[:100]}{'...' if len(stmt) > 100 else ''}")
+    print("-" * 60)
+    conn.close()
+    return exit_code
+
+if __name__ == "__main__":
+    sys.exit(main())
+`
+
+    // Write the wrapper script to a temp file
+    const workspaceRoot = join('/tmp/sql-runner', sessionId)
+    await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
+    const scriptPath = join(workspaceRoot, 'run_sql.py')
+    try {
+      await writeFile(scriptPath, wrapperScript, { encoding: 'utf8', mode: 0o700 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write SQL runner: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: 1, signal: null, timedOut: false, durationMs: 0,
+      })
+      // Return a dummy child to satisfy the type — the error is already emitted
+      return spawn('true', [], { stdio: ['ignore', 'ignore', 'ignore'] })
+    }
+
+    // Spawn python3 with the wrapper script, piping SQL code to its stdin
+    const child = spawn('python3', [scriptPath], {
+      cwd: workspaceRoot,
+      env: { ...process.env } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    // Write the SQL code to stdin and close it
+    child.stdin?.write(code)
+    child.stdin?.end()
+
+    return child
+  }
+
 
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
@@ -1620,6 +1811,8 @@ ${code}
       child = await spawnFlutter(code, sessionId, socket, payload.stdin)
     } else if (language === 'html') {
       child = await spawnHtml(code, sessionId, socket)
+    } else if (language === 'sql') {
+      child = await spawnSql(code, sessionId, socket)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }
