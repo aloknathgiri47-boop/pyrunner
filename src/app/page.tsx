@@ -1446,8 +1446,10 @@ export default function Home() {
         </div>
 
         {/* ============ Main split: editor | console ============ */}
+        {/* key forces PanelGroup to remount when language changes —
+            react-resizable-panels doesn't react to defaultSize changes after mount */}
         <main className="flex-1 min-h-0 overflow-hidden">
-          <PanelGroup direction="horizontal" className="h-full">
+          <PanelGroup key={language === 'kotlin-android' ? 'android' : 'default'} direction="horizontal" className="h-full">
             {/* ---- Editor (hidden for kotlin-android — it has its own IDE) ---- */}
             <Panel
               defaultSize={language === 'flutter' || language === 'html' || language === 'kotlin-android' ? 0 : 55}
