@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell'
   files?: Record<string, string>
 }
 
@@ -4178,6 +4178,131 @@ while (my $line = <$in>) {
 close($in);
 unlink($filename);
 print "File deleted.\n";
+`,
+  },
+  {
+    id: 'ps-hello',
+    name: 'PowerShell: Hello World',
+    description: 'Basic PowerShell with functions and loops.',
+    language: 'powershell',
+    code: `# PowerShell 7.4 — runs with pwsh
+
+function Add($a, $b) {
+    return $a + $b
+}
+
+Write-Host "Hello from PowerShell!"
+$name = "World"
+Write-Host "Hello, $name!"
+$result = Add 3 4
+Write-Host "3 + 4 = $result"
+for ($i = 1; $i -le 3; $i++) {
+    Write-Host "Count: $i"
+}
+`,
+  },
+  {
+    id: 'ps-objects',
+    name: 'PowerShell: Objects & Pipes',
+    description: 'Pipelines, cmdlets, objects, formatting.',
+    language: 'powershell',
+    code: `# PowerShell objects, pipelines, and cmdlets
+
+# Arrays
+$fruits = @("apple", "banana", "cherry")
+$fruits | ForEach-Object { Write-Host "Fruit: $_" }
+$fruits | Where-Object { $_.Length -gt 5 } | ForEach-Object { Write-Host "Long: $_" }
+
+# Hashtables
+$prices = @{
+    apple = 1.5
+    banana = 0.5
+    cherry = 3.0
+}
+$prices.GetEnumerator() | ForEach-Object {
+    Write-Host "$($_.Key): $$($_.Value)"
+}
+
+# Custom objects
+$people = @(
+    [PSCustomObject]@{Name="Alice"; Age=30}
+    [PSCustomObject]@{Name="Bob"; Age=25}
+    [PSCustomObject]@{Name="Charlie"; Age=35}
+)
+
+# Sort and filter
+$people | Sort-Object Age | ForEach-Object {
+    Write-Host "$($_.Name) is $($_.Age) years old"
+}
+
+$youngest = $people | Sort-Object Age | Select-Object -First 1
+Write-Host "Youngest: $($youngest.Name)"
+
+# String operations
+$text = "Hello, World!"
+Write-Host "Upper: $($text.ToUpper())"
+Write-Host "Lower: $($text.ToLower())"
+Write-Host "Length: $($text.Length)"
+
+# Math
+Write-Host "Random: $(Get-Random -Min 1 -Max 100)"
+Write-Host "Pi: $([Math]::Pi)"
+
+# Try/Catch
+try {
+    $null = 1 / 0
+} catch {
+    Write-Host "Caught: $($_.Exception.Message)"
+}
+`,
+  },
+  {
+    id: 'ps-files',
+    name: 'PowerShell: Files & Strings',
+    description: 'File I/O, regex, environment vars.',
+    language: 'powershell',
+    code: `# PowerShell file operations and string manipulation
+
+# Create and write to file
+$filePath = "/tmp/ps_test.txt"
+$content = "Hello from PowerShell!\nLine 2\nLine 3"
+$content | Out-File -FilePath $filePath -Encoding UTF8
+Write-Host "File written: $filePath"
+
+# Read file
+$lines = Get-Content $filePath
+Write-Host "Lines read: $($lines.Count)"
+$lines | ForEach-Object { Write-Host "  > $_" }
+
+# Append
+"Line 4" | Add-Content -FilePath $filePath
+Write-Host "After append:"
+Get-Content $filePath | ForEach-Object { Write-Host "  > $_" }
+
+# File info
+$fileInfo = Get-Item $filePath
+Write-Host "Size: $($fileInfo.Length) bytes"
+
+# Clean up
+Remove-Item $filePath
+Write-Host "File deleted."
+
+# Regex
+$text = "Contact: alice@example.com, bob@test.org"
+$matches = [regex]::Matches($text, "(\w+)@(\w+\.\w+)")
+foreach ($m in $matches) {
+    Write-Host "Email: $($m.Value)"
+    Write-Host "  User: $($m.Groups[1].Value)"
+    Write-Host "  Domain: $($m.Groups[2].Value)"
+}
+
+# Environment
+Write-Host "HOME: $env:HOME"
+Write-Host "PATH: $env:PATH".Substring(0, 50) + "..."
+
+# Date
+$now = Get-Date
+Write-Host "Date: $($now.ToString('yyyy-MM-dd HH:mm:ss'))"
 `,
   },
 ]
