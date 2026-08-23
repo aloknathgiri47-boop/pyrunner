@@ -3,7 +3,8 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android'
+  files?: Record<string, string>
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -3143,4 +3144,279 @@ SELECT id, name, price FROM products ORDER BY price DESC LIMIT 3 OFFSET 0;
 SELECT id, name, price FROM products ORDER BY price DESC LIMIT 3 OFFSET 3;
 `,
   },
+  {
+    id: 'kotlin-hello',
+    name: 'Kotlin: Hello World',
+    description: 'Basic Kotlin/JVM program with main function.',
+    language: 'kotlin',
+    code: `// Kotlin/JVM console — runs with kotlinc 2.0.21
+fun main() {
+    println("Hello from Kotlin!")
+
+    val name = "World"
+    println("Hello, " + name + "!")
+
+    val result = add(3, 4)
+    println("3 + 4 = " + result)
+}
+
+fun add(a: Int, b: Int): Int = a + b
+`,
+  },
+  {
+    id: 'kotlin-classes',
+    name: 'Kotlin: Classes & Data Classes',
+    description: 'OOP with classes, data classes, inheritance.',
+    language: 'kotlin',
+    code: `fun main() {
+    val person = Person("Alice", 30)
+    println(person)
+
+    val student = Student("Bob", 20, "Computer Science")
+    println(student)
+    val isAdult = student.isAdult()
+    println("Is adult: " + isAdult)
+
+    println("Counter: " + Counter.next())
+    println("Counter: " + Counter.next())
+    println("Counter: " + Counter.next())
+}
+
+open class Person(val name: String, val age: Int) {
+    override fun toString(): String = "Person(name=" + name + ", age=" + age + ")"
+}
+
+class Student(name: String, age: Int, val major: String) : Person(name, age) {
+    fun isAdult(): Boolean = age >= 18
+}
+
+object Counter {
+    private var count = 0
+    fun next(): Int {
+        count++
+        return count
+    }
+}
+`,
+  },
+  {
+    id: 'kotlin-collections',
+    name: 'Kotlin: Collections & Null Safety',
+    description: 'Lists, maps, null safety, elvis operator.',
+    language: 'kotlin',
+    code: `fun main() {
+    val fruits = listOf("apple", "banana", "cherry", "date")
+    println("Fruits: " + fruits)
+    val filtered = fruits.filter { it.length > 5 }
+    println("Filtered (length > 5): " + filtered)
+    val upper = fruits.map { it.uppercase() }
+    println("Uppercase: " + upper)
+
+    val prices = mapOf("apple" to 1.5, "banana" to 0.5, "cherry" to 3.0)
+    val total = prices.values.sum()
+    println("Total price: $" + total)
+
+    val name: String? = null
+    val nameLen = name?.length ?: 0
+    println("Name length: " + nameLen)
+
+    val nullableList: List<String?> = listOf("a", null, "b", null, "c")
+    val nonNull = nullableList.filterNotNull()
+    println("Non-null: " + nonNull)
+}
+`,
+  },
 ]
+
+
+/* ------------------------------------------------------------------ */
+/* Kotlin Android default project template                            */
+/* ------------------------------------------------------------------ */
+
+export const KOTLIN_ANDROID_TEMPLATE: Record<string, string> = {
+  'app/src/main/java/com/example/app/MainActivity.kt': `package com.example.app
+
+import android.os.Bundle
+import android.widget.Button
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+
+class MainActivity : AppCompatActivity() {
+
+    private var counter = 0
+    private lateinit var counterText: TextView
+    private lateinit var incrementBtn: Button
+    private lateinit var resetBtn: Button
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        counterText = findViewById(R.id.counterText)
+        incrementBtn = findViewById(R.id.incrementBtn)
+        resetBtn = findViewById(R.id.resetBtn)
+
+        updateCounter()
+
+        incrementBtn.setOnClickListener {
+            counter++
+            updateCounter()
+        }
+
+        resetBtn.setOnClickListener {
+            counter = 0
+            updateCounter()
+            Toast.makeText(this, "Counter reset", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun updateCounter() {
+        counterText.text = "Count: " + counter
+    }
+}
+`,
+  'app/src/main/res/layout/activity_main.xml': `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/counterText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Count: 0"
+        android:textSize="48sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="32dp" />
+
+    <Button
+        android:id="@+id/incrementBtn"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:text="Increment"
+        android:textSize="16sp" />
+
+    <Button
+        android:id="@+id/resetBtn"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:text="Reset"
+        android:textSize="16sp"
+        android:layout_marginTop="16dp" />
+
+</LinearLayout>
+`,
+  'app/src/main/res/values/strings.xml': `<resources>
+    <string name="app_name">My Kotlin App</string>
+</resources>
+`,
+  'app/src/main/res/values/colors.xml': `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>
+`,
+  'app/src/main/res/values/themes.xml': `<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.MyApp" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorOnPrimary">@color/white</item>
+    </style>
+</resources>
+`,
+  'app/src/main/AndroidManifest.xml': `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.app">
+
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.MyApp">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+`,
+  'app/build.gradle.kts': `plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.example.app"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.example.app"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
+}
+`,
+  'settings.gradle.kts': `pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "MyKotlinApp"
+include(":app")
+`,
+  'build.gradle.kts': `plugins {
+    id("com.android.application") version "8.1.0" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.0" apply false
+}
+`,
+  'gradle.properties': `org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+android.useAndroidX=true
+kotlin.code.style=official
+android.nonTransitiveRClass=true
+`,
+}

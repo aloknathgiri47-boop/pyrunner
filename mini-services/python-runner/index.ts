@@ -26,8 +26,10 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android'
   stdin?: string
+  files?: Record<string, string>
+  action?: 'validate' | 'build'
 }
 
 interface Session {
@@ -1755,6 +1757,224 @@ if __name__ == "__main__":
     return child
   }
 
+  /**
+   * spawnKotlin — runs PURE Kotlin/JVM code (NOT Android) via kotlinc.
+   * Compiles with -include-runtime then runs the JAR with java -jar.
+   */
+  async function spawnKotlin(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const workspaceRoot = join('/tmp/kotlin-console', sessionId)
+    await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
+    const scriptPath = join(workspaceRoot, 'snippet.kt')
+    const jarPath = join(workspaceRoot, 'snippet.jar')
+
+    try {
+      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write Kotlin file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
+      return null
+    }
+
+    const kotlincPath = existsSync('/home/z/.local/kotlinc/bin/kotlinc')
+      ? '/home/z/.local/kotlinc/bin/kotlinc'
+      : 'kotlinc'
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `Compiling with kotlinc 2.0.21 (Kotlin/JVM)...\n`,
+      promptLike: false,
+    })
+
+    const child = spawn('bash', ['-c', `${kotlincPath} -nowarn -include-runtime "${scriptPath}" -d "${jarPath}" 2>&1 && echo "---RUNNING---" && java -jar "${jarPath}" 2>&1`], {
+      cwd: workspaceRoot,
+      env: {
+        ...process.env,
+        JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
+        PATH: '/home/z/.local/kotlinc/bin:' + (process.env.PATH || ''),
+      } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
+  /**
+   * spawnKotlinAndroid — validates an Android project STRUCTURALLY.
+   * Does NOT run kotlinc on .kt files (because android.* / androidx.* / R.*
+   * can't resolve without the Android SDK, producing false errors).
+   *
+   * Validates:
+   *   - Required files (AndroidManifest.xml, build.gradle.kts, MainActivity.kt)
+   *   - XML well-formedness
+   *   - Resource references (@string/, @color/, @layout/)
+   */
+  async function spawnKotlinAndroid(payload: RunPayload, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const files = payload.files || {}
+    const action = payload.action || 'validate'
+
+    if (Object.keys(files).length === 0) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: 'No project files provided.\n',
+        promptLike: false,
+      })
+      socket.emit('exit', { code: 0, signal: null, timedOut: false, durationMs: 0 })
+      return spawn('true', [], { stdio: ['ignore', 'ignore', 'ignore'] })
+    }
+
+    // Write all files to workspace
+    const workspaceRoot = join('/tmp/kotlin-android', sessionId)
+    await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
+    for (const [relPath, content] of Object.entries(files)) {
+      if (relPath.startsWith('/') || relPath.includes('..')) continue
+      const absPath = join(workspaceRoot, relPath)
+      const dir = dirname(absPath)
+      await mkdir(dir, { recursive: true }).catch(() => {})
+      try {
+        await writeFile(absPath, content, { encoding: 'utf8', mode: 0o600 })
+      } catch { /* ignore */ }
+    }
+
+    // Structural validation
+    const errors: string[] = []
+    const warnings: string[] = []
+    const ok: string[] = []
+
+    const manifestPath = Object.keys(files).find(p => p.endsWith('AndroidManifest.xml'))
+    const buildGradlePath = Object.keys(files).find(p => p.endsWith('build.gradle.kts') || p.endsWith('build.gradle'))
+    const mainActivityPath = Object.keys(files).find(p => p.endsWith('MainActivity.kt'))
+
+    if (!manifestPath) errors.push('Missing AndroidManifest.xml')
+    else ok.push(`✓ AndroidManifest.xml found (${manifestPath})`)
+    if (!buildGradlePath) errors.push('Missing build.gradle.kts')
+    else ok.push(`✓ Gradle build file found (${buildGradlePath})`)
+    if (!mainActivityPath) warnings.push('No MainActivity.kt found')
+    else ok.push(`✓ MainActivity.kt found (${mainActivityPath})`)
+
+    // Validate XML well-formedness
+    let xmlCount = 0
+    for (const [relPath, content] of Object.entries(files)) {
+      if (!relPath.endsWith('.xml')) continue
+      xmlCount++
+      const openTags: string[] = []
+      const tagRegex = /<\/?([a-zA-Z][a-zA-Z0-9_-]*)[^>]*?(\/?)>/g
+      let m
+      let matchErr = null
+      while ((m = tagRegex.exec(content)) !== null) {
+        const [fullMatch, tagName, selfClose] = m
+        if (fullMatch.startsWith('</')) {
+          const top = openTags.pop()
+          if (top !== tagName) {
+            matchErr = `Mismatched closing tag: expected </${top}> but found </${tagName}>`
+            break
+          }
+        } else if (selfClose !== '/') {
+          openTags.push(tagName)
+        }
+      }
+      if (matchErr) errors.push(`${relPath}: ${matchErr}`)
+      else if (openTags.length > 0) errors.push(`${relPath}: Unclosed tags: ${openTags.join(', ')}`)
+    }
+    if (xmlCount > 0) ok.push(`✓ ${xmlCount} XML file(s) parsed successfully`)
+
+    // Cross-check @string/, @color/, @layout/ references
+    const stringResources = new Set<string>()
+    const colorResources = new Set<string>()
+    const layoutResources = new Set<string>()
+    for (const [relPath, content] of Object.entries(files)) {
+      if (relPath.endsWith('/values/strings.xml')) {
+        const re = /<string\s+name="([^"]+)"/g
+        let m
+        while ((m = re.exec(content)) !== null) stringResources.add(m[1])
+      }
+      if (relPath.endsWith('/values/colors.xml')) {
+        const re = /<color\s+name="([^"]+)"/g
+        let m
+        while ((m = re.exec(content)) !== null) colorResources.add(m[1])
+      }
+      if (relPath.includes('/layout/') && relPath.endsWith('.xml')) {
+        layoutResources.add(relPath.split('/').pop()!.replace('.xml', ''))
+      }
+    }
+    let refCount = 0
+    let danglingRefs = 0
+    for (const [relPath, content] of Object.entries(files)) {
+      if (!relPath.endsWith('.xml')) continue
+      const refs = content.match(/@(string|color|layout|drawable|mipmap)\/([a-zA-Z_][a-zA-Z0-9_]*)/g) || []
+      for (const ref of refs) {
+        refCount++
+        const [type, name] = ref.slice(1).split('/')
+        if (type === 'string' && !stringResources.has(name)) {
+          warnings.push(`${relPath}: references @string/${name} but it's not defined in strings.xml`)
+          danglingRefs++
+        }
+        if (type === 'color' && !colorResources.has(name)) {
+          warnings.push(`${relPath}: references @color/${name} but it's not defined in colors.xml`)
+          danglingRefs++
+        }
+        if (type === 'layout' && !layoutResources.has(name)) {
+          warnings.push(`${relPath}: references @layout/${name} but no layout file found`)
+          danglingRefs++
+        }
+      }
+    }
+    if (refCount > 0) {
+      ok.push(`✓ Checked ${refCount} resource reference(s)${danglingRefs > 0 ? ` (${danglingRefs} dangling)` : ''}`)
+    }
+
+    // For 'build' action: honestly explain APK build is not possible
+    if (action === 'build') {
+      socket.emit('output', {
+        stream: 'system',
+        data: `\n=== Build APK not available in this sandbox ===\n` +
+              `This online compiler does NOT have Gradle + Android SDK installed,\n` +
+              `so it cannot generate a real APK.\n\n` +
+              `To build an APK on your own machine:\n` +
+              `  1. Install Android Studio: https://developer.android.com/studio\n` +
+              `  2. Click "Download ZIP" to save the project\n` +
+              `  3. Unzip and open the folder in Android Studio\n` +
+              `  4. Run: ./gradlew assembleDebug\n` +
+              `The APK will be at: app/build/outputs/apk/debug/app-debug.apk\n` +
+              `==================================================\n\n`,
+        promptLike: false,
+      })
+    }
+
+    // Emit validation results
+    socket.emit('output', {
+      stream: 'system',
+      data: `=== Android Project Structural Validation ===\n` +
+            `Files: ${Object.keys(files).length} total (${xmlCount} XML, ${Object.keys(files).filter(p => p.endsWith('.kt')).length} Kotlin)\n\n`,
+      promptLike: false,
+    })
+    for (const line of ok) {
+      socket.emit('output', { stream: 'stdout', data: line + '\n', promptLike: false })
+    }
+    for (const line of warnings) {
+      socket.emit('output', { stream: 'stderr', data: `⚠  ${line}\n`, promptLike: false })
+    }
+    for (const line of errors) {
+      socket.emit('output', { stream: 'stderr', data: `✗  ${line}\n`, promptLike: false })
+    }
+    socket.emit('output', {
+      stream: 'system',
+      data: `\n${errors.length === 0 ? '✓ Structural validation passed' : `✗ ${errors.length} error(s) found`}. ` +
+            `${warnings.length} warning(s). ` +
+            `Use "Preview Layout" to render the layout visually, or ` +
+            `"Download ZIP" to build locally with Android Studio.\n`,
+      promptLike: false,
+    })
+
+    const exitCode = errors.length > 0 ? 1 : 0
+    socket.emit('exit', { code: exitCode, signal: null, timedOut: false, durationMs: 0 })
+    return spawn('true', [], { stdio: ['ignore', 'ignore', 'ignore'] })
+  }
+
 
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
@@ -1772,7 +1992,7 @@ if __name__ == "__main__":
       MAX_TIMEOUT_MS,
     )
 
-    if (!code.trim()) {
+    if (language !== 'kotlin-android' && !code.trim()) {
       socket.emit('output', {
         stream: 'stderr',
         data: 'No code provided.\n',
@@ -1813,6 +2033,10 @@ if __name__ == "__main__":
       child = await spawnHtml(code, sessionId, socket)
     } else if (language === 'sql') {
       child = await spawnSql(code, sessionId, socket)
+    } else if (language === 'kotlin') {
+      child = await spawnKotlin(code, sessionId, socket)
+    } else if (language === 'kotlin-android') {
+      child = await spawnKotlinAndroid(payload, sessionId, socket)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }

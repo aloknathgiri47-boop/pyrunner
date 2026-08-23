@@ -13,6 +13,7 @@ import { javascript } from '@codemirror/lang-javascript'
 import { php as phpLang } from '@codemirror/lang-php'
 import { html as htmlLang } from '@codemirror/lang-html'
 import { sql as sqlLang } from '@codemirror/lang-sql'
+import { xml as xmlLang } from '@codemirror/lang-xml'
 import { r } from '@codemirror/legacy-modes/mode/r'
 import { clike } from '@codemirror/legacy-modes/mode/clike'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -23,7 +24,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android' | 'xml'
 }
 
 // Dart keywords for syntax highlighting via clike mode
@@ -43,6 +44,26 @@ const dartKeywords = {
   'print': true, 'main': true, 'int': true, 'double': true, 'String': true,
   'bool': true, 'List': true, 'Map': true, 'Set': true, 'Future': true,
   'Stream': true, 'stdout': true, 'stdin': true,
+}
+
+// Kotlin keywords for syntax highlighting via clike mode
+const kotlinKeywords = {
+  'as': true, 'by': true, 'class': true, 'data': true, 'do': true, 'else': true,
+  'false': true, 'for': true, 'fun': true, 'if': true, 'in': true, 'is': true,
+  'null': true, 'object': true, 'package': true, 'return': true, 'super': true,
+  'this': true, 'throw': true, 'true': true, 'try': true, 'typealias': true,
+  'val': true, 'var': true, 'when': true, 'while': true, 'break': true,
+  'continue': true, 'import': true, 'interface': true, 'enum': true, 'sealed': true,
+  'annotation': true, 'companion': true, 'abstract': true, 'final': true, 'open': true,
+  'override': true, 'private': true, 'public': true, 'protected': true, 'internal': true,
+  'suspend': true, 'inline': true, 'reified': true, 'operator': true, 'infix': true,
+  'tailrec': true, 'external': true, 'lateinit': true, 'init': true, 'constructor': true,
+  'out': true, 'vararg': true, 'get': true, 'set': true, 'field': true, 'it': true,
+  'String': true, 'Int': true, 'Long': true, 'Short': true, 'Byte': true,
+  'Double': true, 'Float': true, 'Boolean': true, 'Char': true, 'Unit': true,
+  'Any': true, 'Nothing': true, 'List': true, 'Map': true, 'Set': true, 'Array': true,
+  'MutableList': true, 'MutableMap': true, 'MutableSet': true, 'Pair': true,
+  'Triple': true, 'Result': true, 'println': true, 'print': true, 'main': true,
 }
 
 const customLightTheme = EditorView.theme(
@@ -144,6 +165,8 @@ export default function PyEditor({
       language === 'dart' || language === 'flutter' ? StreamLanguage.define(clike({ keywords: dartKeywords })) :
       language === 'html' ? htmlLang() :
       language === 'sql' ? sqlLang() :
+      language === 'kotlin' || language === 'kotlin-android' ? StreamLanguage.define(clike({ keywords: kotlinKeywords })) :
+      language === 'xml' ? xmlLang() :
       python()
     const exts: Extension[] = [
       langExt,
