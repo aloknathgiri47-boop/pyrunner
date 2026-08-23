@@ -2574,16 +2574,7 @@ function EmptyConsole() {
           <Terminal className="h-7 w-7 text-emerald-500" />
         </div>
       </div>
-      <h3 className="text-sm font-medium mb-1 text-zinc-200">Interactive console</h3>
-      <p className="text-xs text-zinc-400 max-w-[300px] leading-relaxed">
-        Write your Python code on the left and press{' '}
-        <kbd className="font-mono px-1 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-200">
-          Run
-        </kbd>
-        . <code className="text-emerald-400">input()</code> prompts appear
-        inline, and <code className="text-emerald-400">matplotlib</code> figures
-        render as images — try the examples menu.
-      </p>
+      <h3 className="text-sm font-medium text-zinc-200">Interactive console</h3>
     </div>
   )
 }
