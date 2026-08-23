@@ -89,3 +89,61 @@ Artifacts:
 - /home/z/my-project/src/components/file-explorer.tsx (modified — added `useActiveLanguage` import; pass `language: activeLanguage` to `createFile` in 3 places: toolbar button, folder dropdown menu item, empty-state link; tooltip now shows the active language)
 - /home/z/my-project/download/phase1-language-aware-files.png (screenshot showing main.py, Main.java, Program.cs, Main.kt, main.sh, main.cob all in the explorer)
 - /home/z/my-project/download/phase1-language-aware-explorer.png (screenshot showing the file explorer with all language-aware files)
+
+---
+Task ID: per-language-project-isolation
+Agent: main (super-z)
+Task: Fix File Explorer so every programming language has its own completely separate project/workspace. Use separate state "projects.python", "projects.java", etc. The selectedLanguage decides which project/files are shown. Never mix, delete, rename, or overwrite files between languages. Give every language its own default entry file. Run must execute only the active file from the selected language's project. Keep the existing UI and Run functionality unchanged.
+
+Work Log:
+- Inspected the existing architecture: the project store had a single global `nodes`/`childrenByParent`/`activeFileId`/`entryFileId` shared across all languages. Switching language tabs overwrote the active file's content with the new language's starter code — the user's existing work was lost.
+- Created `src/lib/default-code.ts` — extracted all 24 DEFAULT_*_CODE constants from page.tsx into a shared module so the project store can import them to initialize per-language projects.
+- Refactored `src/lib/project-store.ts` — the core architectural change:
+  - Added `LanguageProject` interface: `{ name, nodes, childrenByParent, activeFileId, entryFileId }` — one per language.
+  - Changed `ProjectState` from a single-project shape to `projects: Record<Language, LanguageProject>` + `selectedLanguage`.
+  - Added `setSelectedLanguage(lang)` action — switches the active project instantly.
+  - Refactored all actions (createFile, createFolder, renameNode, deleteNode, moveNode, setActiveFile, setEntryFile, etc.) to operate on `state.projects[state.selectedLanguage]` — the active project.
+  - Added `buildDefaultLanguageProject(lang)` that creates a fresh project for each language with its default entry file + starter code (e.g., Python → main.py, Java → Main.java, C# → Program.cs).
+  - Added `buildInitialProjects()` that initializes all 24 language projects on first load.
+  - Added `useActiveProject()` selector hook — returns the selected language's project.
+  - Updated all selectors (useActiveFile, useEntryFile, useAllFiles, useActiveLanguage, useIsDirty, getFilesForRunner, getEntryFilePath) to read from `projects[selectedLanguage]`.
+  - Added IndexedDB migration (version 1 → 2): old single-project state is migrated into the matching language's project.
+  - Bumped DB_VERSION from 1 to 2.
+- Updated `src/components/file-explorer.tsx`:
+  - Imported `useActiveProject()` and used it to read `nodes`, `childrenByParent`, `projectName` from the selected language's project.
+  - Updated `activeFileId`/`entryFileId` selectors to reach into `s.projects[s.selectedLanguage]`.
+  - Updated `isDirty` check to only scan the selected project's nodes.
+- Updated `src/components/quick-switcher.tsx`:
+  - Changed `nodes` selector to `s.projects[s.selectedLanguage].nodes` so the quick switcher only shows files from the active language's project.
+- Updated `src/app/page.tsx`:
+  - Removed 458 lines of DEFAULT_*_CODE constants (now imported from `default-code.ts`).
+  - Added `import { DEFAULT_CODE } from '@/lib/default-code'`.
+  - Added `selectedLanguage` selector and included it in the sync effect's dependencies.
+  - Refactored `handleLanguageChange`: now just calls `setSelectedLanguage(lang)` — no more overwriting the active file's content. The editor automatically shows the new language's active file via the sync effect.
+  - Refactored share-link hydration: switches to the shared snippet's language project first, then loads the snippet into the active file.
+  - Refactored popstate handler: switches language project instead of patching nodes directly.
+  - Refactored `handleSelectExample`: switches to the example's language project first, then loads the example code.
+  - Updated `entryFilePath` and `isProjectDirty` selectors to read from `s.projects[s.selectedLanguage]`.
+
+Stage Summary:
+- Verified end-to-end via agent-browser (on the gateway at port 81):
+  - **Fresh load**: Python project shows only `main.py` with starter code.
+  - **Switch to Java**: file explorer shows ONLY `Main.java` (Python's main.py is hidden). Editor shows Java starter code. Language badge shows "Java 21".
+  - **Switch back to Python**: file explorer shows `main.py` again with its original content intact. No files were mixed, deleted, or overwritten.
+  - **Create file in Python**: `main_1.py` appears in Python project only. Switch to Java → `main_1.py` is NOT visible. Switch back → both files still there.
+  - **Run Java**: Run button correctly compiles Java (badge "Java 21", tried to compile "Hello.java" — failed only because javac isn't installed in this env, but the language was correctly detected).
+  - **Run Python**: Run button correctly executes Python (output "Hello, world!" + interactive prompt).
+  - **New file in Java**: creates `Main_1.java` (correct extension). Tooltip shows "New file (java)".
+  - **New file in C#**: creates `Program_1.cs` (correct extension). Tooltip shows "New file (csharp)". Default entry file is `Program.cs`.
+  - **Persistence across reload**: after page refresh, Java project still has only `Main.java`, Python project still has `main.py` + `main_1.py`. No mixing.
+- Lint passes cleanly (0 errors, 0 warnings).
+- Dev server returns HTTP 200.
+- The existing UI (language tabs, Run button, Console, editor) and Run functionality are completely unchanged — only the file/folder/project isolation and language-aware creation were fixed.
+
+Artifacts:
+- /home/z/my-project/src/lib/default-code.ts (new — all DEFAULT_*_CODE constants + getDefaultCode helper)
+- /home/z/my-project/src/lib/project-store.ts (rewritten — per-language projects, setSelectedLanguage, migration)
+- /home/z/my-project/src/components/file-explorer.tsx (modified — use useActiveProject())
+- /home/z/my-project/src/components/quick-switcher.tsx (modified — read from selected project)
+- /home/z/my-project/src/app/page.tsx (modified — removed 458 lines of DEFAULT_*_CODE, refactored handleLanguageChange/handleSelectExample/share-link/popstate to use setSelectedLanguage)
+- /home/z/my-project/download/per-lang-*.png (screenshots)

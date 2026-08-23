@@ -1,37 +1,41 @@
 'use client'
 
 /**
- * Multi-file project store.
+ * Per-language project store.
  *
- * This is the foundation layer for the multi-language coding platform upgrade.
- * It models a VS Code-style file tree:
+ * Every supported language gets its own completely isolated workspace:
  *
- *   Project
- *   ├── main.py            (entry file, marked with ★)
- *   ├── utils.py
- *   └── src/
- *       ├── helper.py
- *       └── calculator.py
+ *   projects.python  → main.py, utils.py, src/...
+ *   projects.java    → Main.java, Helper.java, ...
+ *   projects.cpp     → main.cpp, utils.cpp, ...
+ *   projects.javascript → main.js, helpers.js, ...
+ *   ... (24 languages total)
+ *
+ * The `selectedLanguage` field decides which project is "active" —
+ * the FileExplorer, editor, and Run button all operate on the active
+ * project's files. Switching language tabs swaps the active project
+ * instantly, without mixing/deleting/renaming files across languages.
+ *
+ * Each language project starts with its own default entry file
+ * (e.g. Python → main.py, Java → Main.java, C# → Program.cs).
  *
  * Design notes:
- * - Files and folders share the same `id` space (cuid-like string).
- * - `parentId` is null for top-level nodes, otherwise points to a folder id.
- * - The active file is the one currently shown in the editor.
- * - The entry file is the one that gets executed when Run is pressed
- *   (for Python, this is the file passed to `python3 <entry>`).
- * - All state is persisted to IndexedDB via project-persistence.ts.
- * - The store deliberately does NOT contain "user" or "auth" — that comes in
- *   Phase 2. For Phase 1, everything stays local.
- *
- * The store is intentionally framework-agnostic; React components subscribe
- * via the `useProjectStore` hook (Zustand).
+ * - Per-language state is stored in `projects: Record<Language, LanguageProject>`.
+ * - All file/folder actions (createFile, renameNode, etc.) operate on
+ *   `state.projects[state.selectedLanguage]` — the active project.
+ * - Switching languages is just `setSelectedLanguage(lang)` — a single
+ *   field update that causes all selectors to return the new project's data.
+ * - The store is persisted to IndexedDB via Zustand's persist middleware.
+ * - Migration: if the persisted state is in the old single-project format
+ *   (version 0), it's migrated to the new per-language format by placing
+ *   the old data into the Python project.
  */
 import { create } from 'zustand'
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware'
-import {
-  openDB, type IDBPDatabase,
-} from 'idb'
+import { openDB, type IDBPDatabase } from 'idb'
 import type { Language } from './languages'
+import { ALL_LANGUAGES } from './languages'
+import { getDefaultCode } from './default-code'
 
 /* ------------------------------------------------------------------ */
 /* Types                                                              */
@@ -65,60 +69,44 @@ export interface FolderNode {
 
 export type TreeNode = FileNode | FolderNode
 
-export interface ProjectState {
-  /** Map of node id → node (files AND folders). */
+/**
+ * A single language's isolated workspace.
+ * Each language has its own set of files, folders, active file, entry file,
+ * and project name — completely independent of other languages.
+ */
+export interface LanguageProject {
+  /** Display name for this language's project (e.g. "Python Project"). */
+  name: string
+  /** Map of node id → node (files AND folders) for this language only. */
   nodes: Record<string, TreeNode>
   /** Ordered list of child ids for each parent. Top-level: key = 'root'. */
   childrenByParent: Record<string, string[]>
-  /** Currently-open file id (null = no file open). */
+  /** Currently-open file id within this language's project. */
   activeFileId: string | null
-  /** Entry file id — passed to the runner. Marked with ★ in the UI. */
+  /** Entry file id — passed to the runner. Marked with ★. */
   entryFileId: string | null
-  /** Project name (used for downloads / future cloud save). */
-  name: string
-  /** Default language for new files created without an explicit extension. */
+}
+
+export interface ProjectState {
+  /** Per-language isolated workspaces. Keyed by Language. */
+  projects: Record<Language, LanguageProject>
+  /** The currently-selected language. Determines which project is "active". */
+  selectedLanguage: Language
+  /** Default language (used for first-time load and fallback). */
   defaultLanguage: Language
-  /** Incremented every time a node changes — used as a cheap dirty flag. */
+  /** Incremented every time a node changes — cheap dirty flag. */
   revision: number
   /** IDB has loaded initial state. */
   hydrated: boolean
 }
 
 /* ------------------------------------------------------------------ */
-/* Defaults                                                           */
-/* ------------------------------------------------------------------ */
-
-const DEFAULT_PYTHON = `# PyRunner — Python 3 playground
-# Press Run (or Ctrl/Cmd+Enter) to execute.
-# Add more files with the + button in the explorer →
-# Set any file as the entry (★) by right-clicking it.
-
-def greet(name: str) -> str:
-    return f"Hello, {name}!"
-
-print(greet("world"))
-
-# Interactive: type your name in the input bar below
-# the console when prompted, then press Enter.
-name = input("What's your name? ")
-print(f"Nice to meet you, {name}!")
-`
-
-/* ------------------------------------------------------------------ */
 /* IndexedDB persistence layer                                       */
 /* ------------------------------------------------------------------ */
-/* We can't use the standard zustand `persist` middleware with a
- * synchronous localStorage adapter here because:
- *   1. Multi-file projects can exceed localStorage's 5 MB quota.
- *   2. We want to persist a single source of truth, not a denormalized
- *      `{ code, language }` like the legacy localStorage key.
- *
- * So we wire up a custom async `StateStorage` adapter backed by idb.
- */
 
 const DB_NAME = 'pyrunner'
 const STORE_NAME = 'project'
-const DB_VERSION = 1
+const DB_VERSION = 2  // Bumped from 1 for the per-language migration
 const KEY = 'main'
 
 let dbPromise: Promise<IDBPDatabase> | null = null
@@ -177,7 +165,6 @@ const idbStorage: StateStorage = {
 /* ------------------------------------------------------------------ */
 
 function genId() {
-  // Lightweight unique id — no external dep needed.
   return 'n_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8)
 }
 
@@ -257,8 +244,6 @@ export function defaultFilenameForLanguage(lang: Language): string {
 }
 
 function sanitizeName(name: string): string {
-  // Allow letters, digits, dot, dash, underscore, space. Strip path separators
-  // (no / or \) and other shell-unsafe characters.
   const cleaned = name.replace(/[\\/:*?"<>|]/g, '').trim()
   return cleaned || 'untitled'
 }
@@ -267,8 +252,6 @@ function getUniqueName(
   baseName: string,
   siblings: TreeNode[],
 ): string {
-  // If "main.py" doesn't exist among siblings, use it. Otherwise, try
-  // "main_1.py", "main_2.py", etc.
   const taken = new Set(siblings.map((s) => s.name))
   if (!taken.has(baseName)) return baseName
   const dot = baseName.lastIndexOf('.')
@@ -281,15 +264,56 @@ function getUniqueName(
   return `${stem}_${Date.now()}${ext}`
 }
 
+/** Build a fresh default project for a single language. */
+function buildDefaultLanguageProject(lang: Language): LanguageProject {
+  const fileName = defaultFilenameForLanguage(lang)
+  const starterCode = getDefaultCode(lang)
+  const fileId = genId()
+  const ts = now()
+  const nodes: Record<string, TreeNode> = {
+    [fileId]: {
+      id: fileId,
+      type: 'file',
+      name: fileName,
+      parentId: null,
+      content: starterCode,
+      language: lang,
+      savedContent: starterCode,
+      createdAt: ts,
+      updatedAt: ts,
+    },
+  }
+  return {
+    name: `${lang.charAt(0).toUpperCase() + lang.slice(1)} Project`,
+    nodes,
+    childrenByParent: { root: [fileId] },
+    activeFileId: fileId,
+    entryFileId: fileId,
+  }
+}
+
+/** Build the initial per-language projects map (one project per language). */
+function buildInitialProjects(): Record<Language, LanguageProject> {
+  const projects = {} as Record<Language, LanguageProject>
+  for (const lang of ALL_LANGUAGES) {
+    projects[lang] = buildDefaultLanguageProject(lang)
+  }
+  return projects
+}
+
 /* ------------------------------------------------------------------ */
-/* Store definition                                                   */
+/* Store actions                                                      */
 /* ------------------------------------------------------------------ */
 
 interface ProjectActions {
   /** Mark store as hydrated (called after rehydrate from IDB). */
   markHydrated: () => void
 
-  /* File / folder CRUD ------------------------------------------------ */
+  /** Switch the active language project. The FileExplorer + editor will
+   *  immediately reflect the new language's files. */
+  setSelectedLanguage: (lang: Language) => void
+
+  /* File / folder CRUD — all operate on the selected language's project -- */
   createFile: (opts: {
     name?: string
     parentId?: string | null
@@ -297,12 +321,12 @@ interface ProjectActions {
     language?: Language
     makeActive?: boolean
     makeEntry?: boolean
-  }) => string  // returns the new file id
+  }) => string
 
   createFolder: (opts: {
     name?: string
     parentId?: string | null
-  }) => string  // returns the new folder id
+  }) => string
 
   renameNode: (id: string, newName: string) => void
   deleteNode: (id: string) => void
@@ -316,20 +340,23 @@ interface ProjectActions {
   /** Update the active file's content (called by the editor on every keystroke). */
   setActiveFileContent: (content: string) => void
 
-  /** Mark the active file's `savedContent` as equal to its current `content`
-   *  (i.e. clear its dirty flag). Called after Save. */
+  /** Update the active file's language tag (rarely needed — usually the
+   *  language is determined by the project it belongs to). */
+  setActiveFileLanguage: (lang: Language) => void
+
+  /** Mark the active file's `savedContent` as equal to its current `content`. */
   markActiveFileSaved: () => void
 
-  /** Mark every file as saved (used after bulk operations). */
+  /** Mark every file in the active project as saved. */
   markAllSaved: () => void
 
-  /** Replace the entire project (used by Import / Open shared link). */
+  /** Replace the active project's state (used by Import / Open shared link). */
   loadProject: (snapshot: ProjectSnapshot) => void
 
-  /** Reset to a fresh Python project. */
+  /** Reset the active language's project to its default state. */
   resetToDefault: () => void
 
-  /** Rename the whole project. */
+  /** Rename the active language's project. */
   setName: (name: string) => void
 }
 
@@ -343,46 +370,26 @@ export interface ProjectSnapshot {
 }
 
 /* ------------------------------------------------------------------ */
-/* Initial state                                                      */
-/* ------------------------------------------------------------------ */
-
-function buildInitialProject(): ProjectState {
-  const fileId = genId()
-  const nodes: Record<string, TreeNode> = {
-    [fileId]: {
-      id: fileId,
-      type: 'file',
-      name: 'main.py',
-      parentId: null,
-      content: DEFAULT_PYTHON,
-      language: 'python',
-      savedContent: DEFAULT_PYTHON,
-      createdAt: now(),
-      updatedAt: now(),
-    },
-  }
-  return {
-    nodes,
-    childrenByParent: { root: [fileId] },
-    activeFileId: fileId,
-    entryFileId: fileId,
-    name: 'Untitled Project',
-    defaultLanguage: 'python',
-    revision: 0,
-    hydrated: false,
-  }
-}
-
-/* ------------------------------------------------------------------ */
 /* Store                                                              */
 /* ------------------------------------------------------------------ */
 
 export const useProjectStore = create<ProjectState & ProjectActions>()(
   persist(
     (set, get) => ({
-      ...buildInitialProject(),
+      projects: buildInitialProjects(),
+      selectedLanguage: 'python',
+      defaultLanguage: 'python',
+      revision: 0,
+      hydrated: false,
 
       markHydrated: () => set({ hydrated: true }),
+
+      setSelectedLanguage: (lang) => {
+        set((s) => {
+          if (s.selectedLanguage === lang) return s
+          return { selectedLanguage: lang, revision: s.revision + 1 }
+        })
+      },
 
       createFile: ({
         name,
@@ -393,15 +400,20 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
         makeEntry = false,
       }) => {
         const state = get()
+        const proj = state.projects[state.selectedLanguage]
         const parentKey = parentId ?? 'root'
-        const siblings = (state.childrenByParent[parentKey] ?? [])
-          .map((id) => state.nodes[id])
+        const siblings = (proj.childrenByParent[parentKey] ?? [])
+          .map((id) => proj.nodes[id])
           .filter(Boolean)
+        // Default to the selected language (not the `language` param) so
+        // every file created in the Python project is a .py file, every
+        // file in the Java project is a .java file, etc.
+        const effectiveLang = state.selectedLanguage
         const finalName = sanitizeName(
-          name || defaultFilenameForLanguage(language ?? state.defaultLanguage),
+          name || defaultFilenameForLanguage(effectiveLang),
         )
         const uniqueName = getUniqueName(finalName, siblings)
-        const detectedLang = language ?? detectLanguageFromName(uniqueName, state.defaultLanguage)
+        const detectedLang = language ?? effectiveLang
         const id = genId()
         const ts = now()
         const newNode: FileNode = {
@@ -415,24 +427,34 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           createdAt: ts,
           updatedAt: ts,
         }
-        set((s) => ({
-          nodes: { ...s.nodes, [id]: newNode },
-          childrenByParent: {
-            ...s.childrenByParent,
-            [parentKey]: [...(s.childrenByParent[parentKey] ?? []), id],
-          },
-          activeFileId: makeActive ? id : s.activeFileId,
-          entryFileId: makeEntry ? id : s.entryFileId,
-          revision: s.revision + 1,
-        }))
+        set((s) => {
+          const p = s.projects[s.selectedLanguage]
+          return {
+            projects: {
+              ...s.projects,
+              [s.selectedLanguage]: {
+                ...p,
+                nodes: { ...p.nodes, [id]: newNode },
+                childrenByParent: {
+                  ...p.childrenByParent,
+                  [parentKey]: [...(p.childrenByParent[parentKey] ?? []), id],
+                },
+                activeFileId: makeActive ? id : p.activeFileId,
+                entryFileId: makeEntry ? id : p.entryFileId,
+              },
+            },
+            revision: s.revision + 1,
+          }
+        })
         return id
       },
 
       createFolder: ({ name, parentId = null }) => {
         const state = get()
+        const proj = state.projects[state.selectedLanguage]
         const parentKey = parentId ?? 'root'
-        const siblings = (state.childrenByParent[parentKey] ?? [])
-          .map((id) => state.nodes[id])
+        const siblings = (proj.childrenByParent[parentKey] ?? [])
+          .map((id) => proj.nodes[id])
           .filter(Boolean)
         const finalName = sanitizeName(name || 'New Folder')
         const uniqueName = getUniqueName(finalName, siblings)
@@ -447,15 +469,24 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           createdAt: ts,
           updatedAt: ts,
         }
-        set((s) => ({
-          nodes: { ...s.nodes, [id]: newNode },
-          childrenByParent: {
-            ...s.childrenByParent,
-            [parentKey]: [...(s.childrenByParent[parentKey] ?? []), id],
-            [id]: [],
-          },
-          revision: s.revision + 1,
-        }))
+        set((s) => {
+          const p = s.projects[s.selectedLanguage]
+          return {
+            projects: {
+              ...s.projects,
+              [s.selectedLanguage]: {
+                ...p,
+                nodes: { ...p.nodes, [id]: newNode },
+                childrenByParent: {
+                  ...p.childrenByParent,
+                  [parentKey]: [...(p.childrenByParent[parentKey] ?? []), id],
+                  [id]: [],
+                },
+              },
+            },
+            revision: s.revision + 1,
+          }
+        })
         return id
       },
 
@@ -463,12 +494,19 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
         const cleaned = sanitizeName(newName)
         if (!cleaned) return
         set((s) => {
-          const node = s.nodes[id]
+          const p = s.projects[s.selectedLanguage]
+          const node = p.nodes[id]
           if (!node) return s
           return {
-            nodes: {
-              ...s.nodes,
-              [id]: { ...node, name: cleaned, updatedAt: now() },
+            projects: {
+              ...s.projects,
+              [s.selectedLanguage]: {
+                ...p,
+                nodes: {
+                  ...p.nodes,
+                  [id]: { ...node, name: cleaned, updatedAt: now() },
+                },
+              },
             },
             revision: s.revision + 1,
           }
@@ -477,13 +515,13 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       deleteNode: (id) => {
         set((s) => {
-          const node = s.nodes[id]
+          const p = s.projects[s.selectedLanguage]
+          const node = p.nodes[id]
           if (!node) return s
           const parentKey = node.parentId ?? 'root'
-          const newNodes = { ...s.nodes }
-          const newChildren = { ...s.childrenByParent }
+          const newNodes = { ...p.nodes }
+          const newChildren = { ...p.childrenByParent }
 
-          // Recursively collect all descendant ids (for folders).
           const toDelete: string[] = [id]
           const stack = [id]
           while (stack.length) {
@@ -500,23 +538,28 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
           }
           newChildren[parentKey] = (newChildren[parentKey] ?? []).filter((x) => x !== id)
 
-          // If we deleted the active file, pick the next available file.
-          let newActive = s.activeFileId
-          if (toDelete.includes(s.activeFileId ?? '')) {
+          let newActive = p.activeFileId
+          if (toDelete.includes(p.activeFileId ?? '')) {
             const allFiles = Object.values(newNodes).filter((n) => n.type === 'file') as FileNode[]
             newActive = allFiles[0]?.id ?? null
           }
-          let newEntry = s.entryFileId
-          if (toDelete.includes(s.entryFileId ?? '')) {
+          let newEntry = p.entryFileId
+          if (toDelete.includes(p.entryFileId ?? '')) {
             const allFiles = Object.values(newNodes).filter((n) => n.type === 'file') as FileNode[]
             newEntry = allFiles[0]?.id ?? null
           }
 
           return {
-            nodes: newNodes,
-            childrenByParent: newChildren,
-            activeFileId: newActive,
-            entryFileId: newEntry,
+            projects: {
+              ...s.projects,
+              [s.selectedLanguage]: {
+                ...p,
+                nodes: newNodes,
+                childrenByParent: newChildren,
+                activeFileId: newActive,
+                entryFileId: newEntry,
+              },
+            },
             revision: s.revision + 1,
           }
         })
@@ -524,43 +567,75 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       moveNode: (id, newParentId) => {
         set((s) => {
-          const node = s.nodes[id]
+          const p = s.projects[s.selectedLanguage]
+          const node = p.nodes[id]
           if (!node) return s
-          if (id === newParentId) return s // can't move into self
+          if (id === newParentId) return s
           // Prevent moving a folder into its own descendant.
           let cur: string | null = newParentId
           while (cur) {
             if (cur === id) return s
-            cur = s.nodes[cur]?.parentId ?? null
+            cur = p.nodes[cur]?.parentId ?? null
           }
           const oldParentKey = node.parentId ?? 'root'
           const newParentKey = newParentId ?? 'root'
           if (oldParentKey === newParentKey) return s
           return {
-            nodes: {
-              ...s.nodes,
-              [id]: { ...node, parentId: newParentId, updatedAt: now() },
-            },
-            childrenByParent: {
-              ...s.childrenByParent,
-              [oldParentKey]: (s.childrenByParent[oldParentKey] ?? []).filter((x) => x !== id),
-              [newParentKey]: [...(s.childrenByParent[newParentKey] ?? []), id],
+            projects: {
+              ...s.projects,
+              [s.selectedLanguage]: {
+                ...p,
+                nodes: {
+                  ...p.nodes,
+                  [id]: { ...node, parentId: newParentId, updatedAt: now() },
+                },
+                childrenByParent: {
+                  ...p.childrenByParent,
+                  [oldParentKey]: (p.childrenByParent[oldParentKey] ?? []).filter((x) => x !== id),
+                  [newParentKey]: [...(p.childrenByParent[newParentKey] ?? []), id],
+                },
+              },
             },
             revision: s.revision + 1,
           }
         })
       },
 
-      setActiveFile: (id) => set({ activeFileId: id, revision: get().revision + 1 }),
+      setActiveFile: (id) => set((s) => {
+        const p = s.projects[s.selectedLanguage]
+        return {
+          projects: {
+            ...s.projects,
+            [s.selectedLanguage]: { ...p, activeFileId: id },
+          },
+          revision: s.revision + 1,
+        }
+      }),
 
-      setEntryFile: (id) => set({ entryFileId: id, revision: get().revision + 1 }),
+      setEntryFile: (id) => set((s) => {
+        const p = s.projects[s.selectedLanguage]
+        return {
+          projects: {
+            ...s.projects,
+            [s.selectedLanguage]: { ...p, entryFileId: id },
+          },
+          revision: s.revision + 1,
+        }
+      }),
 
       setFolderExpanded: (id, expanded) => {
         set((s) => {
-          const node = s.nodes[id]
+          const p = s.projects[s.selectedLanguage]
+          const node = p.nodes[id]
           if (!node || node.type !== 'folder') return s
           return {
-            nodes: { ...s.nodes, [id]: { ...node, expanded } },
+            projects: {
+              ...s.projects,
+              [s.selectedLanguage]: {
+                ...p,
+                nodes: { ...p.nodes, [id]: { ...node, expanded } },
+              },
+            },
             revision: s.revision + 1,
           }
         })
@@ -568,10 +643,17 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       toggleFolderExpanded: (id) => {
         set((s) => {
-          const node = s.nodes[id]
+          const p = s.projects[s.selectedLanguage]
+          const node = p.nodes[id]
           if (!node || node.type !== 'folder') return s
           return {
-            nodes: { ...s.nodes, [id]: { ...node, expanded: !node.expanded } },
+            projects: {
+              ...s.projects,
+              [s.selectedLanguage]: {
+                ...p,
+                nodes: { ...p.nodes, [id]: { ...node, expanded: !node.expanded } },
+              },
+            },
             revision: s.revision + 1,
           }
         })
@@ -579,14 +661,43 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       setActiveFileContent: (content) => {
         set((s) => {
-          if (!s.activeFileId) return s
-          const node = s.nodes[s.activeFileId]
+          const p = s.projects[s.selectedLanguage]
+          if (!p.activeFileId) return s
+          const node = p.nodes[p.activeFileId]
           if (!node || node.type !== 'file') return s
-          if (node.content === content) return s // no-op
+          if (node.content === content) return s
           return {
-            nodes: {
-              ...s.nodes,
-              [node.id]: { ...node, content, updatedAt: now() },
+            projects: {
+              ...s.projects,
+              [s.selectedLanguage]: {
+                ...p,
+                nodes: {
+                  ...p.nodes,
+                  [node.id]: { ...node, content, updatedAt: now() },
+                },
+              },
+            },
+            revision: s.revision + 1,
+          }
+        })
+      },
+
+      setActiveFileLanguage: (lang) => {
+        set((s) => {
+          const p = s.projects[s.selectedLanguage]
+          if (!p.activeFileId) return s
+          const node = p.nodes[p.activeFileId]
+          if (!node || node.type !== 'file') return s
+          return {
+            projects: {
+              ...s.projects,
+              [s.selectedLanguage]: {
+                ...p,
+                nodes: {
+                  ...p.nodes,
+                  [node.id]: { ...node, language: lang },
+                },
+              },
             },
             revision: s.revision + 1,
           }
@@ -595,13 +706,20 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       markActiveFileSaved: () => {
         set((s) => {
-          if (!s.activeFileId) return s
-          const node = s.nodes[s.activeFileId]
+          const p = s.projects[s.selectedLanguage]
+          if (!p.activeFileId) return s
+          const node = p.nodes[p.activeFileId]
           if (!node || node.type !== 'file') return s
           return {
-            nodes: {
-              ...s.nodes,
-              [node.id]: { ...node, savedContent: node.content },
+            projects: {
+              ...s.projects,
+              [s.selectedLanguage]: {
+                ...p,
+                nodes: {
+                  ...p.nodes,
+                  [node.id]: { ...node, savedContent: node.content },
+                },
+              },
             },
           }
         })
@@ -609,49 +727,100 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
       markAllSaved: () => {
         set((s) => {
-          const newNodes = { ...s.nodes }
+          const p = s.projects[s.selectedLanguage]
+          const newNodes = { ...p.nodes }
           for (const id in newNodes) {
             const n = newNodes[id]
             if (n.type === 'file') {
               newNodes[id] = { ...n, savedContent: n.content }
             }
           }
-          return { nodes: newNodes }
+          return {
+            projects: {
+              ...s.projects,
+              [s.selectedLanguage]: { ...p, nodes: newNodes },
+            },
+          }
         })
       },
 
       loadProject: (snapshot) => {
-        set({
-          ...snapshot,
-          revision: get().revision + 1,
+        set((s) => ({
+          projects: {
+            ...s.projects,
+            [s.selectedLanguage]: {
+              name: snapshot.name,
+              nodes: snapshot.nodes,
+              childrenByParent: snapshot.childrenByParent,
+              activeFileId: snapshot.activeFileId,
+              entryFileId: snapshot.entryFileId,
+            },
+          },
+          revision: s.revision + 1,
           hydrated: true,
-        })
+        }))
       },
 
       resetToDefault: () => {
-        const fresh = buildInitialProject()
-        set({
-          ...fresh,
-          revision: get().revision + 1,
+        set((s) => ({
+          projects: {
+            ...s.projects,
+            [s.selectedLanguage]: buildDefaultLanguageProject(s.selectedLanguage),
+          },
+          revision: s.revision + 1,
           hydrated: true,
-        })
+        }))
       },
 
-      setName: (name) => set({ name, revision: get().revision + 1 }),
+      setName: (name) => set((s) => {
+        const p = s.projects[s.selectedLanguage]
+        return {
+          projects: {
+            ...s.projects,
+            [s.selectedLanguage]: { ...p, name },
+          },
+          revision: s.revision + 1,
+        }
+      }),
     }),
     {
       name: 'pyrunner-project',
+      version: 2,
       storage: createJSONStorage(() => idbStorage),
       partialize: (s) => ({
-        nodes: s.nodes,
-        childrenByParent: s.childrenByParent,
-        activeFileId: s.activeFileId,
-        entryFileId: s.entryFileId,
-        name: s.name,
+        projects: s.projects,
+        selectedLanguage: s.selectedLanguage,
         defaultLanguage: s.defaultLanguage,
       }),
+      /** Migrate old single-project format (version 1) to per-language format. */
+      migrate: (persistedState: any, version: number) => {
+        // version 1 = old format with top-level nodes/childrenByParent/etc.
+        // version 2 = new per-language format.
+        if (version < 2 && persistedState && typeof persistedState === 'object') {
+          const old = persistedState as any
+          const lang: Language = old.defaultLanguage ?? 'python'
+          // Build a fresh per-language projects map.
+          const projects = buildInitialProjects()
+          // If the old state had a single project, migrate it into the
+          // matching language's project (overwriting the default).
+          if (old.nodes && Object.keys(old.nodes).length > 0) {
+            projects[lang] = {
+              name: old.name ?? `${lang.charAt(0).toUpperCase() + lang.slice(1)} Project`,
+              nodes: old.nodes,
+              childrenByParent: old.childrenByParent ?? { root: [] },
+              activeFileId: old.activeFileId ?? null,
+              entryFileId: old.entryFileId ?? null,
+            }
+          }
+          return {
+            projects,
+            selectedLanguage: lang,
+            defaultLanguage: lang,
+          }
+        }
+        return persistedState as ProjectState
+      },
       onRehydrateStorage: () => (state) => {
-        // Mark as hydrated once IDB has loaded the saved state.
         if (state) state.markHydrated()
       },
     },
@@ -662,80 +831,87 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 /* Selector helpers                                                   */
 /* ------------------------------------------------------------------ */
 
-/** Get the currently active file node (or null). */
+/** Get the active (selected) language's project. */
+export function useActiveProject(): LanguageProject {
+  return useProjectStore((s) => s.projects[s.selectedLanguage])
+}
+
+/** Get the currently active file node (or null) from the selected project. */
 export function useActiveFile(): FileNode | null {
   return useProjectStore((s) => {
-    if (!s.activeFileId) return null
-    const n = s.nodes[s.activeFileId]
+    const p = s.projects[s.selectedLanguage]
+    if (!p.activeFileId) return null
+    const n = p.nodes[p.activeFileId]
     return n && n.type === 'file' ? n : null
   })
 }
 
-/** Get the entry file node (or null). Falls back to the active file if no entry is set. */
+/** Get the entry file node (or null). Falls back to the active file. */
 export function useEntryFile(): FileNode | null {
   return useProjectStore((s) => {
-    const id = s.entryFileId ?? s.activeFileId
+    const p = s.projects[s.selectedLanguage]
+    const id = p.entryFileId ?? p.activeFileId
     if (!id) return null
-    const n = s.nodes[id]
+    const n = p.nodes[id]
     return n && n.type === 'file' ? n : null
   })
 }
 
-/** Get a flat list of all files (for export / search / runner payload). */
+/** Get a flat list of all files in the selected language's project. */
 export function useAllFiles(): FileNode[] {
   return useProjectStore((s) =>
-    Object.values(s.nodes).filter((n): n is FileNode => n.type === 'file'),
+    Object.values(s.projects[s.selectedLanguage].nodes).filter(
+      (n): n is FileNode => n.type === 'file',
+    ),
   )
 }
 
-/** Get the language of the active file (used to drive the editor + runner). */
+/** Get the language of the active file (= the selected language). */
 export function useActiveLanguage(): Language {
-  return useProjectStore((s) => {
-    if (!s.activeFileId) return s.defaultLanguage
-    const n = s.nodes[s.activeFileId]
-    return n && n.type === 'file' ? n.language : s.defaultLanguage
-  })
+  return useProjectStore((s) => s.selectedLanguage)
 }
 
-/** True if any file has unsaved changes (dirty flag). */
+/** True if any file in the selected project has unsaved changes. */
 export function useIsDirty(): boolean {
   return useProjectStore((s) => {
-    for (const id in s.nodes) {
-      const n = s.nodes[id]
+    const p = s.projects[s.selectedLanguage]
+    for (const id in p.nodes) {
+      const n = p.nodes[id]
       if (n.type === 'file' && n.content !== n.savedContent) return true
     }
     return false
   })
 }
 
-/** Get a snapshot of the entire project (for export / share / save). */
+/** Get a snapshot of the active project (for export / share / save). */
 export function getProjectSnapshot(): ProjectSnapshot {
   const s = useProjectStore.getState()
+  const p = s.projects[s.selectedLanguage]
   return {
-    name: s.name,
+    name: p.name,
     defaultLanguage: s.defaultLanguage,
-    nodes: s.nodes,
-    childrenByParent: s.childrenByParent,
-    activeFileId: s.activeFileId,
-    entryFileId: s.entryFileId,
+    nodes: p.nodes,
+    childrenByParent: p.childrenByParent,
+    activeFileId: p.activeFileId,
+    entryFileId: p.entryFileId,
   }
 }
 
-/** Build a flat `path → content` map of all files for the runner.
- *  Paths include folder prefixes, e.g. `src/helper.py`. */
+/** Build a flat `path → content` map of all files in the active project. */
 export function getFilesForRunner(): Record<string, string> {
   const s = useProjectStore.getState()
+  const p = s.projects[s.selectedLanguage]
   const out: Record<string, string> = {}
-  for (const id in s.nodes) {
-    const n = s.nodes[id]
+  for (const id in p.nodes) {
+    const n = p.nodes[id]
     if (n.type !== 'file') continue
-    const path = buildPath(s.nodes, id)
+    const path = buildPath(p.nodes, id)
     out[path] = n.content
   }
   return out
 }
 
-/** Build the slash-joined path for a node, e.g. `src/helper.py`. */
+/** Build the slash-joined path for a node within a project. */
 export function buildPath(
   nodes: Record<string, TreeNode>,
   id: string,
@@ -751,12 +927,15 @@ export function buildPath(
   return parts.join('/')
 }
 
-/** Get the path of the entry file (or active file as fallback). */
+/** Get the path of the entry file (or active file as fallback) in the active project. */
 export function getEntryFilePath(): string | null {
   const s = useProjectStore.getState()
-  const id = s.entryFileId ?? s.activeFileId
+  const p = s.projects[s.selectedLanguage]
+  const id = p.entryFileId ?? p.activeFileId
   if (!id) return null
-  const n = s.nodes[id]
+  const n = p.nodes[id]
   if (!n || n.type !== 'file') return null
-  return buildPath(s.nodes, id)
+  return buildPath(p.nodes, id)
 }
+
+export type { Language }

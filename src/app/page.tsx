@@ -99,464 +99,8 @@ interface PersistedState {
   language: Language
 }
 
-const DEFAULT_CODE = `# PyRunner — Python 3 playground
-# Press Run (or Ctrl/Cmd+Enter) to execute.
+import { DEFAULT_CODE } from '@/lib/default-code'
 
-def greet(name: str) -> str:
-    return f"Hello, {name}!"
-
-print(greet("world"))
-
-# Interactive: type your name in the input bar below
-# the console when prompted, then press Enter.
-name = input("What's your name? ")
-print(f"Nice to meet you, {name}!")
-`
-
-const DEFAULT_JAVA_CODE = `// PyRunner — Java 21 playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-// The public class name is detected automatically.
-
-public class Hello {
-    public static void main(String[] args) {
-        System.out.println("Hello, World!");
-
-        // Use Scanner to read from stdin (interactive)
-        var scanner = new java.util.Scanner(System.in);
-        System.out.print("What's your name? ");
-        String name = scanner.nextLine();
-        System.out.println("Nice to meet you, " + name + "!");
-    }
-}
-`
-
-const DEFAULT_C_CODE = `// PyRunner — C (gcc 14) playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-// Compiled with: gcc -std=c11 -Wall -O2 -lm
-
-#include <stdio.h>
-
-int main(void) {
-    printf("Hello, World!\\n");
-
-    // Use scanf to read from stdin (interactive)
-    char name[64];
-    printf("What's your name? ");
-    scanf("%63s", name);
-    printf("Nice to meet you, %s!\\n", name);
-
-    return 0;
-}
-`
-
-const DEFAULT_CPP_CODE = `// PyRunner — C++ (g++ 14, C++20) playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-// Compiled with: g++ -std=c++20 -Wall -O2
-
-#include <iostream>
-#include <string>
-
-int main() {
-    std::cout << "Hello, World!" << std::endl;
-
-    // Read from stdin (interactive)
-    std::string name;
-    std::cout << "What's your name? ";
-    std::getline(std::cin, name);
-    std::cout << "Nice to meet you, " << name << "!" << std::endl;
-
-    return 0;
-}
-`
-
-const DEFAULT_R_CODE = `# PyRunner — R 4.5 playground
-# Press Run (or Ctrl/Cmd+Enter) to execute.
-
-print("Hello, World!")
-
-# Basic vector operations
-x <- c(1, 2, 3, 4, 5)
-print(paste("Mean:", mean(x)))
-print(paste("Sum:", sum(x)))
-print(paste("Squared:", paste(x^2, collapse=", ")))
-
-# For interactive input, open "Program Input" below the editor,
-# type your values (one per line), then Run.
-# Or load the "R: Interactive Input" example from the Examples menu.
-`
-
-const DEFAULT_JS_CODE = `// PyRunner — JavaScript (Node.js 24) playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-// Supports both CommonJS (require) and ES modules (import).
-
-console.log("Hello, World!");
-
-// Array methods — functional programming style
-const nums = [1, 2, 3, 4, 5];
-console.log("Sum:", nums.reduce((a, b) => a + b, 0));
-console.log("Squared:", nums.map(n => n ** 2));
-
-// Object destructuring
-const user = { name: "Ada", age: 36 };
-console.log(user.name + " is " + user.age + " years old.");
-
-// For interactive input, open "Program Input" below the editor,
-// type your values (one per line), then Run.
-// Or load the "JS: Interactive Input" example from the Examples menu.
-`
-
-const DEFAULT_PHP_CODE = `<?php
-// PyRunner — PHP 8.4 playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-
-echo "Hello, World!\\n";
-
-// Array functions
-$nums = [1, 2, 3, 4, 5];
-echo "Sum: " . array_sum($nums) . "\\n";
-echo "Squared: " . implode(", ", array_map(fn($n) => $n * $n, $nums)) . "\\n";
-
-// Interactive: type your name in the input bar below
-echo "What's your name? ";
-$name = trim(fgets(STDIN));
-echo "Nice to meet you, $name!\\n";
-`
-
-const DEFAULT_CSHARP_CODE = `// PyRunner - C# (.NET 8) playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-
-using System;
-using System.Linq;
-
-class Program {
-    static void Main() {
-        Console.WriteLine("Hello, World!");
-
-        // LINQ
-        int[] nums = { 1, 2, 3, 4, 5 };
-        Console.WriteLine("Sum: " + nums.Sum());
-        Console.WriteLine("Squared: " + string.Join(", ", nums.Select(n => n * n)));
-
-        // Interactive: type your name in the input bar
-        Console.Write("What's your name? ");
-        string name = Console.ReadLine();
-        Console.WriteLine("Nice to meet you, " + name + "!");
-    }
-}
-`
-
-const DEFAULT_DART_CODE = `// PyRunner - Dart 3.13 playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-
-import 'dart:io';
-
-void main() {
-  print('Hello, World!');
-
-  // List methods
-  var nums = [1, 2, 3, 4, 5];
-  print('Sum: ' + nums.reduce((a, b) => a + b).toString());
-  print('Squared: ' + nums.map((n) => n * n).join(', '));
-
-  // Interactive: type your name in the input bar
-  stdout.write("What's your name? ");
-  var name = stdin.readLineSync() ?? '';
-  print('Nice to meet you, ' + name + '!');
-}
-`
-
-const DEFAULT_FLUTTER_CODE = `import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(title: const Text('My Flutter App')),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Hello from Flutter!',
-                style: TextStyle(fontSize: 24)),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {},
-                child: const Text('Click me'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}`
-
-const DEFAULT_KOTLIN_CODE = `// Kotlin/JVM console — runs with kotlinc 2.0.21
-// Press Run (or Ctrl+Enter) to execute.
-
-fun main() {
-    println("Hello from Kotlin!")
-
-    val name = "World"
-    println("Hello, " + name + "!")
-
-    val result = add(3, 4)
-    println("3 + 4 = " + result)
-
-    val person = Person("Alice", 30)
-    println(person)
-}
-
-fun add(a: Int, b: Int): Int = a + b
-
-data class Person(val name: String, val age: Int)
-`
-
-const DEFAULT_GO_CODE = `// Go 1.23 — runs with go run
-// Press Run (or Ctrl+Enter) to execute.
-
-package main
-
-import "fmt"
-
-func main() {
-        fmt.Println("Hello from Go!")
-
-        name := "World"
-        fmt.Println("Hello, " + name + "!")
-
-        result := add(3, 4)
-        fmt.Println("3 + 4 =", result)
-
-        for i := 1; i <= 3; i++ {
-                fmt.Printf("Count: %d\n", i)
-        }
-}
-
-func add(a, b int) int {
-        return a + b
-}
-`
-
-const DEFAULT_TS_CODE = `// TypeScript 5.x — runs with bun
-// Press Run (or Ctrl+Enter) to execute.
-
-interface Person {
-    name: string;
-    age: number;
-}
-
-function greet(person: Person): string {
-    return "Hello, " + person.name + "!";
-}
-
-const alice: Person = { name: "Alice", age: 30 };
-console.log(greet(alice));
-
-// Type-safe array operations
-const numbers: number[] = [1, 2, 3, 4, 5];
-const doubled = numbers.map(n => n * 2);
-console.log("Doubled:", doubled);
-
-// Union types
-type Status = "idle" | "running" | "done";
-let status: Status = "idle";
-status = "running";
-console.log("Status:", status);
-`
-
-const DEFAULT_RUST_CODE = `// Rust 1.98 — runs with rustc
-// Press Run (or Ctrl+Enter) to execute.
-
-fn main() {
-    println!("Hello from Rust!");
-
-    let name = "World";
-    println!("Hello, {}!", name);
-
-    let result = add(3, 4);
-    println!("3 + 4 = {}", result);
-
-    for i in 1..=3 {
-        println!("Count: {}", i);
-    }
-}
-
-fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
-`
-
-const DEFAULT_RUBY_CODE = `# Ruby 3.3 — runs with ruby
-# Press Run (or Ctrl+Enter) to execute.
-
-def add(a, b)
-  a + b
-end
-
-puts "Hello from Ruby!"
-name = "World"
-puts "Hello, #{name}!"
-result = add(3, 4)
-puts "3 + 4 = #{result}"
-3.times do |i|
-  puts "Count: #{i + 1}"
-end
-`
-
-const DEFAULT_SWIFT_CODE = `// Swift 5.10 — runs with swift
-// Press Run (or Ctrl+Enter) to execute.
-
-func add(_ a: Int, _ b: Int) -> Int {
-    return a + b
-}
-
-print("Hello from Swift!")
-let name = "World"
-print("Hello, \\(name)!")
-let result = add(3, 4)
-print("3 + 4 = \\(result)")
-for i in 1...3 {
-    print("Count: \\(i)")
-}
-`
-
-const DEFAULT_LUA_CODE = `-- Lua 5.4 — runs with lua
--- Press Run (or Ctrl+Enter) to execute.
-
-local function add(a, b)
-    return a + b
-end
-
-print("Hello from Lua!")
-local name = "World"
-print("Hello, " .. name .. "!")
-local result = add(3, 4)
-print("3 + 4 = " .. result)
-for i = 1, 3 do
-    print("Count: " .. i)
-end
-`
-
-const DEFAULT_PERL_CODE = `#!/usr/bin/perl
-# Perl 5.40 — runs with perl
-# Press Run (or Ctrl+Enter) to execute.
-
-use strict;
-use warnings;
-
-sub add {
-    return $_[0] + $_[1];
-}
-
-print "Hello from Perl!\\n";
-my $name = "World";
-print "Hello, $name!\\n";
-my $result = add(3, 4);
-print "3 + 4 = $result\\n";
-for my $i (1..3) {
-    print "Count: $i\\n";
-}
-`
-
-const DEFAULT_PS_CODE = `# PowerShell 7.4 — runs with pwsh
-# Press Run (or Ctrl+Enter) to execute.
-
-function Add($a, $b) {
-    return $a + $b
-}
-
-Write-Host "Hello from PowerShell!"
-$name = "World"
-Write-Host "Hello, $name!"
-$result = Add 3 4
-Write-Host "3 + 4 = $result"
-for ($i = 1; $i -le 3; $i++) {
-    Write-Host "Count: $i"
-}
-`
-
-const DEFAULT_BASH_CODE = `#!/bin/bash
-# Bash 5.2 — runs with bash
-# Press Run (or Ctrl+Enter) to execute.
-
-add() {
-    echo $(( $1 + $2 ))
-}
-
-echo "Hello from Bash!"
-name="World"
-echo "Hello, $name!"
-result=$(add 3 4)
-echo "3 + 4 = $result"
-for i in 1 2 3; do
-    echo "Count: $i"
-done
-`
-
-const DEFAULT_FORTRAN_CODE = `! Fortran 14.2 — runs with gfortran
-! Press Run (or Ctrl+Enter) to execute.
-
-program main
-    implicit none
-    print *, "Hello from Fortran!"
-    
-    character(len=*), parameter :: name = "World"
-    print *, "Hello, " // trim(name) // "!"
-    
-    integer :: result
-    result = add(3, 4)
-    print *, "3 + 4 = ", result
-    
-    integer :: i
-    do i = 1, 3
-        print *, "Count: ", i
-    end do
-
-contains
-    integer function add(a, b)
-        integer, intent(in) :: a, b
-        add = a + b
-    end function add
-end program main
-`
-
-const DEFAULT_COBOL_CODE = `      *> COBOL 3.2 — runs with GnuCOBOL
-      *> Press Run (or Ctrl+Enter) to execute.
-
-       IDENTIFICATION DIVISION.
-       PROGRAM-ID. HELLO.
-
-       DATA DIVISION.
-       WORKING-STORAGE SECTION.
-       01  NAME      PIC X(10) VALUE "World".
-       01  RESULT    PIC 9(4).
-       01  COUNTER   PIC 9(2).
-
-       PROCEDURE DIVISION.
-           DISPLAY "Hello from COBOL!".
-           DISPLAY "Hello, " NAME "!".
-
-           PERFORM ADD-NUMBERS.
-           DISPLAY "3 + 4 = " RESULT.
-
-           PERFORM VARYING COUNTER FROM 1 BY 1
-               UNTIL COUNTER > 3
-               DISPLAY "Count: " COUNTER
-           END-PERFORM.
-
-           STOP RUN.
-
-       ADD-NUMBERS.
-           ADD 3 TO 4 GIVING RESULT.
-`
 
 
 /* ------------------------------------------------------------------ */
@@ -670,19 +214,22 @@ export default function Home() {
   // `code` and `language` are derived from it so all existing handlers
   // (handleRun, handleShare, handleDownload, etc.) keep working unchanged.
   const activeFile = useActiveFile()
+  const selectedLanguage = useProjectStore((s) => s.selectedLanguage)
   const projectHydrated = useProjectStore((s) => s.hydrated)
   const setActiveFileContent = useProjectStore((s) => s.setActiveFileContent)
   const markActiveFileSaved = useProjectStore((s) => s.markActiveFileSaved)
   const entryFilePath = useProjectStore((s) => {
-    if (!s.entryFileId) return null
-    const n = s.nodes[s.entryFileId]
+    const p = s.projects[s.selectedLanguage]
+    if (!p.entryFileId) return null
+    const n = p.nodes[p.entryFileId]
     return n && n.type === 'file' ? n.name : null
   })
-  const isProjectDirty = useProjectStore((s) =>
-    Object.values(s.nodes).some(
+  const isProjectDirty = useProjectStore((s) => {
+    const p = s.projects[s.selectedLanguage]
+    return Object.values(p.nodes).some(
       (n) => n.type === 'file' && n.content !== n.savedContent,
-    ),
-  )
+    )
+  })
 
   // Use defaults on both server AND the first client render so the markup
   // matches exactly. After mount, we hydrate from IndexedDB / URL hash.
@@ -695,6 +242,8 @@ export default function Home() {
   // Sync derived `code` + `language` from the active file whenever it changes.
   // We do this in an effect (not directly during render) to avoid React
   // "cannot update a component while rendering a different component" warnings.
+  // Also fires when `selectedLanguage` changes so that switching language tabs
+  // immediately updates the editor to show the new language's active file.
   useEffect(() => {
     if (!projectHydrated) return
     if (activeFile) {
@@ -703,9 +252,9 @@ export default function Home() {
       setLanguage(activeFile.language)
     } else {
       setCode('')
-      setLanguage('python')
+      setLanguage(selectedLanguage)
     }
-  }, [activeFile?.id, activeFile?.content, activeFile?.language, projectHydrated])
+  }, [activeFile?.id, activeFile?.content, activeFile?.language, projectHydrated, selectedLanguage])
 
   // Wrap setCode so it writes to the active file's content in the store,
   // while still updating local `code` state for immediate re-render.
@@ -738,33 +287,25 @@ export default function Home() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHydrated(true)
-    // If a share-link hash is present, override the active file's content
-    // with the shared snippet (legacy single-snippet share flow).
+    // If a share-link hash is present, switch to the shared snippet's
+    // language project and load the snippet into the active file.
     const fromHash = decodeFromHash(window.location.hash)
     if (fromHash && projectHydrated) {
       const state = useProjectStore.getState()
-      // If the active file is the default `main.py` (untouched), overwrite it.
-      // Otherwise create a new file for the shared snippet.
-      const active = state.activeFileId ? state.nodes[state.activeFileId] : null
-      const isDefault = active && active.type === 'file'
-        && active.name === 'main.py'
-        && state.childrenByParent.root?.length === 1
-      if (isDefault) {
-        // Overwrite the default file's content + language.
-        useProjectStore.setState((s) => {
-          if (!s.activeFileId) return s
-          const n = s.nodes[s.activeFileId]
-          if (!n || n.type !== 'file') return s
-          return {
-            nodes: {
-              ...s.nodes,
-              [n.id]: { ...n, content: fromHash.code, language: fromHash.language, savedContent: fromHash.code },
-            },
-          }
-        })
+      // Switch to the shared snippet's language project first.
+      state.setSelectedLanguage(fromHash.language)
+      // Now load the snippet into the active file of that language's project.
+      const proj = state.projects[fromHash.language]
+      const activeId = proj.activeFileId
+      if (activeId) {
+        const n = proj.nodes[activeId]
+        if (n && n.type === 'file') {
+          // Overwrite the active file's content with the shared snippet.
+          state.setActiveFileContent(fromHash.code)
+        }
       } else {
+        // No active file — create one for the shared snippet.
         state.createFile({
-          name: 'shared.py',
           content: fromHash.code,
           language: fromHash.language,
           makeActive: true,
@@ -801,24 +342,15 @@ export default function Home() {
       isRestoringFromHistoryRef.current = true
       const fromHash = decodeFromHash(window.location.hash)
       if (fromHash) {
-        // Update both local React state AND the project store so the
-        // active file reflects the shared snippet.
-        setCodeWrapped(fromHash.code)
+        // Switch to the shared snippet's language project, then load the
+        // snippet into the active file.
+        const state = useProjectStore.getState()
+        state.setSelectedLanguage(fromHash.language)
+        state.setActiveFileContent(fromHash.code)
         setLanguage(fromHash.language)
-        useProjectStore.setState((s) => {
-          if (!s.activeFileId) return s
-          const n = s.nodes[s.activeFileId]
-          if (!n || n.type !== 'file') return s
-          return {
-            nodes: {
-              ...s.nodes,
-              [n.id]: { ...n, content: fromHash.code, language: fromHash.language },
-            },
-          }
-        })
       } else {
-        // No hash → restore to default editor state.
-        setCodeWrapped(DEFAULT_CODE)
+        // No hash → restore to the default Python project.
+        useProjectStore.getState().setSelectedLanguage('python')
         setLanguage('python')
       }
       // Clear console output so the previous run's output doesn't linger.
@@ -1108,59 +640,29 @@ export default function Home() {
     toast.info('Editor cleared')
   }, [setCodeWrapped])
 
-  // Switch language — load the default starter code for that language.
-  // In multi-file mode, this updates the active file's content + language
-  // (so the file's syntax highlighting and runner pick up the change).
-  // Each language switch pushes a new history entry so the user can press
-  // the browser Back button to undo it.
+  // Switch language — switches the active project (per-language isolation).
+  // Each language has its own completely separate workspace with its own
+  // files, folders, and entry file. Switching to Java shows the Java
+  // project's files; switching back to Python shows the Python project's
+  // files. No files are mixed, deleted, renamed, or overwritten.
+  // The editor's content + language are automatically derived from the
+  // active file via the useEffect below.
   const handleLanguageChange = useCallback((lang: Language) => {
     if (lang === language) return
-    const newCode =
-      lang === 'java' ? DEFAULT_JAVA_CODE :
-      lang === 'c' ? DEFAULT_C_CODE :
-      lang === 'cpp' ? DEFAULT_CPP_CODE :
-      lang === 'r' ? DEFAULT_R_CODE :
-      lang === 'javascript' ? DEFAULT_JS_CODE :
-      lang === 'php' ? DEFAULT_PHP_CODE :
-      lang === 'csharp' ? DEFAULT_CSHARP_CODE :
-      lang === 'dart' ? DEFAULT_DART_CODE :
-      lang === 'flutter' ? DEFAULT_FLUTTER_CODE :
-      lang === 'kotlin' ? DEFAULT_KOTLIN_CODE :
-      lang === 'go' ? DEFAULT_GO_CODE :
-      lang === 'typescript' ? DEFAULT_TS_CODE :
-      lang === 'rust' ? DEFAULT_RUST_CODE :
-      lang === 'ruby' ? DEFAULT_RUBY_CODE :
-      lang === 'swift' ? DEFAULT_SWIFT_CODE :
-      lang === 'lua' ? DEFAULT_LUA_CODE :
-      lang === 'perl' ? DEFAULT_PERL_CODE :
-      lang === 'powershell' ? DEFAULT_PS_CODE :
-      lang === 'bash' ? DEFAULT_BASH_CODE :
-      lang === 'fortran' ? DEFAULT_FORTRAN_CODE :
-      lang === 'cobol' ? DEFAULT_COBOL_CODE :
-      DEFAULT_CODE
+    // Switch the active project — the store's selectedLanguage changes,
+    // which causes useActiveFile() to return the new language's active file.
+    useProjectStore.getState().setSelectedLanguage(lang)
     setLanguage(lang)
-    setCodeWrapped(newCode)
-    // Also update the active file's language tag in the store so the file
-    // explorer + runner use the correct language going forward.
-    useProjectStore.getState().setActiveFileContent(newCode)
-    // Patch the active file's language in-place (the store doesn't have a
-    // dedicated setter for this — we do it via setState).
-    useProjectStore.setState((s) => {
-      if (!s.activeFileId) return s
-      const n = s.nodes[s.activeFileId]
-      if (!n || n.type !== 'file') return s
-      return {
-        nodes: {
-          ...s.nodes,
-          [n.id]: { ...n, language: lang, content: newCode },
-        },
-      }
-    })
     setChunks([])
     setResult(null)
     setActiveExampleId(null)
+    // Push a history entry so the browser Back button returns to the
+    // previous language.
+    const newProj = useProjectStore.getState().projects[lang]
+    const activeNode = newProj.activeFileId ? newProj.nodes[newProj.activeFileId] : null
+    const newCode = activeNode && activeNode.type === 'file' ? activeNode.content : ''
     pushHistoryState(newCode, lang)
-  }, [language, setCodeWrapped])
+  }, [language])
 
   const handleCopy = useCallback(async () => {
     try {
@@ -1256,24 +758,15 @@ export default function Home() {
   }, [code, language])
 
   const handleSelectExample = useCallback((ex: Snippet) => {
-    setCodeWrapped(ex.code)
-    // Auto-switch language if the example specifies one
+    // Switch to the example's language project first (per-language isolation).
+    // This ensures the example is loaded into the correct language's workspace
+    // without overwriting files in other languages.
     const newLang = ex.language ?? language
-    if (ex.language) {
-      setLanguage(ex.language)
-      // Patch the active file's language tag in the store too.
-      useProjectStore.setState((s) => {
-        if (!s.activeFileId) return s
-        const n = s.nodes[s.activeFileId]
-        if (!n || n.type !== 'file') return s
-        return {
-          nodes: {
-            ...s.nodes,
-            [n.id]: { ...n, language: ex.language!, content: ex.code },
-          },
-        }
-      })
-    }
+    const state = useProjectStore.getState()
+    state.setSelectedLanguage(newLang)
+    setLanguage(newLang)
+    // Load the example code into the active file of the new language's project.
+    state.setActiveFileContent(ex.code)
     setActiveExampleId(ex.id)
     setChunks([])
     setResult(null)
@@ -1281,7 +774,7 @@ export default function Home() {
     // previous snippet (not the example just loaded).
     pushHistoryState(ex.code, newLang)
     toast.success(`Loaded "${ex.name}"`, { description: ex.description })
-  }, [language, setCodeWrapped])
+  }, [language])
 
   // resolvedTheme is undefined during SSR; default to dark to match the
   // ThemeProvider's `defaultTheme='dark'` setting. After mount the actual

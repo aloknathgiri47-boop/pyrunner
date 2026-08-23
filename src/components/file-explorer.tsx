@@ -37,6 +37,7 @@ import {
 import {
   useProjectStore,
   useActiveLanguage,
+  useActiveProject,
   type TreeNode,
   type FileNode,
   type FolderNode,
@@ -122,8 +123,8 @@ interface RowProps {
 }
 
 function TreeRow({ node, depth }: RowProps) {
-  const activeFileId = useProjectStore((s) => s.activeFileId)
-  const entryFileId = useProjectStore((s) => s.entryFileId)
+  const activeFileId = useProjectStore((s) => s.projects[s.selectedLanguage].activeFileId)
+  const entryFileId = useProjectStore((s) => s.projects[s.selectedLanguage].entryFileId)
   const setActiveFile = useProjectStore((s) => s.setActiveFile)
   const toggleFolder = useProjectStore((s) => s.toggleFolderExpanded)
   const renameNode = useProjectStore((s) => s.renameNode)
@@ -135,8 +136,10 @@ function TreeRow({ node, depth }: RowProps) {
   // when creating new files inside this folder). Defaults to the project's
   // defaultLanguage when there is no active file.
   const activeLanguage = useActiveLanguage()
-  const nodes = useProjectStore((s) => s.nodes)
-  const childrenByParent = useProjectStore((s) => s.childrenByParent)
+  // Active project (the selected language's isolated workspace).
+  const project = useActiveProject()
+  const nodes = project.nodes
+  const childrenByParent = project.childrenByParent
 
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(node.name)
@@ -420,15 +423,18 @@ export default function FileExplorer({
   onCommandPalette,
   className,
 }: FileExplorerProps) {
-  const childrenByParent = useProjectStore((s) => s.childrenByParent)
-  const nodes = useProjectStore((s) => s.nodes)
-  const projectName = useProjectStore((s) => s.name)
+  // Read from the active (selected) language's project.
+  const project = useActiveProject()
+  const childrenByParent = project.childrenByParent
+  const nodes = project.nodes
+  const projectName = project.name
   const setName = useProjectStore((s) => s.setName)
-  const isDirty = useProjectStore((s) =>
-    Object.values(s.nodes).some(
+  const isDirty = useProjectStore((s) => {
+    const p = s.projects[s.selectedLanguage]
+    return Object.values(p.nodes).some(
       (n) => n.type === 'file' && n.content !== n.savedContent,
-    ),
-  )
+    )
+  })
 
   const topLevel = useMemo(
     () => (childrenByParent['root'] ?? []).map((id) => nodes[id]).filter(Boolean),

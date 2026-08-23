@@ -63,7 +63,8 @@ function fuzzyMatch(query: string, target: string): number {
 }
 
 export default function QuickSwitcher({ open, onOpenChange }: QuickSwitcherProps) {
-  const nodes = useProjectStore((s) => s.nodes)
+  // Read from the active (selected) language's project.
+  const nodes = useProjectStore((s) => s.projects[s.selectedLanguage].nodes)
   const setActiveFile = useProjectStore((s) => s.setActiveFile)
   const [query, setQuery] = useState('')
   const [highlightIdx, setHighlightIdx] = useState(0)
