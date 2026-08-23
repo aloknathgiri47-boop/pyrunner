@@ -25,7 +25,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android' | 'xml' | 'go'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android' | 'xml' | 'go' | 'typescript'
 }
 
 // Dart keywords for syntax highlighting via clike mode
@@ -167,6 +167,7 @@ export default function PyEditor({
       language === 'html' ? htmlLang() :
       language === 'sql' ? sqlLang() :
       language === 'go' ? StreamLanguage.define(go) :
+      language === 'typescript' ? javascript({ typescript: true }) :
       language === 'kotlin' || language === 'kotlin-android' ? StreamLanguage.define(clike({ keywords: kotlinKeywords })) :
       language === 'xml' ? xmlLang() :
       python()

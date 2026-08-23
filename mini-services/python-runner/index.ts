@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'kotlin-android'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'kotlin-android'
   stdin?: string
   files?: Record<string, string>
   action?: 'validate' | 'build'
@@ -1848,7 +1848,42 @@ if __name__ == "__main__":
   }
 
   /**
-   * spawnKotlinAndroid — validates an Android project STRUCTURALLY.
+   * spawnTypeScript — runs TypeScript code via `bun` (native TS support, no compilation needed).
+   */
+  async function spawnTypeScript(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const workspaceRoot = join('/tmp/ts-runner', sessionId)
+    await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
+    const scriptPath = join(workspaceRoot, 'index.ts')
+
+    try {
+      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write TypeScript file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
+      return null
+    }
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `Running with bun (TypeScript)...\n`,
+      promptLike: false,
+    })
+
+    const child = spawn('bun', ['run', scriptPath], {
+      cwd: workspaceRoot,
+      env: { ...process.env } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
+  /**
    * Does NOT run kotlinc on .kt files (because android.* / androidx.* / R.*
    * can't resolve without the Android SDK, producing false errors).
    *
@@ -2081,6 +2116,8 @@ if __name__ == "__main__":
       child = await spawnKotlin(code, sessionId, socket)
     } else if (language === 'go') {
       child = await spawnGo(code, sessionId, socket)
+    } else if (language === 'typescript') {
+      child = await spawnTypeScript(code, sessionId, socket)
     } else if (language === 'kotlin-android') {
       child = await spawnKotlinAndroid(payload, sessionId, socket)
     } else {

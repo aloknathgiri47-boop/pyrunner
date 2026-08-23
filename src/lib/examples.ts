@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript'
   files?: Record<string, string>
 }
 
@@ -3323,6 +3323,136 @@ func main() {
         fmt.Println("Received:", val)
     }
 }
+`,
+  },
+  {
+    id: 'ts-hello',
+    name: 'TypeScript: Hello World',
+    description: 'Basic TypeScript with interfaces and types.',
+    language: 'typescript',
+    code: `// TypeScript 5.x — runs with bun
+interface Person {
+    name: string;
+    age: number;
+}
+
+function greet(person: Person): string {
+    return "Hello, " + person.name + "!";
+}
+
+const alice: Person = { name: "Alice", age: 30 };
+console.log(greet(alice));
+
+// Type-safe array operations
+const numbers: number[] = [1, 2, 3, 4, 5];
+const doubled = numbers.map(n => n * 2);
+console.log("Doubled:", doubled);
+`,
+  },
+  {
+    id: 'ts-generics',
+    name: 'TypeScript: Generics & Unions',
+    description: 'Generic functions, union types, enums.',
+    language: 'typescript',
+    code: `// TypeScript generics and union types
+
+enum Color {
+    Red = "RED",
+    Green = "GREEN",
+    Blue = "BLUE"
+}
+
+type Result<T> = {
+    success: boolean;
+    data?: T;
+    error?: string;
+};
+
+function wrap<T>(value: T): Result<T> {
+    return { success: true, data: value };
+}
+
+function divide(a: number, b: number): Result<number> {
+    if (b === 0) {
+        return { success: false, error: "Division by zero" };
+    }
+    return wrap(a / b);
+}
+
+// Usage
+const color: Color = Color.Green;
+console.log("Color:", color);
+
+const result1 = divide(10, 2);
+const result2 = divide(10, 0);
+
+if (result1.success && result1.data) {
+    console.log("10 / 2 =", result1.data);
+}
+if (!result2.success && result2.error) {
+    console.log("Error:", result2.error);
+}
+
+// Generic array function
+function first<T>(arr: T[]): T | undefined {
+    return arr[0];
+}
+
+console.log("First number:", first([1, 2, 3]));
+console.log("First string:", first(["a", "b", "c"]));
+`,
+  },
+  {
+    id: 'ts-classes',
+    name: 'TypeScript: Classes & OOP',
+    description: 'Abstract classes, interfaces, inheritance.',
+    language: 'typescript',
+    code: `// TypeScript OOP — classes, interfaces, abstract classes
+
+interface Animal {
+    name: string;
+    sound(): string;
+}
+
+abstract class BaseAnimal implements Animal {
+    constructor(public name: string) {}
+    abstract sound(): string;
+    describe(): string {
+        return this.name + " says " + this.sound();
+    }
+}
+
+class Dog extends BaseAnimal {
+    constructor(name: string) {
+        super(name);
+    }
+    sound(): string {
+        return "Woof!";
+    }
+}
+
+class Cat extends BaseAnimal {
+    constructor(name: string) {
+        super(name);
+    }
+    sound(): string {
+        return "Meow!";
+    }
+}
+
+const dog = new Dog("Rex");
+const cat = new Cat("Whiskers");
+
+console.log(dog.describe());
+console.log(cat.describe());
+
+// Type narrowing
+function makeSound(animal: Animal): void {
+    console.log(animal.name + ": " + animal.sound());
+}
+
+makeSound(dog);
+makeSound(cat);
 `,
   },
 ]

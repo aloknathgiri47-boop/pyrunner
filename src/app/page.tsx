@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript'
 
 interface PersistedState {
   code: string
@@ -328,6 +328,33 @@ func add(a, b int) int {
 }
 `
 
+const DEFAULT_TS_CODE = `// TypeScript 5.x — runs with bun
+// Press Run (or Ctrl+Enter) to execute.
+
+interface Person {
+    name: string;
+    age: number;
+}
+
+function greet(person: Person): string {
+    return "Hello, " + person.name + "!";
+}
+
+const alice: Person = { name: "Alice", age: 30 };
+console.log(greet(alice));
+
+// Type-safe array operations
+const numbers: number[] = [1, 2, 3, 4, 5];
+const doubled = numbers.map(n => n * 2);
+console.log("Doubled:", doubled);
+
+// Union types
+type Status = "idle" | "running" | "done";
+let status: Status = "idle";
+status = "running";
+console.log("Status:", status);
+`
+
 
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
@@ -342,7 +369,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -386,7 +413,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
@@ -627,6 +654,7 @@ export default function Home() {
           language === 'sql' ? 'Write some SQL first.' :
           language === 'kotlin' ? 'Write some Kotlin code first.' :
           language === 'go' ? 'Write some Go code first.' :
+          language === 'typescript' ? 'Write some TypeScript code first.' :
           'Write some Python first.',
       })
       return
@@ -723,6 +751,7 @@ export default function Home() {
       lang === 'flutter' ? DEFAULT_FLUTTER_CODE :
       lang === 'kotlin' ? DEFAULT_KOTLIN_CODE :
       lang === 'go' ? DEFAULT_GO_CODE :
+      lang === 'typescript' ? DEFAULT_TS_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -772,6 +801,7 @@ export default function Home() {
       language === 'sql' ? 'sql' :
       language === 'kotlin' ? 'kt' :
       language === 'go' ? 'go' :
+      language === 'typescript' ? 'ts' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -787,6 +817,7 @@ export default function Home() {
       language === 'sql' ? 'application/sql;charset=utf-8' :
       language === 'kotlin' ? 'text/x-kotlin;charset=utf-8' :
       language === 'go' ? 'text/x-go;charset=utf-8' :
+      language === 'typescript' ? 'text/typescript;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -891,7 +922,9 @@ export default function Home() {
                                             ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
                                             : language === 'go'
                                               ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20'
-                                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                              : language === 'typescript'
+                                                ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
                   {language === 'java'
@@ -920,7 +953,9 @@ export default function Home() {
                                           ? 'Kotlin 2.0'
                                           : language === 'go'
                                             ? 'Go 1.23'
-                                            : 'Python 3.12'}
+                                            : language === 'typescript'
+                                              ? 'TypeScript 5'
+                                              : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -950,7 +985,9 @@ export default function Home() {
                                         ? 'Interactive Kotlin/JVM console with live stdin'
                                         : language === 'go'
                                           ? 'Interactive Go console with live stdin'
-                                          : 'Interactive Python console with live input()'}
+                                          : language === 'typescript'
+                                            ? 'Interactive TypeScript console with live stdin'
+                                            : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -1111,6 +1148,17 @@ export default function Home() {
                 }`}
               >
                 Go
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('typescript')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'typescript'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                TS
               </button>
             </div>
           </div>
@@ -1365,6 +1413,23 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  TypeScript examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'typescript').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1523,7 +1588,9 @@ export default function Home() {
                                             ? 'Main.kt'
                                             : language === 'go'
                                               ? 'main.go'
-                                              : 'code.py'}
+                                              : language === 'typescript'
+                                                ? 'index.ts'
+                                                : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button
