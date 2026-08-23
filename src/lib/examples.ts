@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran'
   files?: Record<string, string>
 }
 
@@ -4448,6 +4448,162 @@ find /tmp -maxdepth 1 -name "*.txt" 2>/dev/null | head -3
 # Count lines in output
 echo ""
 echo "Running processes: $(ps aux | wc -l)"
+`,
+  },
+  {
+    id: 'fortran-hello',
+    name: 'Fortran: Hello World',
+    description: 'Basic Fortran 90 with functions and loops.',
+    language: 'fortran',
+    code: `program main
+    implicit none
+    print *, "Hello from Fortran!"
+    
+    character(len=*), parameter :: name = "World"
+    print *, "Hello, " // trim(name) // "!"
+    
+    integer :: result
+    result = add(3, 4)
+    print *, "3 + 4 = ", result
+    
+    integer :: i
+    do i = 1, 3
+        print *, "Count: ", i
+    end do
+
+contains
+    integer function add(a, b)
+        integer, intent(in) :: a, b
+        add = a + b
+    end function add
+end program main
+`,
+  },
+  {
+    id: 'fortran-arrays',
+    name: 'Fortran: Arrays & Modules',
+    description: 'Arrays, modules, derived types, I/O.',
+    language: 'fortran',
+    code: `module math_utils
+    implicit none
+contains
+    function array_sum(arr) result(total)
+        integer, intent(in) :: arr(:)
+        integer :: total
+        integer :: i
+        total = 0
+        do i = 1, size(arr)
+            total = total + arr(i)
+        end do
+    end function array_sum
+    
+    subroutine bubble_sort(arr)
+        integer, intent(inout) :: arr(:)
+        integer :: i, j, temp
+        do i = 1, size(arr) - 1
+            do j = 1, size(arr) - i
+                if (arr(j) > arr(j+1)) then
+                    temp = arr(j)
+                    arr(j) = arr(j+1)
+                    arr(j+1) = temp
+                end if
+            end do
+        end do
+    end subroutine bubble_sort
+end module math_utils
+
+program main
+    use math_utils
+    implicit none
+    
+    integer :: nums(5) = [5, 2, 8, 1, 9]
+    integer :: i
+    
+    print *, "Original array:"
+    do i = 1, size(nums)
+        print *, "  nums(", i, ") = ", nums(i)
+    end do
+    
+    print *, "Sum:", array_sum(nums)
+    
+    call bubble_sort(nums)
+    print *, "Sorted:"
+    do i = 1, size(nums)
+        print *, "  nums(", i, ") = ", nums(i)
+    end do
+    
+    ! Derived type
+    type :: person
+        character(len=20) :: name
+        integer :: age
+    end type person
+    
+    type(person) :: alice
+    alice%name = "Alice"
+    alice%age = 30
+    print *, "Person: ", trim(alice%name), ", age ", alice%age
+end program main
+`,
+  },
+  {
+    id: 'fortran-math',
+    name: 'Fortran: Math & Matrix',
+    description: 'Matrix operations, math functions.',
+    language: 'fortran',
+    code: `program main
+    implicit none
+    
+    ! Matrix multiplication
+    real :: A(2,3) = reshape([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [2,3])
+    real :: B(3,2) = reshape([1.0, 0.0, 0.0, 1.0, 1.0, 1.0], [3,2])
+    real :: C(2,2)
+    integer :: i, j, k
+    
+    ! Matrix multiply C = A * B
+    do i = 1, 2
+        do j = 1, 2
+            C(i,j) = 0.0
+            do k = 1, 3
+                C(i,j) = C(i,j) + A(i,k) * B(k,j)
+            end do
+        end do
+    end do
+    
+    print *, "Matrix C = A * B:"
+    do i = 1, 2
+        print *, C(i,1), C(i,2)
+    end do
+    
+    ! Math functions
+    print *, ""
+    print *, "Math functions:"
+    print *, "  sin(pi/2) = ", sin(3.14159265/2.0)
+    print *, "  cos(0)    = ", cos(0.0)
+    print *, "  sqrt(16)  = ", sqrt(16.0)
+    print *, "  exp(1)    = ", exp(1.0)
+    print *, "  log(2.718)=", log(2.71828)
+    
+    ! Sum of squares
+    real :: total
+    total = 0.0
+    do i = 1, 100
+        total = total + real(i)**2
+    end do
+    print *, "  Sum of 1^2..100^2 = ", total
+    
+    ! Factorial
+    print *, "  10! = ", factorial(10)
+    
+contains
+    integer function factorial(n)
+        integer, intent(in) :: n
+        if (n <= 1) then
+            factorial = 1
+        else
+            factorial = n * factorial(n - 1)
+        end if
+    end function factorial
+end program main
 `,
   },
 ]

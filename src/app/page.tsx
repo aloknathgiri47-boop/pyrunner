@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran'
 
 interface PersistedState {
   code: string
@@ -484,6 +484,33 @@ for i in 1 2 3; do
 done
 `
 
+const DEFAULT_FORTRAN_CODE = `! Fortran 14.2 — runs with gfortran
+! Press Run (or Ctrl+Enter) to execute.
+
+program main
+    implicit none
+    print *, "Hello from Fortran!"
+    
+    character(len=*), parameter :: name = "World"
+    print *, "Hello, " // trim(name) // "!"
+    
+    integer :: result
+    result = add(3, 4)
+    print *, "3 + 4 = ", result
+    
+    integer :: i
+    do i = 1, 3
+        print *, "Count: ", i
+    end do
+
+contains
+    integer function add(a, b)
+        integer, intent(in) :: a, b
+        add = a + b
+    end function add
+end program main
+`
+
 
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
@@ -498,7 +525,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash','fortran'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -542,7 +569,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash','fortran'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
@@ -791,6 +818,7 @@ export default function Home() {
           language === 'perl' ? 'Write some Perl code first.' :
           language === 'powershell' ? 'Write some PowerShell code first.' :
           language === 'bash' ? 'Write some Bash code first.' :
+          language === 'fortran' ? 'Write some Fortran code first.' :
           'Write some Python first.',
       })
       return
@@ -895,6 +923,7 @@ export default function Home() {
       lang === 'perl' ? DEFAULT_PERL_CODE :
       lang === 'powershell' ? DEFAULT_PS_CODE :
       lang === 'bash' ? DEFAULT_BASH_CODE :
+      lang === 'fortran' ? DEFAULT_FORTRAN_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -952,6 +981,7 @@ export default function Home() {
       language === 'perl' ? 'pl' :
       language === 'powershell' ? 'ps1' :
       language === 'bash' ? 'sh' :
+      language === 'fortran' ? 'f90' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -975,6 +1005,7 @@ export default function Home() {
       language === 'perl' ? 'text/perl;charset=utf-8' :
       language === 'powershell' ? 'text/powershell;charset=utf-8' :
       language === 'bash' ? 'text/x-sh;charset=utf-8' :
+      language === 'fortran' ? 'text/fortran;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -1095,7 +1126,9 @@ export default function Home() {
                                                             ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20'
                                                             : language === 'bash'
                                                               ? 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20'
-                                                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                                              : language === 'fortran'
+                                                                ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20'
+                                                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
                   {language === 'java'
@@ -1140,7 +1173,9 @@ export default function Home() {
                                                           ? 'PowerShell 7'
                                                           : language === 'bash'
                                                             ? 'Bash 5.2'
-                                                            : 'Python 3.12'}
+                                                            : language === 'fortran'
+                                                              ? 'Fortran 14'
+                                                              : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -1186,7 +1221,9 @@ export default function Home() {
                                                         ? 'Interactive PowerShell console with live stdin'
                                                         : language === 'bash'
                                                           ? 'Interactive Bash console with live stdin'
-                                                          : 'Interactive Python console with live input()'}
+                                                          : language === 'fortran'
+                                                            ? 'Interactive Fortran console with live stdin'
+                                                            : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -1435,6 +1472,17 @@ export default function Home() {
                 }`}
               >
                 Bash
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('fortran')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'fortran'
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Fortran
               </button>
             </div>
           </div>
@@ -1825,6 +1873,23 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Fortran examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'fortran').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1999,7 +2064,9 @@ export default function Home() {
                                                             ? 'main.ps1'
                                                             : language === 'bash'
                                                               ? 'script.sh'
-                                                              : 'code.py'}
+                                                              : language === 'fortran'
+                                                                ? 'main.f90'
+                                                                : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button

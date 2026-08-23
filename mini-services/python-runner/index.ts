@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'kotlin-android'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran' | 'kotlin-android'
   stdin?: string
   files?: Record<string, string>
   action?: 'validate' | 'build'
@@ -2210,6 +2210,56 @@ if __name__ == "__main__":
   }
 
   /**
+   * spawnFortran — compiles and runs Fortran code via gfortran.
+   */
+  async function spawnFortran(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const workspaceRoot = join('/tmp/fortran-runner', sessionId)
+    await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
+    const scriptPath = join(workspaceRoot, 'main.f90')
+    const binPath = join(workspaceRoot, 'main_bin')
+
+    try {
+      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write Fortran file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
+      return null
+    }
+
+    const gfortranBin = existsSync('/home/z/.local/gfortran/usr/bin/gfortran-14')
+      ? '/home/z/.local/gfortran/usr/bin/gfortran-14'
+      : 'gfortran'
+
+    const fortLibDir = '/home/z/.local/gfortran/usr/lib/x86_64-linux-gnu'
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `Compiling with gfortran 14.2...\n`,
+      promptLike: false,
+    })
+
+    const child = spawn('bash', ['-c',
+      `${gfortranBin} "${scriptPath}" -o "${binPath}" -L${fortLibDir} 2>&1 && echo "---RUNNING---" && LD_LIBRARY_PATH=${fortLibDir} "${binPath}" 2>&1`
+    ], {
+      cwd: workspaceRoot,
+      env: {
+        ...process.env,
+        PATH: '/home/z/.local/gfortran/usr/bin:' + (process.env.PATH || ''),
+        LIBRARY_PATH: fortLibDir,
+        LD_LIBRARY_PATH: fortLibDir,
+      } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
+  /**
    * spawnKotlinAndroid — validates an Android project STRUCTURALLY.
    * Does NOT run kotlinc on .kt files (because android.* / androidx.* / R.*
    * can't resolve without the Android SDK, producing false errors).
@@ -2459,6 +2509,8 @@ if __name__ == "__main__":
       child = await spawnPowerShell(code, sessionId, socket)
     } else if (language === 'bash') {
       child = await spawnBash(code, sessionId, socket)
+    } else if (language === 'fortran') {
+      child = await spawnFortran(code, sessionId, socket)
     } else if (language === 'kotlin-android') {
       child = await spawnKotlinAndroid(payload, sessionId, socket)
     } else {

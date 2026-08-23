@@ -22,6 +22,7 @@ import { lua as luaLang } from '@codemirror/legacy-modes/mode/lua'
 import { perl as perlLang } from '@codemirror/legacy-modes/mode/perl'
 import { powerShell as psLang } from '@codemirror/legacy-modes/mode/powershell'
 import { shell as shellLang } from '@codemirror/legacy-modes/mode/shell'
+import { fortran as fortranLang } from '@codemirror/legacy-modes/mode/fortran'
 import { go } from '@codemirror/legacy-modes/mode/go'
 import { clike } from '@codemirror/legacy-modes/mode/clike'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -32,7 +33,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android' | 'xml' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android' | 'xml' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran'
 }
 
 // Dart keywords for syntax highlighting via clike mode
@@ -182,6 +183,7 @@ export default function PyEditor({
       language === 'perl' ? StreamLanguage.define(perlLang) :
       language === 'powershell' ? StreamLanguage.define(psLang) :
       language === 'bash' ? StreamLanguage.define(shellLang) :
+      language === 'fortran' ? StreamLanguage.define(fortranLang) :
       language === 'kotlin' || language === 'kotlin-android' ? StreamLanguage.define(clike({ keywords: kotlinKeywords })) :
       language === 'xml' ? xmlLang() :
       python()
