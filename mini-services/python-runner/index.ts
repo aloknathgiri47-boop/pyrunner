@@ -1030,30 +1030,6 @@ readline <- function(prompt = "") {
    * Node.js supports both CommonJS (require) and ES modules (import).
    */
   async function spawnJavaScript(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
-    // Multi-file mode: write all files to a per-session workspace and run the entry file.
-    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
-
-    if (isMultiFile && entryPath) {
-      socket.emit('output', {
-        stream: 'system',
-        data: `Running JavaScript with Node.js...\n`,
-        promptLike: false,
-      })
-      const child = spawn('node', [entryPath], {
-        cwd: workspaceDir,
-        env: {
-          ...process.env,
-          NODE_NO_WARNINGS: '1',
-        } as NodeJS.ProcessEnv,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        windowsHide: true,
-      })
-      return child
-    }
-
-    // Single-file mode (legacy): wrap with the browser-API preamble.
-    const jsFilePath = join(sandboxDir, `snippet_${sessionId}.js`)
-
     // JavaScript preamble: polyfill browser APIs (prompt, alert, confirm)
     // that don't exist in Node.js. This lets users write browser-style code
     // that works with stdin (via Program Input or interactive console).
@@ -1065,7 +1041,9 @@ readline <- function(prompt = "") {
 const { execSync } = require('child_process');
 
 // prompt(message) — shows message, reads one line from stdin, returns it.
-// Uses execSync with shell 'read' to synchronously block until input arrives.
+// Uses execSync with shell 'read line' which reads EXACTLY one line from stdin
+// without consuming extra data (unlike 'head -n 1' which reads ahead and
+// loses remaining lines). 'read' properly blocks on piped stdin.
 globalThis.prompt = function(message = '') {
   if (message) process.stdout.write(message);
   try {
@@ -1073,7 +1051,7 @@ globalThis.prompt = function(message = '') {
       stdio: ['inherit', 'pipe', 'pipe'],
       timeout: 60000,
     });
-    return result.toString('utf8').replace(/\\n$/, '');
+    return result.toString('utf8').replace(/\\n$/, '').replace(/\\r$/, '');
   } catch (e) {
     return '';
   }
@@ -1092,6 +1070,40 @@ globalThis.confirm = function(message = '') {
 // --- End preamble ---
 
 `
+
+    // Multi-file mode: write all files to a per-session workspace and run the entry file.
+    // The preamble is written as a separate _preamble.js file and required first
+    // via the --require flag, so prompt()/alert()/confirm() are available in all files.
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    if (isMultiFile && entryPath) {
+      // Write the preamble to a sidecar file and load it via --require
+      // so it's available in the entry file AND any required modules.
+      const preamblePath = join(workspaceDir, '_pyrunner_preamble.js')
+      try {
+        await writeFile(preamblePath, jsPreamble, { encoding: 'utf8', mode: 0o600 })
+      } catch { /* ignore */ }
+
+      socket.emit('output', {
+        stream: 'system',
+        data: `Running JavaScript with Node.js...\n`,
+        promptLike: false,
+      })
+      // -r flag = require the preamble before running the entry file
+      const child = spawn('node', ['-r', preamblePath, entryPath], {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          NODE_NO_WARNINGS: '1',
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy): wrap with the browser-API preamble.
+    const jsFilePath = join(sandboxDir, `snippet_${sessionId}.js`)
 
     // Wrap user code with the preamble
     const wrappedCode = jsPreamble + code
