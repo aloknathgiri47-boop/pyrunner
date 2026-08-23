@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import {
   useProjectStore,
+  useActiveLanguage,
   type TreeNode,
   type FileNode,
   type FolderNode,
@@ -130,6 +131,10 @@ function TreeRow({ node, depth }: RowProps) {
   const setEntryFile = useProjectStore((s) => s.setEntryFile)
   const createFile = useProjectStore((s) => s.createFile)
   const createFolder = useProjectStore((s) => s.createFolder)
+  // The currently-selected language (drives the default filename + extension
+  // when creating new files inside this folder). Defaults to the project's
+  // defaultLanguage when there is no active file.
+  const activeLanguage = useActiveLanguage()
   const nodes = useProjectStore((s) => s.nodes)
   const childrenByParent = useProjectStore((s) => s.childrenByParent)
 
@@ -288,7 +293,7 @@ function TreeRow({ node, depth }: RowProps) {
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation()
-                    createFile({ parentId: node.id })
+                    createFile({ parentId: node.id, language: activeLanguage })
                   }}
                 >
                   <FilePlus2 className="h-3.5 w-3.5 mr-2" /> New File
@@ -356,6 +361,10 @@ interface ToolbarProps {
 function ExplorerToolbar({ onCommandPalette: _ }: ToolbarProps) {
   const createFile = useProjectStore((s) => s.createFile)
   const createFolder = useProjectStore((s) => s.createFolder)
+  // The currently-selected language drives the default filename + extension
+  // for every newly created file. This matches the active file's language
+  // (which is set by clicking one of the language tabs in the header).
+  const activeLanguage = useActiveLanguage()
   return (
     <div className="flex items-center justify-between px-2 py-1 border-b border-border">
       <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
@@ -369,13 +378,13 @@ function ExplorerToolbar({ onCommandPalette: _ }: ToolbarProps) {
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0"
-              onClick={() => createFile({})}
+              onClick={() => createFile({ language: activeLanguage })}
               aria-label="New file"
             >
               <FilePlus2 className="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>New file</TooltipContent>
+          <TooltipContent>New file ({activeLanguage})</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -482,7 +491,7 @@ export default function FileExplorer({
             <br />
             <button
               type="button"
-              onClick={() => useProjectStore.getState().createFile({})}
+              onClick={() => useProjectStore.getState().createFile({ language: useProjectStore.getState().defaultLanguage })}
               className="text-emerald-500 hover:underline mt-1"
             >
               Create your first file →

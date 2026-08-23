@@ -46,3 +46,46 @@ Artifacts:
 - /home/z/my-project/mini-services/python-runner/index.ts (modified — additive: spawnPython now accepts an optional `payload` with `files` + `entryFile`)
 - /home/z/my-project/eslint.config.mjs (modified — added `scripts/**` and `mini-services/**` to ignores)
 - /home/z/my-project/download/phase1-*.png (screenshots from agent-browser verification)
+
+---
+Task ID: language-aware-file-explorer
+Agent: main (super-z)
+Task: Make the File Explorer completely language-aware. Whenever the user selects a language, the "New file" button must automatically create the correct file extension for that language. Existing files must NOT be renamed automatically. Run must use the selected language correctly. Do not change the existing UI or Run functionality.
+
+Work Log:
+- Inspected the existing `defaultFilenameForLanguage` map in `src/lib/project-store.ts` and found it diverged from the user's spec in 4 places:
+  - `r: 'main.R'` → user wants `main.r` (lowercase)
+  - `csharp: 'main.cs'` → user wants `Program.cs`
+  - `kotlin: 'main.kt'` → user wants `Main.kt`
+  - `cobol: 'main.cbl'` → user wants `main.cob`
+  - `bash: 'script.sh'` → user wants `main.sh`
+- Updated `defaultFilenameForLanguage` to match the user's spec exactly (all 24 languages).
+- Verified `detectLanguageFromName` already recognizes both `.cbl` and `.cob` for COBOL (so renaming a file to `.cob` still auto-detects COBOL).
+- Imported the existing `useActiveLanguage` selector into `src/components/file-explorer.tsx`.
+- Updated the `ExplorerToolbar` "New file" button to pass `language: activeLanguage` to `createFile`. Added a tooltip showing the active language ("New file (python)").
+- Updated the per-row dropdown menu "New File" item (inside folders) to also pass `language: activeLanguage` to `createFile`.
+- Updated the empty-state "Create your first file →" link to use the project's `defaultLanguage`.
+- Verified that existing files are NEVER renamed automatically — `defaultFilenameForLanguage` is only consulted when a new file is created without an explicit name. The `renameNode` action requires explicit user action (F2 or right-click → Rename).
+- Verified that Run uses the active file's language correctly — `language` in page.tsx is derived from `activeFile.language` via the effect, and `handleRun` sends `language` to the runner.
+
+Stage Summary:
+- Verified end-to-end via agent-browser (on the gateway at port 81):
+  - Python active → New file creates `main.py` (or `main_1.py` if `main.py` already exists).
+  - Java active → New file creates `Main.java`.
+  - C# active → New file creates `Program.cs`.
+  - Kotlin active → New file creates `Main.kt`.
+  - Bash active → New file creates `main.sh` (NOT `script.sh`).
+  - COBOL active → New file creates `main.cob` (NOT `main.cbl`).
+  - Creating a file inside a folder inherits the active language too (verified by creating `main.py` inside "New Folder").
+  - The "New file" button tooltip shows the active language: "New file (python)", "New file (java)", etc.
+  - The language badge in the header correctly shows the active file's language ("Java 21" when Main.java is active, "Python 3.12" when main.py is active).
+  - Existing Python run still works — clicking Run on main.py produces "Hello, world!" output.
+  - Existing files were NOT renamed (main.py kept its name throughout all language switches).
+- Lint passes cleanly (0 errors, 0 warnings).
+- Dev server returns HTTP 200.
+
+Artifacts:
+- /home/z/my-project/src/lib/project-store.ts (modified — updated `defaultFilenameForLanguage` map for 5 languages: r, csharp, kotlin, cobol, bash)
+- /home/z/my-project/src/components/file-explorer.tsx (modified — added `useActiveLanguage` import; pass `language: activeLanguage` to `createFile` in 3 places: toolbar button, folder dropdown menu item, empty-state link; tooltip now shows the active language)
+- /home/z/my-project/download/phase1-language-aware-files.png (screenshot showing main.py, Main.java, Program.cs, Main.kt, main.sh, main.cob all in the explorer)
+- /home/z/my-project/download/phase1-language-aware-explorer.png (screenshot showing the file explorer with all language-aware files)

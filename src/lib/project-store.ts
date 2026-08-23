@@ -217,22 +217,30 @@ export function detectLanguageFromName(name: string, fallback: Language = 'pytho
   return map[ext] ?? fallback
 }
 
-/** Filename suffix for a given language (used when creating new files). */
+/** Filename suffix for a given language (used when creating new files).
+ *
+ *  This map drives the "New file" button — when the active file is, say,
+ *  a Java file, clicking "New file" creates `Main_1.java` (auto-incremented
+ *  to avoid clashing with any existing `Main.java`).
+ *
+ *  Existing files are NEVER renamed automatically — this map is only
+ *  consulted when a new file is created without an explicit name.
+ */
 export function defaultFilenameForLanguage(lang: Language): string {
   const map: Record<Language, string> = {
     python: 'main.py',
     java: 'Main.java',
     c: 'main.c',
     cpp: 'main.cpp',
-    r: 'main.R',
+    r: 'main.r',
     javascript: 'main.js',
     php: 'main.php',
-    csharp: 'main.cs',
+    csharp: 'Program.cs',
     dart: 'main.dart',
     flutter: 'main.dart',
     html: 'index.html',
     sql: 'main.sql',
-    kotlin: 'main.kt',
+    kotlin: 'Main.kt',
     go: 'main.go',
     typescript: 'main.ts',
     rust: 'main.rs',
@@ -241,9 +249,9 @@ export function defaultFilenameForLanguage(lang: Language): string {
     lua: 'main.lua',
     perl: 'main.pl',
     powershell: 'main.ps1',
-    bash: 'script.sh',
+    bash: 'main.sh',
     fortran: 'main.f90',
-    cobol: 'main.cbl',
+    cobol: 'main.cob',
   }
   return map[lang] ?? 'main.py'
 }
