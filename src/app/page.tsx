@@ -654,7 +654,7 @@ export default function Home() {
       } else if (res.timedOut) {
         toast.error('Timed out')
       } else if (res.code !== null && res.code !== 0) {
-        toast.error(`Exited with code $\{res.code}`)
+        toast.error(`Exited with code ${res.code}`)
       } else if (res.error) {
         toast.error('Failed to run', { description: res.error })
       }
