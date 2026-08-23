@@ -3,7 +3,7 @@ FROM node:20-slim
 # Install bun
 RUN npm install -g bun
 
-# Install Python and basic tools
+# Install system dependencies for all languages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip \
     gcc g++ \
@@ -11,6 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     lua5.4 \
     perl \
     bash \
+    default-jdk \
+    golang-go \
+    rustc \
+    swift \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python libraries
