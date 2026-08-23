@@ -1452,7 +1452,11 @@ export default function Home() {
             <Panel
               defaultSize={language === 'flutter' || language === 'html' || language === 'kotlin-android' ? 0 : 55}
               minSize={language === 'kotlin-android' ? 0 : 20}
+              id="editor-panel"
             >
+              {language === 'kotlin-android' ? (
+                <div className="h-full" />
+              ) : (
               <div className="h-full flex flex-col">
                 <div className="flex-none flex h-9 items-center gap-2 border-b border-border bg-muted/30 px-3">
                   <FileCode2 className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1546,11 +1550,14 @@ export default function Home() {
                   </div>
                 )}
               </div>
+              )}
             </Panel>
 
+            {language !== 'kotlin-android' && (
             <PanelResizeHandle className="w-1.5 bg-border hover:bg-emerald-500/50 transition-colors flex items-center justify-center group">
               <div className="h-10 w-0.5 rounded-full bg-border group-hover:bg-emerald-500" />
             </PanelResizeHandle>
+            )}
 
             {/* ---- Right panel: Console (non-preview langs) OR Full-screen Preview (Flutter/HTML) OR Android IDE ---- */}
             <Panel
