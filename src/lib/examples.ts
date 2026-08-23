@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift'
   files?: Record<string, string>
 }
 
@@ -3731,6 +3731,166 @@ nested = [1, [2, 3], [4, [5, 6]], nil, 1, 2]
 puts "Flattened: #{nested.flatten.inspect}"
 puts "Compact: #{nested.compact.inspect}"
 puts "Uniq: #{nested.flatten.uniq.inspect}"
+`,
+  },
+  {
+    id: 'swift-hello',
+    name: 'Swift: Hello World',
+    description: 'Basic Swift with functions and loops.',
+    language: 'swift',
+    code: `// Swift 5.10 — runs with swift
+
+func add(_ a: Int, _ b: Int) -> Int {
+    return a + b
+}
+
+print("Hello from Swift!")
+let name = "World"
+print("Hello, \\(name)!")
+let result = add(3, 4)
+print("3 + 4 = \\(result)")
+for i in 1...3 {
+    print("Count: \\(i)")
+}
+`,
+  },
+  {
+    id: 'swift-classes',
+    name: 'Swift: Classes & Structs',
+    description: 'Classes, structs, protocols, extensions.',
+    language: 'swift',
+    code: `// Swift classes, structs, and protocols
+
+protocol Greetable {
+    func greet() -> String
+}
+
+struct Person: Greetable {
+    let name: String
+    let age: Int
+
+    func greet() -> String {
+        return "Hello, I'm \\(name) and I'm \\(age) years old"
+    }
+}
+
+class Student: Greetable {
+    let name: String
+    let age: Int
+    let major: String
+
+    init(name: String, age: Int, major: String) {
+        self.name = name
+        self.age = age
+        self.major = major
+    }
+
+    func greet() -> String {
+        return "Hi, I'm \\(name). I study \\(major)."
+    }
+}
+
+let alice = Person(name: "Alice", age: 30)
+print(alice.greet())
+
+let bob = Student(name: "Bob", age: 20, major: "Computer Science")
+print(bob.greet())
+
+// Array operations
+let numbers = [1, 2, 3, 4, 5]
+let doubled = numbers.map { $0 * 2 }
+let sum = numbers.reduce(0, +)
+let evens = numbers.filter { $0 % 2 == 0 }
+print("Doubled: \\(doubled)")
+print("Sum: \\(sum)")
+print("Evens: \\(evens)")
+
+// Optional handling
+let maybeName: String? = "Alice"
+if let name = maybeName {
+    print("Name is: \\(name)")
+}
+
+// Dictionary
+let prices = ["apple": 1.5, "banana": 0.5, "cherry": 3.0]
+for (fruit, price) in prices {
+    print("\\(fruit): $\\(price)")
+}
+`,
+  },
+  {
+    id: 'swift-advanced',
+    name: 'Swift: Generics & Enums',
+    description: 'Generics, enums with associated values, pattern matching.',
+    language: 'swift',
+    code: `// Swift generics and advanced enums
+
+enum Result<T> {
+    case success(T)
+    case failure(String)
+}
+
+enum Status {
+    case idle
+    case running(String)
+    case done(Int)
+}
+
+func describe(_ status: Status) -> String {
+    switch status {
+    case .idle:
+        return "Idle"
+    case .running(let task):
+        return "Running: \\(task)"
+    case .done(let code):
+        return "Done with code \\(code)"
+    }
+}
+
+// Generic function
+func first<T>(_ array: [T]) -> T? {
+    return array.first
+}
+
+// Usage
+let s1 = Status.idle
+let s2 = Status.running("compile")
+let s3 = Status.done(0)
+
+print(describe(s1))
+print(describe(s2))
+print(describe(s3))
+
+// Generics
+let firstNum = first([1, 2, 3])
+let firstStr = first(["a", "b", "c"])
+print("First number: \\(firstNum ?? -1)")
+print("First string: \\(firstStr ?? "none")")
+
+// Result enum
+func divide(_ a: Int, _ b: Int) -> Result<Int> {
+    if b == 0 {
+        return .failure("Division by zero")
+    }
+    return .success(a / b)
+}
+
+let result1 = divide(10, 2)
+let result2 = divide(10, 0)
+
+switch result1 {
+case .success(let val):
+    print("10 / 2 = \\(val)")
+case .failure(let err):
+    print("Error: \\(err)")
+}
+
+switch result2 {
+case .success(let val):
+    print("10 / 0 = \\(val)")
+case .failure(let err):
+    print("Error: \\(err)")
+}
 `,
   },
 ]

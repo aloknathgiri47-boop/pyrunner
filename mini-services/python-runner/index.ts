@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'kotlin-android'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'kotlin-android'
   stdin?: string
   files?: Record<string, string>
   action?: 'validate' | 'build'
@@ -1973,6 +1973,50 @@ if __name__ == "__main__":
   }
 
   /**
+   * spawnSwift — runs Swift code via swift interpreter.
+   */
+  async function spawnSwift(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const workspaceRoot = join('/tmp/swift-runner', sessionId)
+    await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
+    const scriptPath = join(workspaceRoot, 'main.swift')
+
+    try {
+      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write Swift file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
+      return null
+    }
+
+    const swiftBin = existsSync('/home/z/.local/swift/usr/bin/swift')
+      ? '/home/z/.local/swift/usr/bin/swift'
+      : 'swift'
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `Running with Swift 5.10...\n`,
+      promptLike: false,
+    })
+
+    const child = spawn(swiftBin, [scriptPath], {
+      cwd: workspaceRoot,
+      env: {
+        ...process.env,
+        PATH: '/home/z/.local/swift/usr/bin:' + (process.env.PATH || ''),
+        LD_LIBRARY_PATH: '/home/z/.local/swift/usr/lib/swift/linux:/usr/lib/x86_64-linux-gnu',
+      } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
+  /**
    * spawnKotlinAndroid — validates an Android project STRUCTURALLY.
    * Does NOT run kotlinc on .kt files (because android.* / androidx.* / R.*
    * can't resolve without the Android SDK, producing false errors).
@@ -2212,6 +2256,8 @@ if __name__ == "__main__":
       child = await spawnRust(code, sessionId, socket)
     } else if (language === 'ruby') {
       child = await spawnRuby(code, sessionId, socket)
+    } else if (language === 'swift') {
+      child = await spawnSwift(code, sessionId, socket)
     } else if (language === 'kotlin-android') {
       child = await spawnKotlinAndroid(payload, sessionId, socket)
     } else {
