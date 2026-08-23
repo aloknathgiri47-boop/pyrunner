@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua'
   files?: Record<string, string>
 }
 
@@ -3891,6 +3891,152 @@ case .success(let val):
 case .failure(let err):
     print("Error: \\(err)")
 }
+`,
+  },
+  {
+    id: 'lua-hello',
+    name: 'Lua: Hello World',
+    description: 'Basic Lua with functions and loops.',
+    language: 'lua',
+    code: `-- Lua 5.4 — runs with lua
+local function add(a, b)
+    return a + b
+end
+
+print("Hello from Lua!")
+local name = "World"
+print("Hello, " .. name .. "!")
+local result = add(3, 4)
+print("3 + 4 = " .. result)
+for i = 1, 3 do
+    print("Count: " .. i)
+end
+`,
+  },
+  {
+    id: 'lua-tables',
+    name: 'Lua: Tables & OOP',
+    description: 'Tables, metatables, OOP, closures.',
+    language: 'lua',
+    code: `-- Lua tables, metatables, and OOP
+
+-- Tables as arrays
+local fruits = {"apple", "banana", "cherry"}
+for i, fruit in ipairs(fruits) do
+    print(i .. ". " .. fruit)
+end
+
+-- Tables as dictionaries
+local prices = {apple = 1.5, banana = 0.5, cherry = 3.0}
+local total = 0
+for fruit, price in pairs(prices) do
+    print(fruit .. ": $" .. price)
+    total = total + price
+end
+print("Total: $" .. total)
+
+-- OOP with metatables
+local Animal = {}
+Animal.__index = Animal
+
+function Animal.new(name, sound)
+    local self = setmetatable({}, Animal)
+    self.name = name
+    self.sound = sound
+    return self
+end
+
+function Animal:speak()
+    return self.name .. " says " .. self.sound
+end
+
+-- Inheritance
+local Dog = setmetatable({}, {__index = Animal})
+Dog.__index = Dog
+
+function Dog.new(name)
+    local self = Animal.new(name, "Woof")
+    return setmetatable(self, Dog)
+end
+
+function Dog:fetch()
+    return self.name .. " fetches the ball!"
+end
+
+local rex = Dog.new("Rex")
+print(rex:speak())
+print(rex:fetch())
+
+-- Closures
+local function counter()
+    local count = 0
+    return function()
+        count = count + 1
+        return count
+    end
+end
+
+local c = counter()
+print("Counter: " .. c())
+print("Counter: " .. c())
+print("Counter: " .. c())
+`,
+  },
+  {
+    id: 'lua-coroutines',
+    name: 'Lua: Coroutines & String',
+    description: 'Coroutines, string manipulation, math.',
+    language: 'lua',
+    code: `-- Lua coroutines and string operations
+
+-- Coroutines (generators)
+local function range(start, stop)
+    return coroutine.create(function()
+        for i = start, stop do
+            coroutine.yield(i)
+        end
+    end)
+end
+
+local co = range(1, 5)
+while true do
+    local ok, val = coroutine.resume(co)
+    if not ok or val == nil then break end
+    print("Yielded: " .. val)
+end
+
+-- String manipulation
+local s = "Hello, World!"
+print("Upper: " .. string.upper(s))
+print("Lower: " .. string.lower(s))
+print("Reverse: " .. string.reverse(s))
+print("Length: " .. #s)
+print("Sub: " .. string.sub(s, 1, 5))
+print("Find: " .. tostring(string.find(s, "World")))
+
+-- String format
+local name = "Alice"
+local age = 30
+print(string.format("Name: %s, Age: %d", name, age))
+
+-- Math
+print("Pi: " .. math.pi)
+print("Random: " .. math.random(1, 100))
+print("Floor: " .. math.floor(3.7))
+print("Ceil: " .. math.ceil(3.2))
+
+-- Table sort
+local nums = {5, 2, 8, 1, 9, 3}
+table.sort(nums)
+print("Sorted: " .. table.concat(nums, ", "))
+
+-- pcall (error handling)
+local ok, err = pcall(function()
+    error("Something went wrong!")
+end)
+if not ok then
+    print("Caught error: " .. err)
+end
 `,
   },
 ]
