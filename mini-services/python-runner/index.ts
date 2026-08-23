@@ -1978,10 +1978,24 @@ if __name__ == "__main__":
   async function spawnSwift(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
     const workspaceRoot = join('/tmp/swift-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
+
+    // If code uses @main attribute, transform it to top-level code:
+    // Remove @main line, add ClassName.main() at the end
+    let finalCode = code
+    const hasMainAttribute = /^\s*@main\s*$/m.test(code)
+    if (hasMainAttribute) {
+      finalCode = code.replace(/^\s*@main\s*$/m, '')
+      // Find struct/class name
+      const match = code.match(/(?:struct|class|enum)\s+(\w+)/)
+      if (match) {
+        finalCode += '\n' + match[1] + '.main()\n'
+      }
+    }
+
     const scriptPath = join(workspaceRoot, 'main.swift')
 
     try {
-      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 })
+      await writeFile(scriptPath, finalCode, { encoding: 'utf8', mode: 0o600 })
     } catch (e) {
       socket.emit('output', {
         stream: 'stderr',
