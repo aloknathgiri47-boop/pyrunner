@@ -8,13 +8,16 @@ import JSZip from 'jszip'
 import {
   Play, Square, Trash2, Download, Loader2, CircleAlert, CircleCheck,
   FileCode2, FilePlus, FolderPlus, ChevronRight, ChevronDown, Pencil,
-  Package, Eye, X,
+  Package, Eye, X, QrCode, ExternalLink, Smartphone,
 } from 'lucide-react'
 
 import PyEditor from '@/components/py-editor'
 import AndroidLayoutPreview from '@/components/android-layout-preview'
 import { Button } from '@/components/ui/button'
 import { KOTLIN_ANDROID_TEMPLATE } from '@/lib/examples'
+import { parseLayoutXml, parseResources } from '@/lib/android-xml-parser'
+import { transpileKotlin } from '@/lib/kotlin-transpiler'
+import { generatePreviewHtml } from '@/lib/preview-generator'
 
 type EditorLanguage = 'kotlin' | 'xml'
 type Status = 'idle' | 'validating' | 'building' | 'success' | 'error'
@@ -80,6 +83,11 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
   const [newItemIsFolder, setNewItemIsFolder] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [previewRenderKey, setPreviewRenderKey] = useState(0)
+  // QR + interactive preview state
+  const [showQrModal, setShowQrModal] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string>('')
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('')
+  const [previewHtml, setPreviewHtml] = useState<string>('')
   const socketRef = useRef<Socket | null>(null)
   const chunkIdRef = useRef(0)
   const consoleEndRef = useRef<HTMLDivElement | null>(null)
@@ -133,6 +141,112 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
 
   const handleStop = useCallback(() => { const sock = socketRef.current; if (sock) sock.emit('stop'); setIsRunning(false); isRunningRef.current = false; setStatus('idle'); toast.info('Execution stopped') }, [])
   const handleClearConsole = useCallback(() => { setChunks([]); setResult(null); setStatus('idle') }, [])
+
+  /* ---- RUN: XML→AST + Kotlin→JS → upload → QR ---- */
+  const handleRunWithPreview = useCallback(async () => {
+    if (isRunningRef.current) return
+    isRunningRef.current = true
+    setIsRunning(true)
+    setStatus('validating')
+    setResult(null)
+    setChunks([])
+    chunkIdRef.current = 0
+
+    const append = (stream: 'stdout' | 'stderr' | 'system', data: string) => {
+      const id = ++chunkIdRef.current
+      setChunks(prev => [...prev, { id, stream, text: data }])
+    }
+
+    try {
+      // Step 1: Find layout XML + Kotlin files
+      const layoutPath = Object.keys(projectFiles).find(p => p.includes('/layout/') && p.endsWith('.xml'))
+      const kotlinPath = Object.keys(projectFiles).find(p => p.endsWith('MainActivity.kt') || p.endsWith('.kt'))
+
+      if (!layoutPath) {
+        append('stderr', 'Error: No layout XML file found in app/src/main/res/layout/\n')
+        setStatus('error')
+        isRunningRef.current = false; setIsRunning(false)
+        return
+      }
+
+      const layoutXml = projectFiles[layoutPath]
+      const kotlinCode = kotlinPath ? projectFiles[kotlinPath] : ''
+
+      // Step 2: Parse resources (strings.xml, colors.xml)
+      append('system', '=== Step 1/4: Parsing resources ===\n')
+      const resources = parseResources(projectFiles)
+      append('stdout', `✓ Loaded ${Object.keys(resources.strings).length} strings, ${Object.keys(resources.colors).length} colors\n`)
+
+      // Step 3: Parse XML → AST
+      append('system', '=== Step 2/4: Parsing XML layout ===\n')
+      const { ast, error: xmlError } = parseLayoutXml(layoutXml, resources)
+      if (xmlError || !ast) {
+        append('stderr', `XML Error: ${xmlError}\n`)
+        setStatus('error')
+        isRunningRef.current = false; setIsRunning(false)
+        toast.error('XML parse failed')
+        return
+      }
+      append('stdout', `✓ Layout parsed: ${ast.type}\n`)
+
+      // Step 4: Transpile Kotlin → JS
+      append('system', '=== Step 3/4: Transpiling Kotlin → JavaScript ===\n')
+      const transpiled = transpileKotlin(kotlinCode)
+      if (transpiled.errors.length > 0) {
+        append('stderr', `Kotlin transpile errors:\n`)
+        transpiled.errors.forEach(e => append('stderr', `  ❌ ${e}\n`))
+        append('stderr', `\nSupported APIs:\n  Button.setOnClickListener\n  TextView.text = "...\")\n  EditText.text.toString()\n  Toast.makeText(this, "...", ...).show()\n  View.VISIBLE / View.GONE\n  button.isEnabled = false\n`)
+        setStatus('error')
+        isRunningRef.current = false; setIsRunning(false)
+        toast.error('Kotlin transpile failed')
+        return
+      }
+      if (transpiled.js) {
+        append('stdout', `✓ Kotlin transpiled (${transpiled.js.length} chars)\n`)
+        if (transpiled.warnings.length > 0) {
+          transpiled.warnings.forEach(w => append('stderr', `⚠  ${w}\n`))
+        }
+      }
+
+      // Step 5: Generate HTML
+      append('system', '=== Step 4/4: Generating interactive preview ===\n')
+      const html = generatePreviewHtml(ast, transpiled, resources)
+      setPreviewHtml(html)
+      append('stdout', `✓ Generated HTML (${html.length} bytes)\n`)
+
+      // Step 6: Upload to preview server → get URL + QR
+      append('system', '=== Uploading to preview server ===\n')
+      const res = await fetch('/api/android-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html }),
+      })
+      const data = await res.json()
+      if (!data.success) {
+        append('stderr', `Upload failed: ${data.error}\n`)
+        setStatus('error')
+        isRunningRef.current = false; setIsRunning(false)
+        toast.error('Preview upload failed')
+        return
+      }
+
+      append('stdout', `✓ Preview URL: ${data.previewUrl}\n`)
+      append('system', `\n✓ Done! Scan the QR code to open on your phone.\n`)
+      setPreviewUrl(data.previewUrl)
+      setQrCodeDataUrl(data.qrCode)
+      setStatus('success')
+      setShowPreview(true)
+      setShowQrModal(true)
+      toast.success('Interactive preview ready!', { description: 'QR code generated — scan with your phone!' })
+    } catch (e) {
+      append('stderr', `\nError: ${(e as Error).message}\n`)
+      setStatus('error')
+      toast.error('Preview generation failed', { description: (e as Error).message })
+    } finally {
+      isRunningRef.current = false
+      setIsRunning(false)
+    }
+  }, [projectFiles])
 
   const handleDownloadZip = useCallback(async () => {
     try {
@@ -199,8 +313,8 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
     <div className="flex flex-col h-full bg-background">
       {/* Toolbar */}
       <div className="flex-none flex h-12 items-center gap-1.5 border-b border-border bg-muted/30 px-3 overflow-x-auto">
-        <Button onClick={() => runAction('validate')} disabled={isRunning} size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white flex-none">
-          {isRunning && status === 'validating' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+        <Button onClick={handleRunWithPreview} disabled={isRunning} size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white flex-none">
+          {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
           <span className="hidden sm:inline">Run</span>
         </Button>
         {isRunning && <Button onClick={handleStop} variant="destructive" size="sm" className="gap-1.5 flex-none"><Square className="h-3.5 w-3.5" /><span className="hidden sm:inline">Stop</span></Button>}
@@ -211,6 +325,11 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
           </Button>
         )}
         <div className="flex-1" />
+        {previewUrl && (
+          <Button onClick={() => setShowQrModal(true)} variant="ghost" size="sm" className="gap-1.5 flex-none" title="Show QR code and preview URL">
+            <QrCode className="h-4 w-4" /><span className="hidden sm:inline">QR Code</span>
+          </Button>
+        )}
         <Button onClick={handleDownloadZip} variant="ghost" size="sm" className="gap-1.5 flex-none">
           <Download className="h-4 w-4" /><span className="hidden sm:inline">Download ZIP</span>
         </Button>
@@ -311,6 +430,71 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
           )}
         </PanelGroup>
       </div>
+
+      {/* QR Code + Preview URL Modal */}
+      {showQrModal && previewUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowQrModal(false)}>
+          <div className="bg-background border border-border rounded-lg shadow-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+              <div className="flex items-center gap-2">
+                <QrCode className="h-4 w-4 text-emerald-500" />
+                <h2 className="text-sm font-semibold">Scan to Open on Phone</h2>
+              </div>
+              <button onClick={() => setShowQrModal(false)} className="p-1 rounded hover:bg-muted text-muted-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-6 flex flex-col items-center gap-4">
+              {qrCodeDataUrl && (
+                <img src={qrCodeDataUrl} alt="QR Code" className="w-64 h-64 rounded-lg border border-border" />
+              )}
+              <div className="text-center w-full">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Preview URL</div>
+                <div className="text-xs font-mono text-emerald-500 break-all bg-muted/50 rounded p-2">{previewUrl}</div>
+              </div>
+              <div className="flex gap-2 w-full">
+                <Button onClick={() => window.open(previewUrl, '_blank')} variant="secondary" size="sm" className="gap-1.5 flex-1">
+                  <ExternalLink className="h-3.5 w-3.5" /> Open Preview
+                </Button>
+                <Button onClick={() => { navigator.clipboard.writeText(previewUrl); toast.success('URL copied!') }} variant="ghost" size="sm" className="gap-1.5 flex-1">
+                  Copy URL
+                </Button>
+              </div>
+              <div className="text-[10px] text-muted-foreground text-center">
+                Expires in 60 minutes. Scan with your phone camera to open.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Preview Panel (in the preview area) */}
+      {showPreview && previewHtml && (
+        <div className="absolute inset-0 z-40 bg-black/90 flex items-center justify-center p-4" onClick={() => setShowPreview(false)}>
+          <div className="bg-white rounded-xl overflow-hidden shadow-2xl" style={{ width: 400, height: 800, maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between bg-zinc-900 px-3 py-1.5">
+              <div className="flex items-center gap-2">
+                <Smartphone className="h-3.5 w-3.5 text-emerald-400" />
+                <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">Interactive Preview</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {previewUrl && (
+                  <button onClick={() => setShowQrModal(true)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400" title="Show QR">
+                    <QrCode className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button onClick={() => setShowPreview(false)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400" title="Close">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+            <iframe
+              srcDoc={previewHtml}
+              title="Android Preview"
+              className="w-full h-full border-0"
+              sandbox="allow-scripts allow-same-origin allow-forms"
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
