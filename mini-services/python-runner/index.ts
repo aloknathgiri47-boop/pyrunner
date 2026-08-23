@@ -184,7 +184,10 @@ function setupSession(socketId: string, session: Session, socket: any) {
         .filter((line) => !line.includes('Picked up JAVA_TOOL_OPTIONS') && !line.includes('Picked up _JAVA_OPTIONS'))
         .join('\n')
       const looksLikePrompt =
-        !stripped.endsWith('\n') && !stripped.endsWith('\r\n')
+        !stripped.endsWith('\n') && !stripped.endsWith('\r\n') ||
+        // Also detect prompts that end with ": " or "? " followed by a newline
+        // (common in Lua/Perl print-based prompts like print("Enter name: "))
+        /\b(enter|input|name|age|value|choice)\b.*[:?]\s*\n$/i.test(stripped)
       if (stripped) {
         socket.emit('output', {
           stream: 'stdout',
@@ -2033,14 +2036,20 @@ if __name__ == "__main__":
 
   /**
    * spawnLua — runs Lua code via lua interpreter.
+   * Prepends io.stdout:setvbuf("no") to disable output buffering so
+   * print() output is immediately visible for interactive input prompts.
    */
   async function spawnLua(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
     const workspaceRoot = join('/tmp/lua-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'main.lua')
 
+    // Prepend autoflush preamble if user hasn't already set it
+    const preamble = code.includes('setvbuf') ? '' : 'io.stdout:setvbuf("no")\n'
+    const finalCode = preamble + code
+
     try {
-      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 })
+      await writeFile(scriptPath, finalCode, { encoding: 'utf8', mode: 0o600 })
     } catch (e) {
       socket.emit('output', {
         stream: 'stderr',
