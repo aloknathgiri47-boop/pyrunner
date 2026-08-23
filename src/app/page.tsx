@@ -29,7 +29,6 @@ import {
 } from 'lucide-react'
 
 import PyEditor from '@/components/py-editor'
-import KotlinAndroidIDE from '@/components/kotlin-android-ide'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -76,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin'
 
 interface PersistedState {
   code: string
@@ -317,7 +316,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','kotlin-android'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -361,7 +360,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','kotlin-android'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
@@ -586,7 +585,7 @@ export default function Home() {
   const handleRun = useCallback(() => {
     if (isRunningRef.current) return
     // Kotlin Android uses its own multi-file project state — skip the empty-code guard.
-    if (language !== 'kotlin-android' && !code.trim()) {
+    if (!code.trim()) {
       toast.info('Nothing to run', {
         description:
           language === 'java' ? 'Write some Java first.' :
@@ -601,7 +600,6 @@ export default function Home() {
           language === 'html' ? 'Write some HTML/CSS first.' :
           language === 'sql' ? 'Write some SQL first.' :
           language === 'kotlin' ? 'Write some Kotlin code first.' :
-          language === 'kotlin-android' ? 'Add some project files first.' :
           'Write some Python first.',
       })
       return
@@ -686,22 +684,19 @@ export default function Home() {
   const handleLanguageChange = useCallback((lang: Language) => {
     if (lang === language) return
     setLanguage(lang)
-    // Kotlin Android uses its own multi-file project state — don't touch `code`.
-    if (lang !== 'kotlin-android') {
-      setCode(
-        lang === 'java' ? DEFAULT_JAVA_CODE :
-        lang === 'c' ? DEFAULT_C_CODE :
-        lang === 'cpp' ? DEFAULT_CPP_CODE :
-        lang === 'r' ? DEFAULT_R_CODE :
-        lang === 'javascript' ? DEFAULT_JS_CODE :
-        lang === 'php' ? DEFAULT_PHP_CODE :
-        lang === 'csharp' ? DEFAULT_CSHARP_CODE :
-        lang === 'dart' ? DEFAULT_DART_CODE :
-        lang === 'flutter' ? DEFAULT_FLUTTER_CODE :
-        lang === 'kotlin' ? DEFAULT_KOTLIN_CODE :
-        DEFAULT_CODE
-      )
-    }
+    setCode(
+      lang === 'java' ? DEFAULT_JAVA_CODE :
+      lang === 'c' ? DEFAULT_C_CODE :
+      lang === 'cpp' ? DEFAULT_CPP_CODE :
+      lang === 'r' ? DEFAULT_R_CODE :
+      lang === 'javascript' ? DEFAULT_JS_CODE :
+      lang === 'php' ? DEFAULT_PHP_CODE :
+      lang === 'csharp' ? DEFAULT_CSHARP_CODE :
+      lang === 'dart' ? DEFAULT_DART_CODE :
+      lang === 'flutter' ? DEFAULT_FLUTTER_CODE :
+      lang === 'kotlin' ? DEFAULT_KOTLIN_CODE :
+      DEFAULT_CODE
+    )
     setChunks([])
     setResult(null)
     setActiveExampleId(null)
@@ -748,7 +743,6 @@ export default function Home() {
       language === 'html' ? 'html' :
       language === 'sql' ? 'sql' :
       language === 'kotlin' ? 'kt' :
-      language === 'kotlin-android' ? 'kt' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -763,7 +757,6 @@ export default function Home() {
       language === 'html' ? 'text/html;charset=utf-8' :
       language === 'sql' ? 'application/sql;charset=utf-8' :
       language === 'kotlin' ? 'text/x-kotlin;charset=utf-8' :
-      language === 'kotlin-android' ? 'text/x-kotlin;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -814,7 +807,7 @@ export default function Home() {
   // ---- Keyboard shortcut: Ctrl/Cmd+Enter runs ----
   // Skip for kotlin-android — it has its own keyboard handler inside the IDE.
   useEffect(() => {
-    if (language === 'kotlin-android') return
+    
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault()
@@ -866,7 +859,6 @@ export default function Home() {
                                           ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
                                           : language === 'kotlin'
                                             ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
-                                            : language === 'kotlin-android'
                                               ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
                                               : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
@@ -895,9 +887,7 @@ export default function Home() {
                                         ? 'SQLite 3.53'
                                         : language === 'kotlin'
                                           ? 'Kotlin 2.0'
-                                          : language === 'kotlin-android'
-                                            ? 'Kotlin Android'
-                                            : 'Python 3.12'}
+                                          : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -925,9 +915,7 @@ export default function Home() {
                                       ? 'Interactive SQLite SQL console'
                                       : language === 'kotlin'
                                         ? 'Interactive Kotlin/JVM console with live stdin'
-                                        : language === 'kotlin-android'
-                                          ? 'Multi-file Android project + live layout preview'
-                                          : 'Interactive Python console with live input()'}
+                                        : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -1077,17 +1065,6 @@ export default function Home() {
                 }`}
               >
                 Kotlin
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLanguageChange('kotlin-android')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
-                  language === 'kotlin-android'
-                    ? 'bg-rose-600 text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Android
               </button>
             </div>
           </div>
@@ -1356,8 +1333,7 @@ export default function Home() {
           </div>
         </header>
 
-        {/* ============ Toolbar (hidden for kotlin-android — it has its own toolbar) ============ */}
-        {language !== 'kotlin-android' && (
+        {/* ============ Toolbar ============ */}
         <div className="flex h-12 flex-none items-center gap-1.5 border-b border-border bg-muted/30 px-3 sm:px-4">
           <Button
             onClick={handleRun}
@@ -1445,22 +1421,15 @@ export default function Home() {
             <TooltipContent>Clear editor & console</TooltipContent>
           </Tooltip>
         </div>
-        )}
 
         {/* ============ Main split: editor | console ============ */}
-        {/* key forces PanelGroup to remount when language changes —
-            react-resizable-panels doesn't react to defaultSize changes after mount */}
         <main className="flex-1 min-h-0 overflow-hidden">
-          <PanelGroup key={language === 'kotlin-android' ? 'android' : 'default'} direction="horizontal" className="h-full">
-            {/* ---- Editor (hidden for kotlin-android — it has its own IDE) ---- */}
+          <PanelGroup direction="horizontal" className="h-full">
+            {/* ---- Editor ---- */}
             <Panel
-              defaultSize={language === 'flutter' || language === 'html' || language === 'kotlin-android' ? 0 : 55}
-              minSize={language === 'kotlin-android' ? 0 : 20}
-              id="editor-panel"
+              defaultSize={language === 'flutter' || language === 'html' ? 0 : 55}
+              minSize={20}
             >
-              {language === 'kotlin-android' ? (
-                <div className="h-full" />
-              ) : (
               <div className="h-full flex flex-col">
                 <div className="flex-none flex h-9 items-center gap-2 border-b border-border bg-muted/30 px-3">
                   <FileCode2 className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1487,17 +1456,15 @@ export default function Home() {
                                         ? 'index.html'
                                         : language === 'sql'
                                           ? 'query.sql'
-                                        : language === 'kotlin'
-                                          ? 'Main.kt'
-                                          : language === 'kotlin-android'
-                                            ? 'MainActivity.kt'
+                                          : language === 'kotlin'
+                                            ? 'Main.kt'
                                             : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button
                     type="button"
                     onClick={() => setShowStdin(!showStdin)}
-                    className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded transition-colors $\{
+                    className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded transition-colors ${
                       showStdin
                         ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -1554,30 +1521,19 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              )}
             </Panel>
 
-            {language !== 'kotlin-android' && (
             <PanelResizeHandle className="w-1.5 bg-border hover:bg-emerald-500/50 transition-colors flex items-center justify-center group">
               <div className="h-10 w-0.5 rounded-full bg-border group-hover:bg-emerald-500" />
             </PanelResizeHandle>
-            )}
 
-            {/* ---- Right panel: Console (non-preview langs) OR Full-screen Preview (Flutter/HTML) OR Android IDE ---- */}
+            {/* ---- Right panel: Console OR Full-screen Preview (Flutter/HTML) ---- */}
             <Panel
-              defaultSize={language === 'flutter' || language === 'html' || language === 'kotlin-android' ? 100 : 45}
+              defaultSize={language === 'flutter' || language === 'html' ? 100 : 45}
               minSize={25}
             >
-              {language === 'kotlin-android' ? (
-                /* Kotlin Android multi-file IDE */
-                <KotlinAndroidIDE editorTheme={editorTheme} />
-              ) : (language === 'flutter' || language === 'html') ? (
-                /* ============================================================
-                 * Full-screen Preview (Flutter OR HTML/CSS)
-                 * - Takes 100% of the available panel area
-                 * - NO console header / input bar / footer strip
-                 * - Loading / error / empty states are full-screen overlays
-                 * ============================================================ */
+              {(language === 'flutter' || language === 'html') ? (
+                /* Full-screen Preview (Flutter OR HTML/CSS) */
                 <div className="relative h-full w-full overflow-hidden bg-white dark:bg-black">
                   {flutterPort ? (
                     <iframe
@@ -1628,9 +1584,7 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                /* ============================================================
-                 * Normal Interactive Console (non-Flutter languages)
-                 * ============================================================ */
+                /* Normal Interactive Console (non-Flutter languages) */
                 <div className="h-full flex flex-col bg-card/30">
                   {/* Console header */}
                   <div className="flex-none flex h-9 items-center justify-between border-b border-border px-3 bg-muted/30">
