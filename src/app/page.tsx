@@ -1356,7 +1356,8 @@ export default function Home() {
           </div>
         </header>
 
-        {/* ============ Toolbar ============ */}
+        {/* ============ Toolbar (hidden for kotlin-android — it has its own toolbar) ============ */}
+        {language !== 'kotlin-android' && (
         <div className="flex h-12 flex-none items-center gap-1.5 border-b border-border bg-muted/30 px-3 sm:px-4">
           <Button
             onClick={handleRun}
@@ -1444,6 +1445,7 @@ export default function Home() {
             <TooltipContent>Clear editor & console</TooltipContent>
           </Tooltip>
         </div>
+        )}
 
         {/* ============ Main split: editor | console ============ */}
         {/* key forces PanelGroup to remount when language changes —
