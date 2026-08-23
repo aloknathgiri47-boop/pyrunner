@@ -162,55 +162,115 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
     } catch (e) { toast.error('Failed to create ZIP', { description: (e as Error).message }) }
   }, [projectFiles])
 
-  /* ---- Appetize.io: upload APK URL → get embeddable player ---- */
-  const handleAppetizeUpload = useCallback(async (apkUrl: string) => {
-    if (!appetizeToken) { toast.error('Appetize token not set'); return }
-    if (!apkUrl) { toast.error('APK URL is required'); return }
+  /* ---- Appetize.io: upload ZIP file → tmpfiles.org → Appetize API ---- */
+  const handleAppetizeUploadZip = useCallback(async (zipFile: File) => {
+    if (!appetizeToken) {
+      toast.error('Appetize token not set', { description: 'Enter your token first' })
+      return
+    }
     setAppetizeLoading(true)
+    const append = (stream: 'stdout' | 'stderr' | 'system', data: string) => {
+      const id = ++chunkIdRef.current
+      setChunks(prev => [...prev, { id, stream, text: data }])
+    }
+
     try {
-      const res = await fetch(`https://${appetizeToken}@api.appetize.io/v1/apps`, {
+      append('system', `\n=== Step 1/3: Uploading ZIP to tmpfiles.org ===\n`)
+      const formData = new FormData()
+      formData.append('file', zipFile)
+
+      const uploadRes = await fetch('https://tmpfiles.org/api/v1/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      const uploadData = await uploadRes.json()
+      if (uploadData.status !== 'success' || !uploadData.data?.url) {
+        throw new Error('Upload to tmpfiles.org failed: ' + JSON.stringify(uploadData))
+      }
+
+      // Convert view URL to download URL
+      // https://tmpfiles.org/xxx/file → https://tmpfiles.org/dl/xxx/file
+      const viewUrl = uploadData.data.url as string
+      const apkUrl = viewUrl.replace('tmpfiles.org/', 'tmpfiles.org/dl/')
+      append('stdout', `✓ Uploaded to: ${apkUrl}\n`)
+
+      append('system', `\n=== Step 2/3: Uploading to Appetize.io ===\n`)
+      append('stdout', `Sending APK URL to Appetize...\n`)
+      const apiRes = await fetch(`https://${appetizeToken}@api.appetize.io/v1/apps`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: apkUrl, platform: 'android' }),
       })
-      const data = await res.json()
-      if (data.publicKey) {
-        setAppetizePublicKey(data.publicKey)
-        try { window.localStorage.setItem('pyrunner:appetize-publickey', data.publicKey) } catch {}
+      const apiData = await apiRes.json()
+      if (apiData.publicKey) {
+        setAppetizePublicKey(apiData.publicKey)
+        try { window.localStorage.setItem('pyrunner:appetize-publickey', apiData.publicKey) } catch {}
+        append('stdout', `✓ App created on Appetize!\n`)
+        append('stdout', `Public Key: ${apiData.publicKey}\n`)
+        append('system', `\n=== Step 3/3: Launching app ===\n`)
         setPreviewMode('appetize')
         setShowPreview(true)
+        setPreviewRenderKey(k => k + 1)
         toast.success('App launched on Appetize!', { description: 'Interactive preview ready' })
       } else {
-        toast.error('Appetize upload failed', { description: JSON.stringify(data).slice(0, 200) })
+        throw new Error('Appetize API error: ' + JSON.stringify(apiData).slice(0, 300))
       }
     } catch (e) {
-      toast.error('Cannot connect to Appetize', { description: (e as Error).message })
+      append('stderr', `\nError: ${(e as Error).message}\n`)
+      toast.error('Upload failed', { description: (e as Error).message })
     } finally {
       setAppetizeLoading(false)
     }
   }, [appetizeToken])
 
-  /* ---- Update existing Appetize app with new APK ---- */
-  const handleAppetizeUpdate = useCallback(async (apkUrl: string) => {
-    if (!appetizeToken || !appetizePublicKey) { toast.error('Not connected to Appetize'); return }
+  /* ---- Update existing Appetize app with new ZIP ---- */
+  const handleAppetizeUpdateZip = useCallback(async (zipFile: File) => {
+    if (!appetizeToken || !appetizePublicKey) {
+      toast.error('Not connected to Appetize')
+      return
+    }
     setAppetizeLoading(true)
+    const append = (stream: 'stdout' | 'stderr' | 'system', data: string) => {
+      const id = ++chunkIdRef.current
+      setChunks(prev => [...prev, { id, stream, text: data }])
+    }
+
     try {
-      const res = await fetch(`https://${appetizeToken}@api.appetize.io/v1/apps/${appetizePublicKey}`, {
+      append('system', `\n=== Step 1/2: Uploading new ZIP ===\n`)
+      const formData = new FormData()
+      formData.append('file', zipFile)
+
+      const uploadRes = await fetch('https://tmpfiles.org/api/v1/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      const uploadData = await uploadRes.json()
+      if (uploadData.status !== 'success' || !uploadData.data?.url) {
+        throw new Error('Upload to tmpfiles.org failed')
+      }
+      const viewUrl = uploadData.data.url as string
+      const apkUrl = viewUrl.replace('tmpfiles.org/', 'tmpfiles.org/dl/')
+      append('stdout', `✓ Uploaded to: ${apkUrl}\n`)
+
+      append('system', `\n=== Step 2/2: Updating Appetize app ===\n`)
+      const apiRes = await fetch(`https://${appetizeToken}@api.appetize.io/v1/apps/${appetizePublicKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: apkUrl, platform: 'android' }),
       })
-      const data = await res.json()
-      if (data.publicKey || data.appId) {
+      const apiData = await apiRes.json()
+      if (apiData.publicKey || apiData.appId) {
+        append('stdout', `✓ App updated!\n`)
         setPreviewMode('appetize')
         setShowPreview(true)
         setPreviewRenderKey(k => k + 1)
         toast.success('App updated on Appetize!')
       } else {
-        toast.error('Appetize update failed', { description: JSON.stringify(data).slice(0, 200) })
+        throw new Error('Appetize update failed: ' + JSON.stringify(apiData).slice(0, 300))
       }
     } catch (e) {
-      toast.error('Cannot connect to Appetize', { description: (e as Error).message })
+      append('stderr', `\nError: ${(e as Error).message}\n`)
+      toast.error('Update failed', { description: (e as Error).message })
     } finally {
       setAppetizeLoading(false)
     }
@@ -431,8 +491,8 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
             setAppetizeToken(t)
             try { window.localStorage.setItem('pyrunner:appetize-token', t) } catch {}
           }}
-          onUpload={(apkUrl) => { handleAppetizeUpload(apkUrl); setShowAppetizeModal(false) }}
-          onUpdate={(apkUrl) => { handleAppetizeUpdate(apkUrl); setShowAppetizeModal(false) }}
+          onUploadZip={(file) => { handleAppetizeUploadZip(file); setShowAppetizeModal(false) }}
+          onUpdateZip={(file) => { handleAppetizeUpdateZip(file); setShowAppetizeModal(false) }}
           onClose={() => setShowAppetizeModal(false)}
           loading={appetizeLoading}
         />
@@ -508,16 +568,29 @@ interface AppetizeModalProps {
   token: string
   publicKey: string
   onSaveToken: (t: string) => void
-  onUpload: (apkUrl: string) => void
-  onUpdate: (apkUrl: string) => void
+  onUploadZip: (file: File) => void
+  onUpdateZip: (file: File) => void
   onClose: () => void
   loading: boolean
 }
 
-function AppetizeModal({ token, publicKey, onSaveToken, onUpload, onUpdate, onClose, loading }: AppetizeModalProps) {
+function AppetizeModal({ token, publicKey, onSaveToken, onUploadZip, onUpdateZip, onClose, loading }: AppetizeModalProps) {
   const [tokenDraft, setTokenDraft] = useState(token)
-  const [apkUrl, setApkUrl] = useState('')
   const [tokenSaved, setTokenSaved] = useState(!!token)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFile = (file: File) => {
+    if (!file.name.endsWith('.zip') && !file.name.endsWith('.apk')) {
+      toast.error('Please upload a .zip or .apk file')
+      return
+    }
+    if (publicKey) {
+      onUpdateZip(file)
+    } else {
+      onUploadZip(file)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
@@ -559,50 +632,49 @@ function AppetizeModal({ token, publicKey, onSaveToken, onUpload, onUpdate, onCl
             </>
           ) : (
             <>
-              <div className="rounded-md bg-blue-500/10 border border-blue-500/30 p-3 text-xs">
+              <div className="rounded-md bg-blue-500/10 border border-blue-500/30 p-3 text-xs whitespace-pre-wrap">
                 <div className="font-medium text-blue-600 dark:text-blue-400 mb-1">How it works</div>
-                <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
-                  <li>Build your APK locally (Download ZIP → Android Studio → ./gradlew assembleDebug)</li>
-                  <li>Upload the APK to a public URL (e.g. <a href="https://file.io" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">file.io</a>, Google Drive public link, or your own server)</li>
-                  <li>Paste the APK URL below and click Upload</li>
-                  <li>Appetize will run your app on a real cloud Android device — interactive in your browser!</li>
-                </ol>
+                1. Download your project as ZIP (button in toolbar)
+2. Or build APK in Android Studio
+3. Drop the .zip or .apk file below
+4. We upload it and launch on Appetize — interactive in your browser!
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">APK Public URL</label>
+              {/* File drop zone */}
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault(); setDragOver(false)
+                  const file = e.dataTransfer.files[0]
+                  if (file) handleFile(file)
+                }}
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                  dragOver ? 'border-blue-500 bg-blue-500/10' : 'border-border hover:border-blue-500/50 hover:bg-muted/30'
+                }`}
+              >
+                <Cloud className={`h-10 w-10 mx-auto mb-2 ${dragOver ? 'text-blue-500' : 'text-muted-foreground'}`} />
+                <div className="text-sm font-medium mb-1">
+                  {loading ? 'Uploading...' : 'Drop your .zip or .apk here'}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  or click to browse
+                </div>
                 <input
-                  type="text"
-                  value={apkUrl}
-                  onChange={(e) => setApkUrl(e.target.value)}
-                  placeholder="https://example.com/app-debug.apk"
-                  className="w-full bg-background border border-border rounded px-3 py-2 text-sm outline-none focus:border-blue-500 font-mono"
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".zip,.apk"
+                  className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }}
                 />
-                <p className="text-[10px] text-muted-foreground mt-1.5">
-                  The URL must be publicly accessible (not localhost). Appetize will download the APK from this URL.
-                </p>
               </div>
 
-              {publicKey ? (
-                <Button
-                  onClick={() => onUpdate(apkUrl.trim())}
-                  disabled={!apkUrl.trim() || loading}
-                  size="sm"
-                  className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Cloud className="h-3.5 w-3.5" />}
-                  Update App
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => onUpload(apkUrl.trim())}
-                  disabled={!apkUrl.trim() || loading}
-                  size="sm"
-                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Cloud className="h-3.5 w-3.5" />}
-                  Upload & Run
-                </Button>
+              {loading && (
+                <div className="flex items-center gap-2 text-xs text-blue-500">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Uploading to tmpfiles.org → Appetize.io...</span>
+                </div>
               )}
 
               <div className="text-[10px] text-muted-foreground/60 border-t border-border pt-2">
