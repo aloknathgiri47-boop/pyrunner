@@ -26,12 +26,23 @@ import {
   Share2,
   Eraser,
   CornerDownLeft,
+  PanelLeft,
+  Save,
+  Folder as FolderIcon,
+  FolderOpen as FolderOpenIcon,
 } from 'lucide-react'
 
 import PyEditor from '@/components/py-editor'
+import FileExplorer from '@/components/file-explorer'
+import QuickSwitcher from '@/components/quick-switcher'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -47,6 +58,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  useProjectStore,
+  useActiveFile,
+  getFilesForRunner,
+  getEntryFilePath,
+} from '@/lib/project-store'
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -648,13 +665,54 @@ function getInitialState(): { code: string; language: Language } {
 export default function Home() {
   const { setTheme, resolvedTheme } = useTheme()
 
+  // ---- Multi-file project store (replaces single-file useState) ----
+  // The active file's content is the source of truth for the editor.
+  // `code` and `language` are derived from it so all existing handlers
+  // (handleRun, handleShare, handleDownload, etc.) keep working unchanged.
+  const activeFile = useActiveFile()
+  const projectHydrated = useProjectStore((s) => s.hydrated)
+  const setActiveFileContent = useProjectStore((s) => s.setActiveFileContent)
+  const markActiveFileSaved = useProjectStore((s) => s.markActiveFileSaved)
+  const entryFilePath = useProjectStore((s) => {
+    if (!s.entryFileId) return null
+    const n = s.nodes[s.entryFileId]
+    return n && n.type === 'file' ? n.name : null
+  })
+  const isProjectDirty = useProjectStore((s) =>
+    Object.values(s.nodes).some(
+      (n) => n.type === 'file' && n.content !== n.savedContent,
+    ),
+  )
+
   // Use defaults on both server AND the first client render so the markup
-  // matches exactly. After mount, we hydrate from localStorage / URL hash.
+  // matches exactly. After mount, we hydrate from IndexedDB / URL hash.
   // This is the canonical Next.js pattern for avoiding hydration mismatches
   // when initial state depends on browser-only APIs.
   const [code, setCode] = useState<string>(DEFAULT_CODE)
   const [language, setLanguage] = useState<Language>('python')
   const [activeExampleId, setActiveExampleId] = useState<string | null>(null)
+
+  // Sync derived `code` + `language` from the active file whenever it changes.
+  // We do this in an effect (not directly during render) to avoid React
+  // "cannot update a component while rendering a different component" warnings.
+  useEffect(() => {
+    if (!projectHydrated) return
+    if (activeFile) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCode(activeFile.content)
+      setLanguage(activeFile.language)
+    } else {
+      setCode('')
+      setLanguage('python')
+    }
+  }, [activeFile?.id, activeFile?.content, activeFile?.language, projectHydrated])
+
+  // Wrap setCode so it writes to the active file's content in the store,
+  // while still updating local `code` state for immediate re-render.
+  const setCodeWrapped = useCallback((newCode: string) => {
+    setCode(newCode)
+    setActiveFileContent(newCode)
+  }, [setActiveFileContent])
 
   const [chunks, setChunks] = useState<OutputChunk[]>([])
   const [isRunning, setIsRunning] = useState(false)
@@ -671,16 +729,50 @@ export default function Home() {
   // (like theme-dependent icons or persisted state).
   const [hydrated, setHydrated] = useState(false)
 
-  // After mount: load persisted state from localStorage / URL hash.
-  // This runs only on the client, so there is no SSR/client mismatch.
+  // After mount: hydrate React state from URL hash (share-link mode).
+  // Multi-file project state is hydrated by the project store (IndexedDB)
+  // via Zustand's persist middleware — we don't touch that here.
+  //
+  // URL hash takes priority: if `#c=...&l=...` is present, we load that
+  // snippet into the active file so share links continue to work.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHydrated(true)
-    const initial = getInitialState()
-    if (initial.code !== DEFAULT_CODE || initial.language !== 'python') {
-      setCode(initial.code)
-      setLanguage(initial.language)
+    // If a share-link hash is present, override the active file's content
+    // with the shared snippet (legacy single-snippet share flow).
+    const fromHash = decodeFromHash(window.location.hash)
+    if (fromHash && projectHydrated) {
+      const state = useProjectStore.getState()
+      // If the active file is the default `main.py` (untouched), overwrite it.
+      // Otherwise create a new file for the shared snippet.
+      const active = state.activeFileId ? state.nodes[state.activeFileId] : null
+      const isDefault = active && active.type === 'file'
+        && active.name === 'main.py'
+        && state.childrenByParent.root?.length === 1
+      if (isDefault) {
+        // Overwrite the default file's content + language.
+        useProjectStore.setState((s) => {
+          if (!s.activeFileId) return s
+          const n = s.nodes[s.activeFileId]
+          if (!n || n.type !== 'file') return s
+          return {
+            nodes: {
+              ...s.nodes,
+              [n.id]: { ...n, content: fromHash.code, language: fromHash.language, savedContent: fromHash.code },
+            },
+          }
+        })
+      } else {
+        state.createFile({
+          name: 'shared.py',
+          content: fromHash.code,
+          language: fromHash.language,
+          makeActive: true,
+          makeEntry: true,
+        })
+      }
     }
-  }, [])
+  }, [projectHydrated])
 
   const socketRef = useRef<Socket | null>(null)
   const chunkIdRef = useRef(0)
@@ -709,11 +801,24 @@ export default function Home() {
       isRestoringFromHistoryRef.current = true
       const fromHash = decodeFromHash(window.location.hash)
       if (fromHash) {
-        setCode(fromHash.code)
+        // Update both local React state AND the project store so the
+        // active file reflects the shared snippet.
+        setCodeWrapped(fromHash.code)
         setLanguage(fromHash.language)
+        useProjectStore.setState((s) => {
+          if (!s.activeFileId) return s
+          const n = s.nodes[s.activeFileId]
+          if (!n || n.type !== 'file') return s
+          return {
+            nodes: {
+              ...s.nodes,
+              [n.id]: { ...n, content: fromHash.code, language: fromHash.language },
+            },
+          }
+        })
       } else {
         // No hash → restore to default editor state.
-        setCode(DEFAULT_CODE)
+        setCodeWrapped(DEFAULT_CODE)
         setLanguage('python')
       }
       // Clear console output so the previous run's output doesn't linger.
@@ -726,22 +831,12 @@ export default function Home() {
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [])
+  }, [setCodeWrapped])
 
-  // ---- Persist code + language (debounced) ----
-  useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        window.localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({ code, language } satisfies PersistedState),
-        )
-      } catch {
-        /* ignore */
-      }
-    }, 400)
-    return () => clearTimeout(t)
-  }, [code, language])
+  // Legacy localStorage persistence is now replaced by the Zustand project
+  // store + IndexedDB (see src/lib/project-store.ts). The store handles
+  // debouncing internally and supports multi-file projects, which the old
+  // `{ code, language }` JSON couldn't represent.
 
   // ---- WebSocket connection (lazy: only connect when running) ----
   const ensureSocket = useCallback((): Socket => {
@@ -929,7 +1024,24 @@ export default function Home() {
     chunkIdRef.current = 0
 
     const sock = ensureSocket()
-    const emitRun = () => sock.emit('run', { code, language, timeout: (language === 'flutter' || language === 'html') ? 120000 : 30000, stdin: stdinText })
+    // Multi-file Python execution: send the full project file tree + entry
+    // file path so the runner can write them all to a workspace dir and
+    // let `import utils` / `from src.helper import calc` work natively.
+    //
+    // Single-file mode (no entry path or non-Python language): fall back
+    // to the legacy `{ code, language }` payload so other languages and
+    // older clients keep working.
+    const files = language === 'python' ? getFilesForRunner() : undefined
+    const entryFile = language === 'python' ? getEntryFilePath() : undefined
+    const emitRun = () => sock.emit('run', {
+      code,
+      language,
+      timeout: (language === 'flutter' || language === 'html') ? 120000 : 30000,
+      stdin: stdinText,
+      // Only send files+entryFile for Python multi-file projects (>=1 file).
+      // The runner ignores these for single-file runs.
+      ...(files && Object.keys(files).length >= 1 && entryFile ? { files, entryFile } : {}),
+    })
     if (sock.connected) {
       emitRun()
     } else {
@@ -989,14 +1101,16 @@ export default function Home() {
   }, [])
 
   const handleClearAll = useCallback(() => {
-    setCode('')
+    setCodeWrapped('')
     setChunks([])
     setResult(null)
     setActiveExampleId(null)
     toast.info('Editor cleared')
-  }, [])
+  }, [setCodeWrapped])
 
   // Switch language — load the default starter code for that language.
+  // In multi-file mode, this updates the active file's content + language
+  // (so the file's syntax highlighting and runner pick up the change).
   // Each language switch pushes a new history entry so the user can press
   // the browser Back button to undo it.
   const handleLanguageChange = useCallback((lang: Language) => {
@@ -1025,12 +1139,28 @@ export default function Home() {
       lang === 'cobol' ? DEFAULT_COBOL_CODE :
       DEFAULT_CODE
     setLanguage(lang)
-    setCode(newCode)
+    setCodeWrapped(newCode)
+    // Also update the active file's language tag in the store so the file
+    // explorer + runner use the correct language going forward.
+    useProjectStore.getState().setActiveFileContent(newCode)
+    // Patch the active file's language in-place (the store doesn't have a
+    // dedicated setter for this — we do it via setState).
+    useProjectStore.setState((s) => {
+      if (!s.activeFileId) return s
+      const n = s.nodes[s.activeFileId]
+      if (!n || n.type !== 'file') return s
+      return {
+        nodes: {
+          ...s.nodes,
+          [n.id]: { ...n, language: lang, content: newCode },
+        },
+      }
+    })
     setChunks([])
     setResult(null)
     setActiveExampleId(null)
     pushHistoryState(newCode, lang)
-  }, [language])
+  }, [language, setCodeWrapped])
 
   const handleCopy = useCallback(async () => {
     try {
@@ -1050,6 +1180,9 @@ export default function Home() {
       pushHistoryState(code, language)
       await navigator.clipboard.writeText(window.location.href)
       setShared(true)
+      // Mark the active file as saved (no longer dirty) since we just
+      // shared it.
+      markActiveFileSaved()
       toast.success('Share link copied to clipboard', {
         description: 'Anyone with the link can run this snippet.',
       })
@@ -1057,7 +1190,7 @@ export default function Home() {
     } catch {
       toast.error('Failed to create share link')
     }
-  }, [code, language])
+  }, [code, language, markActiveFileSaved])
 
   const handleDownload = useCallback(() => {
     const ext =
@@ -1123,11 +1256,23 @@ export default function Home() {
   }, [code, language])
 
   const handleSelectExample = useCallback((ex: Snippet) => {
-    setCode(ex.code)
+    setCodeWrapped(ex.code)
     // Auto-switch language if the example specifies one
     const newLang = ex.language ?? language
     if (ex.language) {
       setLanguage(ex.language)
+      // Patch the active file's language tag in the store too.
+      useProjectStore.setState((s) => {
+        if (!s.activeFileId) return s
+        const n = s.nodes[s.activeFileId]
+        if (!n || n.type !== 'file') return s
+        return {
+          nodes: {
+            ...s.nodes,
+            [n.id]: { ...n, language: ex.language!, content: ex.code },
+          },
+        }
+      })
     }
     setActiveExampleId(ex.id)
     setChunks([])
@@ -1136,7 +1281,7 @@ export default function Home() {
     // previous snippet (not the example just loaded).
     pushHistoryState(ex.code, newLang)
     toast.success(`Loaded "${ex.name}"`, { description: ex.description })
-  }, [language])
+  }, [language, setCodeWrapped])
 
   // resolvedTheme is undefined during SSR; default to dark to match the
   // ThemeProvider's `defaultTheme='dark'` setting. After mount the actual
@@ -1160,26 +1305,78 @@ export default function Home() {
   const lineCount = useMemo(() => code.split('\n').length, [code])
   const charCount = code.length
 
-  // ---- Keyboard shortcut: Ctrl/Cmd+Enter runs ----
-  // Skip for kotlin-android — it has its own keyboard handler inside the IDE.
+  // ---- Quick file switcher state ----
+  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false)
+  // ---- Mobile file explorer drawer state ----
+  const [mobileExplorerOpen, setMobileExplorerOpen] = useState(false)
+
+  // ---- Keyboard shortcuts ----
+  // Ctrl/Cmd+Enter  → Run
+  // Ctrl/Cmd+S      → Save (mark active file as saved locally; cloud save in Phase 2)
+  // Ctrl/Cmd+P      → Quick file switcher
+  // Ctrl/Cmd+F      → Find in file (CodeMirror built-in; we just intercept browser's)
+  // Ctrl/Cmd+H      → Replace (Phase 3 — for now, prevent browser history dialog)
+  // Ctrl/Cmd+/      → Toggle comment (handled by CodeMirror's default binding)
   useEffect(() => {
-    
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      const mod = e.ctrlKey || e.metaKey
+      if (!mod) return
+      if (e.key === 'Enter') {
         e.preventDefault()
         handleRun()
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault()
+        // Mark the active file as saved locally (no cloud sync in Phase 1).
+        markActiveFileSaved()
+        toast.success('Saved locally', {
+          description: 'Cloud save comes online once Google login is wired up (Phase 2).',
+          duration: 2500,
+        })
+      } else if (e.key === 'p' || e.key === 'P') {
+        // Only trigger if NOT pressed inside an input/textarea (so users can
+        // still type Ctrl+P for printing in textareas).
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+        e.preventDefault()
+        setQuickSwitcherOpen(true)
       }
+      // Ctrl+F / Ctrl+H / Ctrl+/ — let CodeMirror's default keybindings handle these.
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [handleRun, language])
+  }, [handleRun, markActiveFileSaved, setQuickSwitcherOpen])
+
+  // ---- Unsaved-changes protection (beforeunload) ----
+  // Warns the user before closing/refreshing the tab if there are unsaved changes.
+  useEffect(() => {
+    if (!isProjectDirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      // Browsers ignore custom messages, but returning a string triggers the prompt.
+      e.returnValue = 'You have unsaved changes. Leave anyway?'
+      return e.returnValue
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isProjectDirty])
 
   return (
     <TooltipProvider delayDuration={300}>
+      <QuickSwitcher open={quickSwitcherOpen} onOpenChange={setQuickSwitcherOpen} />
       <div className="flex h-screen flex-col bg-background text-foreground">
         {/* ============ Header ============ */}
         <header className="flex h-14 flex-none items-center justify-between border-b border-border bg-card/40 px-3 sm:px-4 backdrop-blur-sm">
           <div className="flex items-center gap-2.5 min-w-0">
+            {/* Mobile: file explorer toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 md:hidden flex-none"
+              onClick={() => setMobileExplorerOpen(true)}
+              aria-label="Open file explorer"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
             <div className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-rose-500 shadow-sm">
               <FileCode2 className="h-5 w-5 text-white" />
             </div>
@@ -2125,6 +2322,31 @@ export default function Home() {
 
           <Tooltip>
             <TooltipTrigger asChild>
+              <Button
+                onClick={() => {
+                  // Phase 1: Save = mark active file as saved locally + persist to IDB.
+                  // Phase 2 (Google login) will plug in here.
+                  markActiveFileSaved()
+                  toast.success('Project saved locally', {
+                    description: 'Cloud sync (Google login) arrives in Phase 2.',
+                    duration: 2500,
+                  })
+                }}
+                variant={isProjectDirty ? 'default' : 'ghost'}
+                size="sm"
+                className="gap-1.5"
+              >
+                <Save className="h-4 w-4" />
+                <span className="hidden md:inline">
+                  {isProjectDirty ? 'Save' : 'Saved'}
+                </span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Save (Ctrl+S) — local for now</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
               <Button onClick={handleDownload} variant="ghost" size="sm" className="gap-1.5">
                 <Download className="h-4 w-4" />
                 <span className="hidden md:inline">Download</span>
@@ -2151,19 +2373,39 @@ export default function Home() {
           </Tooltip>
         </div>
 
-        {/* ============ Main split: editor | console ============ */}
+        {/* ============ Main split: file explorer | editor | console ============ */}
         <main className="flex-1 min-h-0 overflow-hidden">
+          {/* Mobile file explorer drawer (Sheet) */}
+          <Sheet open={mobileExplorerOpen} onOpenChange={setMobileExplorerOpen}>
+            <SheetContent side="left" className="w-72 p-0 sm:max-w-xs">
+              <FileExplorer onCommandPalette={() => { setMobileExplorerOpen(false); setQuickSwitcherOpen(true) }} />
+            </SheetContent>
+          </Sheet>
+
           <PanelGroup direction="horizontal" className="h-full">
+            {/* ---- File Explorer (desktop only) ---- */}
+            <Panel
+              defaultSize={15}
+              minSize={10}
+              maxSize={30}
+              className="hidden md:block"
+            >
+              <FileExplorer onCommandPalette={() => setQuickSwitcherOpen(true)} />
+            </Panel>
+            <PanelResizeHandle className="hidden md:flex w-1 bg-border hover:bg-emerald-500/50 transition-colors items-center justify-center group">
+              <div className="h-10 w-0.5 rounded-full bg-border group-hover:bg-emerald-500" />
+            </PanelResizeHandle>
+
             {/* ---- Editor ---- */}
             <Panel
-              defaultSize={language === 'flutter' || language === 'html' ? 0 : 55}
+              defaultSize={language === 'flutter' || language === 'html' ? 0 : 40}
               minSize={20}
             >
               <div className="h-full flex flex-col">
                 <div className="flex-none flex h-9 items-center gap-2 border-b border-border bg-muted/30 px-3">
                   <FileCode2 className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    {language === 'java'
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground truncate">
+                    {activeFile?.name ?? (language === 'java'
                       ? 'code.java'
                       : language === 'c'
                         ? 'code.c'
@@ -2209,7 +2451,7 @@ export default function Home() {
                                                                 ? 'main.f90'
                                                                 : language === 'cobol'
                                                                   ? 'main.cbl'
-                                                                  : 'code.py'}
+                                                                  : 'code.py')}
                   </span>
                   <div className="flex-1" />
                   <button
@@ -2234,7 +2476,7 @@ export default function Home() {
                 <div className="flex-1 min-h-0">
                   <PyEditor
                     value={code}
-                    onChange={setCode}
+                    onChange={setCodeWrapped}
                     onRun={handleRun}
                     theme={editorTheme}
                     language={language}
@@ -2280,7 +2522,7 @@ export default function Home() {
 
             {/* ---- Right panel: Console OR Full-screen Preview (Flutter/HTML) ---- */}
             <Panel
-              defaultSize={language === 'flutter' || language === 'html' ? 100 : 45}
+              defaultSize={language === 'flutter' || language === 'html' ? 85 : 45}
               minSize={25}
             >
               {(language === 'flutter' || language === 'html') ? (

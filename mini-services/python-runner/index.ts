@@ -29,6 +29,8 @@ interface RunPayload {
   language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran' | 'cobol' | 'kotlin-android'
   stdin?: string
   files?: Record<string, string>
+  /** Path of the entry file within `files`. If omitted, falls back to `code`. */
+  entryFile?: string
   action?: 'validate' | 'build'
 }
 
@@ -342,9 +344,7 @@ io.on('connection', (socket) => {
    * Spawn a Python child process for the given code.
    * Returns the ChildProcess, or null if an error was already emitted.
    */
-  async function spawnPython(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
-    const scriptPath = join(sandboxDir, `snippet_${sessionId}.py`)
-
+  async function spawnPython(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
     // Load the matplotlib preamble (sets Agg backend, patches plt.show() and
     // plt.savefig() to emit inline PNG images via the marker protocol).
     let preamble = ''
@@ -355,25 +355,85 @@ io.on('connection', (socket) => {
       // Preamble is optional — if it can't be loaded, run code as-is.
     }
 
-    const wrappedCode = `${preamble}
+    // Per-session workspace dir — used when `payload.files` is provided so
+    // that multi-file Python projects (e.g. main.py importing utils.py) work.
+    // Falls back to the shared sandboxDir for single-file runs to preserve
+    // existing behavior exactly.
+    const sessionSandboxDir = payload?.files && Object.keys(payload.files).length > 0
+      ? join(sandboxDir, `proj_${sessionId}`)
+      : sandboxDir
+
+    if (sessionSandboxDir !== sandboxDir) {
+      await mkdir(sessionSandboxDir, { recursive: true }).catch(() => {})
+    }
+
+    // Determine which file to execute: if `entryFile` is set AND it exists
+    // in `payload.files`, run that file. Otherwise run the legacy `code`
+    // (the contents of the previously-active editor buffer) — preserving
+    // backward compatibility with single-file clients.
+    const files = payload?.files ?? {}
+    const entryFile = payload?.entryFile
+
+    // Write multi-file project (if provided). Path traversal is blocked.
+    for (const [relPath, content] of Object.entries(files)) {
+      if (relPath.startsWith('/') || relPath.includes('..') || relPath.includes('\0')) continue
+      const absPath = join(sessionSandboxDir, relPath)
+      const dir = dirname(absPath)
+      await mkdir(dir, { recursive: true }).catch(() => {})
+      try {
+        await writeFile(absPath, content, { encoding: 'utf8', mode: 0o600 })
+      } catch { /* ignore */ }
+    }
+
+    let scriptPath: string
+    let isMultiFile = false
+
+    if (entryFile && files[entryFile] !== undefined) {
+      // Multi-file: run the entry file directly (no preamble wrapping —
+      // the preamble can't be prepended to a file the user imports from
+      // another module, otherwise the import would re-execute the preamble).
+      // Instead, we inject the preamble via PYTHONSTARTUP (executes before
+      // the entry script in the same interpreter).
+      scriptPath = join(sessionSandboxDir, entryFile)
+      isMultiFile = true
+      // Write the preamble to a sidecar so we can PYTHONSTARTUP it.
+      // (PYTHONSTARTUP runs in the interactive namespace, not the script's
+      // globals, so for matplotlib patching we need a different approach.)
+      // Simpler: prepend the preamble to the entry file's contents.
+      // To preserve imports, we write a wrapper file that exec's the preamble
+      // then exec's the user's entry file in its own module namespace.
+      const wrappedEntry = `${preamble}
+
+import runpy, sys
+sys.argv = [${JSON.stringify(entryFile)}]
+runpy.run_path(${JSON.stringify(scriptPath)}, run_name='__main__')
+`
+      const wrapperPath = join(sessionSandboxDir, `wrapper_${sessionId}.py`)
+      await writeFile(wrapperPath, wrappedEntry, { encoding: 'utf8', mode: 0o600 })
+      scriptPath = wrapperPath
+    } else {
+      // Single-file legacy path — wrap the user's code with the preamble
+      // (this is the historical behavior).
+      const wrappedCode = `${preamble}
 
 # --- Begin user code ---
 ${code}
 # --- End user code ---
 `
-
-    try {
-      await writeFile(scriptPath, wrappedCode, { encoding: 'utf8', mode: 0o600 })
-    } catch (e) {
-      socket.emit('output', {
-        stream: 'stderr',
-        data: `Failed to write script file: ${(e as Error).message}\n`,
-        promptLike: false,
-      })
-      socket.emit('exit', {
-        code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
-      })
-      return null
+      scriptPath = join(sessionSandboxDir, `snippet_${sessionId}.py`)
+      try {
+        await writeFile(scriptPath, wrappedCode, { encoding: 'utf8', mode: 0o600 })
+      } catch (e) {
+        socket.emit('output', {
+          stream: 'stderr',
+          data: `Failed to write script file: ${(e as Error).message}\n`,
+          promptLike: false,
+        })
+        socket.emit('exit', {
+          code: null, signal: null, timedOut: false, durationMs: 0, error: 'WRITE_FAILED',
+        })
+        return null
+      }
     }
 
     // Use the venv python3 (which has matplotlib, pandas, numpy, etc. installed)
@@ -383,7 +443,7 @@ ${code}
     const pythonBin = existsSync(venvPython) ? venvPython : 'python3'
 
     const child = spawn(pythonBin, ['-u', '-B', scriptPath], {
-      cwd: sandboxDir,
+      cwd: sessionSandboxDir,
       env: {
         ...process.env,
         // Make sure the venv bin is in PATH so subprocesses can find python tools
@@ -392,6 +452,9 @@ ${code}
         PYTHONDONTWRITEBYTECODE: '1',
         PYTHONIOENCODING: 'utf-8',
         PYTHONHASHSEED: '0',
+        // For multi-file: add the project root to sys.path so `import utils`
+        // works even if the entry is in a subfolder.
+        PYTHONPATH: isMultiFile ? sessionSandboxDir : (process.env.PYTHONPATH || ''),
         DATABASE_URL: undefined,
         NEXTAUTH_SECRET: undefined,
         NEXTAUTH_URL: undefined,
@@ -2499,18 +2562,23 @@ if __name__ == "__main__":
     )
 
     if (language !== 'kotlin-android' && !code.trim()) {
-      socket.emit('output', {
-        stream: 'stderr',
-        data: 'No code provided.\n',
-        promptLike: false,
-      })
-      socket.emit('exit', {
-        code: 0,
-        signal: null,
-        timedOut: false,
-        durationMs: 0,
-      })
-      return
+      // Multi-file Python projects send an empty `code` plus a `files`
+      // payload + `entryFile`. Allow those through.
+      const hasMultiFile = !!payload?.files && Object.keys(payload.files).length > 0 && !!payload.entryFile
+      if (!hasMultiFile) {
+        socket.emit('output', {
+          stream: 'stderr',
+          data: 'No code provided.\n',
+          promptLike: false,
+        })
+        socket.emit('exit', {
+          code: 0,
+          signal: null,
+          timedOut: false,
+          durationMs: 0,
+        })
+        return
+      }
     }
 
     const sessionId = randomUUID()
@@ -2566,7 +2634,7 @@ if __name__ == "__main__":
     } else if (language === 'kotlin-android') {
       child = await spawnKotlinAndroid(payload, sessionId, socket)
     } else {
-      child = await spawnPython(code, sessionId, socket)
+      child = await spawnPython(code, sessionId, socket, payload)
     }
 
     if (!child) return // Error already emitted by spawn function
