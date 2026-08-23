@@ -8,7 +8,7 @@ import { existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 
-const PORT = 3003
+const PORT = parseInt(process.env.PORT || '3003', 10)
 const MAX_OUTPUT_BYTES = 1_000_000 // 1 MB per stream
 const MAX_TIMEOUT_MS = 120_000
 const DEFAULT_TIMEOUT_MS = 30_000
