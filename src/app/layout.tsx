@@ -10,19 +10,17 @@ export const metadata: Metadata = {
   description: "Write, run, and share code in 24+ languages right in your browser. A fast, clean, sandboxed Python 3 code playground with stdin support, syntax highlighting, and live output.",
   keywords: ["Python", "compiler", "online IDE", "Python playground", "code runner", "Python 3", "snippet", "Z.ai"],
   authors: [{ name: "Z.ai" }],
-  manifest: "/manifest.json",
-  // Favicon, SVG icon, and apple-touch-icon are provided via the Next.js
-  // file convention (src/app/favicon.ico, src/app/icon.svg,
-  // src/app/apple-icon.png). Next.js automatically emits the correct
-  // <link rel="icon"> / <link rel="apple-touch-icon"> tags with hashed
-  // URLs for cache busting. We intentionally do NOT set metadata.icons
-  // here to avoid duplicate link tags.
-  appleWebApp: {
-    capable: true,
-    title: "CodeHubz",
-    statusBarStyle: "black-translucent",
+  // No favicon, no manifest, no apple-touch-icon — completely remove
+  // any icon/logo from the browser tab.
+  icons: {
+    icon: [],
+    shortcut: [],
+    apple: [],
+    other: [],
   },
-  applicationName: "CodeHubz",
+  appleWebApp: {
+    capable: false,
+  },
   openGraph: {
     title: "CodeHubz — Online Python Compiler",
     description: "Write, run, and share code in 24+ languages right in your browser.",
