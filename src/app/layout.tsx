@@ -11,25 +11,12 @@ export const metadata: Metadata = {
   keywords: ["Python", "compiler", "online IDE", "Python playground", "code runner", "Python 3", "snippet", "Z.ai"],
   authors: [{ name: "Z.ai" }],
   manifest: "/manifest.json",
-  icons: {
-    // Classic .ico (multi-resolution 16/32/48) for legacy browsers + IE/Edge.
-    icon: [
-      { url: "/favicon.ico", sizes: "48x48", type: "image/x-icon" },
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/favicon-48x48.png", sizes: "48x48", type: "image/png" },
-      { url: "/icon.svg", sizes: "any", type: "image/svg+xml" },
-    ],
-    // Apple touch icon (180x180) — used by iOS Safari for "Add to Home Screen".
-    apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
-    ],
-    // PWA / Android Chrome maskable icons (192, 512) — referenced from manifest too.
-    other: [
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
-    ],
-  },
+  // Favicon, SVG icon, and apple-touch-icon are provided via the Next.js
+  // file convention (src/app/favicon.ico, src/app/icon.svg,
+  // src/app/apple-icon.png). Next.js automatically emits the correct
+  // <link rel="icon"> / <link rel="apple-touch-icon"> tags with hashed
+  // URLs for cache busting. We intentionally do NOT set metadata.icons
+  // here to avoid duplicate link tags.
   appleWebApp: {
     capable: true,
     title: "PyRunner",
