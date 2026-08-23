@@ -515,7 +515,9 @@ export default function Home() {
 
   // ---- Run handler ----
   const handleRun = useCallback(() => {
-    if (isRunningRef.current) return
+    if (isRunningRef.current) {
+      return
+    }
     // Kotlin Android uses its own multi-file project state — skip the empty-code guard.
     if (!code.trim()) {
       toast.info('Nothing to run', {
@@ -570,7 +572,8 @@ export default function Home() {
       language !== 'sql'
     const files = isMultiFileLanguage ? getFilesForRunner() : undefined
     const entryFile = isMultiFileLanguage ? getEntryFilePath() : undefined
-    const emitRun = () => sock.emit('run', {
+    const emitRun = () => {
+      sock.emit('run', {
       code,
       language,
       timeout: (language === 'flutter' || language === 'html') ? 120000 : 30000,
@@ -578,7 +581,8 @@ export default function Home() {
       // Only send files+entryFile when we have at least 1 file AND an entry path.
       // The runner ignores these for single-file runs.
       ...(files && Object.keys(files).length >= 1 && entryFile ? { files, entryFile } : {}),
-    })
+      })
+    }
     if (sock.connected) {
       emitRun()
     } else {

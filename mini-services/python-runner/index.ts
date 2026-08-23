@@ -2993,6 +2993,7 @@ if __name__ == "__main__":
 
 
   socket.on('run', async (payload: RunPayload) => {
+    console.log('[runner] received run event, language:', payload?.language, 'code length:', payload?.code?.length)
     // Clear the workspace dir tracker from the previous run.
     ;(globalThis as any).__lastWorkspaceDir = null
     // If a previous session is still alive on this socket, kill it first.
