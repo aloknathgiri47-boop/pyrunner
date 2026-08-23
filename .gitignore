@@ -52,3 +52,13 @@ prompt
 server.log
 # Skills directory
 /skills/
+# Large directories
+.next
+download/
+tool-results/
+db/
+scripts/*.png
+mini-services/python-runner/runner.log
+mini-services/python-runner/runner.pid
+*.log
+*.pid
