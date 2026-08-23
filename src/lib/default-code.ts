@@ -175,6 +175,60 @@ void main() {
 }
 `
 
+export const DEFAULT_HTML_CODE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Web Page</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: white;
+      padding: 2rem;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+    }
+    h1 { color: #333; margin-bottom: 0.5rem; }
+    p { color: #666; margin-bottom: 1.5rem; line-height: 1.6; }
+    button {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    button:hover { transform: translateY(-2px); }
+    #output { margin-top: 1rem; font-weight: bold; color: #667eea; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>👋 Hello, CodeHubz!</h1>
+    <p>Edit this HTML and click Run to see your changes live in the preview.</p>
+    <button onclick="document.getElementById('output').innerText = 'Clicked at ' + new Date().toLocaleTimeString()">
+      Click Me
+    </button>
+    <p id="output"></p>
+  </div>
+</body>
+</html>
+`
+
 export const DEFAULT_FLUTTER_CODE = `import 'package:flutter/material.dart';
 
 void main() {
@@ -483,7 +537,7 @@ export const DEFAULT_CODE_FOR_LANGUAGE: Record<Language, string> = {
   csharp: DEFAULT_CSHARP_CODE,
   dart: DEFAULT_DART_CODE,
   flutter: DEFAULT_FLUTTER_CODE,
-  html: DEFAULT_FLUTTER_CODE, // HTML has no default starter code; reuse empty-ish
+  html: DEFAULT_HTML_CODE,
   sql: DEFAULT_FLUTTER_CODE,  // SQL has no default starter code
   kotlin: DEFAULT_KOTLIN_CODE,
   go: DEFAULT_GO_CODE,
