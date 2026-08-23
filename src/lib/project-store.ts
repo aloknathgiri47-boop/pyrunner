@@ -934,11 +934,17 @@ export function buildPath(
   return parts.join('/')
 }
 
-/** Get the path of the entry file (or active file as fallback) in the active project. */
+/** Get the path of the file to run.
+ *
+ *  Prefers the ACTIVE file (the one the user is currently editing) over the
+ *  stored entry file. This matches user expectations: when you click Run,
+ *  the file you're looking at should execute. The ★ entry file marker is
+ *  only used as a fallback when there's no active file.
+ */
 export function getEntryFilePath(): string | null {
   const s = useProjectStore.getState()
   const p = s.projects[s.selectedLanguage]
-  const id = p.entryFileId ?? p.activeFileId
+  const id = p.activeFileId ?? p.entryFileId
   if (!id) return null
   const n = p.nodes[id]
   if (!n || n.type !== 'file') return null
