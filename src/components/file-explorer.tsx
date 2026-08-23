@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * VS Code-style File Explorer.
+ * VS Code-style File Explorer with bulk-select checkboxes.
  *
  * Renders the project's file tree from the Zustand store, with inline
  * rename and a context menu (right-click or click the "⋯" button) for
@@ -12,8 +12,13 @@
  *   - Delete
  *   - New File / New Folder (when right-clicking a folder)
  *
- * The explorer is intentionally minimalist — it matches the existing
- * dark/light theme via shadcn/ui tokens (bg-muted, text-foreground, etc.).
+ * Bulk selection:
+ *   - Each row has a checkbox (visible on hover, or always when any item
+ *     is selected).
+ *   - When ≥1 item is selected, the toolbar shows a "Delete selected (N)"
+ *     button + "Clear" button.
+ *   - A "Select all" checkbox appears at the top of the tree.
+ *   - Selection is cleared when the active language changes.
  *
  * On mobile, the parent should wrap this in a Sheet/Drawer; this
  * component itself is layout-agnostic.
@@ -33,6 +38,7 @@ import {
   FilePlus2,
   FolderPlus,
   MoreVertical,
+  X,
 } from 'lucide-react'
 import {
   useProjectStore,
@@ -51,6 +57,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
   TooltipContent,
@@ -120,9 +127,12 @@ export function FileIconFor({ name }: { name: string }) {
 interface RowProps {
   node: TreeNode
   depth: number
+  selectedIds: Set<string>
+  onToggleSelect: (id: string) => void
+  anySelected: boolean
 }
 
-function TreeRow({ node, depth }: RowProps) {
+function TreeRow({ node, depth, selectedIds, onToggleSelect, anySelected }: RowProps) {
   const activeFileId = useProjectStore((s) => s.projects[s.selectedLanguage].activeFileId)
   const entryFileId = useProjectStore((s) => s.projects[s.selectedLanguage].entryFileId)
   const setActiveFile = useProjectStore((s) => s.setActiveFile)
@@ -154,6 +164,7 @@ function TreeRow({ node, depth }: RowProps) {
 
   const isActive = node.type === 'file' && node.id === activeFileId
   const isEntry = node.type === 'file' && node.id === entryFileId
+  const isChecked = selectedIds.has(node.id)
 
   const startRename = () => {
     setRenameValue(node.name)
@@ -231,6 +242,21 @@ function TreeRow({ node, depth }: RowProps) {
           }
         }}
       >
+        {/* Selection checkbox — visible on hover or when any item is selected */}
+        <span
+          className={`flex-none flex items-center justify-center w-4 ${
+            anySelected || isChecked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          } transition-opacity`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Checkbox
+            checked={isChecked}
+            className="h-3.5 w-3.5"
+            aria-label={`Select ${node.name}`}
+            onCheckedChange={() => onToggleSelect(node.id)}
+          />
+        </span>
+
         {/* Expand / collapse chevron (folders only) */}
         <span className="w-3.5 flex-none flex items-center justify-center">
           {node.type === 'folder' ? (
@@ -347,7 +373,14 @@ function TreeRow({ node, depth }: RowProps) {
 
       {/* Children */}
       {node.type === 'folder' && node.expanded && childNodes.map((child) => (
-        <TreeRow key={child.id} node={child} depth={depth + 1} />
+        <TreeRow
+          key={child.id}
+          node={child}
+          depth={depth + 1}
+          selectedIds={selectedIds}
+          onToggleSelect={onToggleSelect}
+          anySelected={anySelected}
+        />
       ))}
     </>
   )
@@ -359,15 +392,68 @@ function TreeRow({ node, depth }: RowProps) {
 
 interface ToolbarProps {
   onCommandPalette?: () => void
+  selectedCount: number
+  onDeleteSelected: () => void
+  onClearSelection: () => void
 }
 
-function ExplorerToolbar({ onCommandPalette: _ }: ToolbarProps) {
+function ExplorerToolbar({
+  onCommandPalette: _,
+  selectedCount,
+  onDeleteSelected,
+  onClearSelection,
+}: ToolbarProps) {
   const createFile = useProjectStore((s) => s.createFile)
   const createFolder = useProjectStore((s) => s.createFolder)
   // The currently-selected language drives the default filename + extension
   // for every newly created file. This matches the active file's language
   // (which is set by clicking one of the language tabs in the header).
   const activeLanguage = useActiveLanguage()
+
+  // When items are selected, show the bulk-action bar instead of the
+  // normal New File / New Folder buttons.
+  if (selectedCount > 0) {
+    return (
+      <div className="flex items-center justify-between px-2 py-1 border-b border-border bg-destructive/5">
+        <span className="text-[10px] font-mono uppercase tracking-wider text-destructive">
+          {selectedCount} selected
+        </span>
+        <div className="flex items-center gap-0.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="h-6 gap-1 px-2 text-[11px]"
+                onClick={onDeleteSelected}
+              >
+                <Trash2 className="h-3 w-3" />
+                Delete
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete {selectedCount} selected item{selectedCount > 1 ? 's' : ''}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={onClearSelection}
+                aria-label="Clear selection"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clear selection</TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex items-center justify-between px-2 py-1 border-b border-border">
       <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
@@ -429,12 +515,65 @@ export default function FileExplorer({
   const nodes = project.nodes
   const projectName = project.name
   const setName = useProjectStore((s) => s.setName)
+  const deleteNode = useProjectStore((s) => s.deleteNode)
+  const selectedLanguage = useProjectStore((s) => s.selectedLanguage)
   const isDirty = useProjectStore((s) => {
     const p = s.projects[s.selectedLanguage]
     return Object.values(p.nodes).some(
       (n) => n.type === 'file' && n.content !== n.savedContent,
     )
   })
+
+  // ---- Bulk selection state ----
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // Clear selection when the active language changes (so selections from
+  // one language project don't leak into another).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedIds(new Set())
+  }, [selectedLanguage])
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const clearSelection = () => setSelectedIds(new Set())
+
+  // Collect all node IDs (files + folders) in the current project for "select all".
+  const allNodeIds = useMemo(
+    () => Object.values(nodes).map((n) => n.id),
+    [nodes],
+  )
+  const allSelected = allNodeIds.length > 0 && allNodeIds.every((id) => selectedIds.has(id))
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      clearSelection()
+    } else {
+      setSelectedIds(new Set(allNodeIds))
+    }
+  }
+
+  const handleDeleteSelected = () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    const names = ids
+      .map((id) => nodes[id]?.name)
+      .filter(Boolean)
+      .join(', ')
+    if (!confirm(`Delete ${ids.length} item${ids.length > 1 ? 's' : ''}? (${names})`)) return
+    // Delete each selected node. deleteNode handles recursive folder deletion
+    // and is a no-op if the node was already deleted as part of a parent.
+    for (const id of ids) {
+      deleteNode(id)
+    }
+    clearSelection()
+  }
 
   const topLevel = useMemo(
     () => (childrenByParent['root'] ?? []).map((id) => nodes[id]).filter(Boolean),
@@ -446,7 +585,12 @@ export default function FileExplorer({
 
   return (
     <div className={`flex flex-col h-full bg-card/30 ${className ?? ''}`}>
-      <ExplorerToolbar onCommandPalette={onCommandPalette} />
+      <ExplorerToolbar
+        onCommandPalette={onCommandPalette}
+        selectedCount={selectedIds.size}
+        onDeleteSelected={handleDeleteSelected}
+        onClearSelection={clearSelection}
+      />
 
       {/* Project name (click to rename) */}
       <div className="px-2 py-1 border-b border-border">
@@ -504,16 +648,40 @@ export default function FileExplorer({
             </button>
           </div>
         ) : (
-          topLevel.map((node) => (
-            <TreeRow key={node.id} node={node} depth={0} />
-          ))
+          <>
+            {/* Select all row — only visible when there are files */}
+            <div
+              className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-muted-foreground border-b border-border/50 mb-0.5"
+              style={{ paddingLeft: '4px' }}
+            >
+              <Checkbox
+                checked={allSelected}
+                className="h-3 w-3"
+                aria-label="Select all"
+                onCheckedChange={toggleSelectAll}
+              />
+              <span className="font-mono uppercase tracking-wider">
+                {allSelected ? 'Deselect all' : 'Select all'}
+              </span>
+            </div>
+            {topLevel.map((node) => (
+              <TreeRow
+                key={node.id}
+                node={node}
+                depth={0}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+                anySelected={selectedIds.size > 0}
+              />
+            ))}
+          </>
         )}
       </div>
 
       {/* Footer hint */}
       <div className="px-2 py-1 border-t border-border text-[10px] text-muted-foreground">
         <span className="font-mono">★</span> = entry file · <span className="font-mono">F2</span> rename ·{' '}
-        <span className="font-mono">Del</span> remove
+        <span className="font-mono">Del</span> remove · <span className="font-mono">☐</span> select
       </div>
     </div>
   )
