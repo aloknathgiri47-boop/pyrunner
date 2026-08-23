@@ -572,7 +572,61 @@ function encodeToHash(code: string, language: Language): string {
   const params = new URLSearchParams()
   params.set('c', encode(code))
   params.set('l', language)
-  return `#$\{params.toString()}`
+  return `#${params.toString()}`
+}
+
+/**
+ * Decode a URL hash (e.g. "#c=...&l=python") back into { code, language }.
+ * Returns null if the hash is empty or malformed.
+ *
+ * Used both at initial mount (in getInitialState) and on browser Back/Forward
+ * navigation (popstate), so refreshing the page or using the browser's
+ * history buttons restores the exact code+language that was shared.
+ */
+function decodeFromHash(hash: string): { code: string; language: Language } | null {
+  if (!hash || hash.length < 2) return null
+  try {
+    const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash)
+    const codeB64 = params.get('c')
+    const lang = params.get('l') ?? ''
+    if (!codeB64) return null
+    const decode = (s: string) => {
+      const padded = s.replace(/-/g, '+').replace(/_/g, '/')
+      const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4))
+      const bin = atob(padded + pad)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+      return new TextDecoder('utf-8').decode(bytes)
+    }
+    return {
+      code: decode(codeB64),
+      language: (['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash','fortran','cobol'].includes(lang) ? lang : 'python') as Language,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Push a new browser history entry encoding the given code+language.
+ *
+ * This is what makes the browser's native Back/Forward buttons work:
+ * each meaningful state transition (load example, switch language, share)
+ * pushes a new entry, so the user can press Back to undo the last action.
+ *
+ * We use pushState (NOT replaceState) so the previous state stays on the
+ * history stack. The popstate listener in the main component restores
+ * the code+language when the user navigates with Back/Forward.
+ *
+ * No-op if the new hash equals the current hash, to avoid spurious
+ * duplicate entries.
+ */
+function pushHistoryState(code: string, language: Language) {
+  if (typeof window === 'undefined') return
+  const newHash = encodeToHash(code, language)
+  if (window.location.hash === newHash) return
+  const newUrl = `${window.location.pathname}${window.location.search}${newHash}`
+  window.history.pushState({ code, language }, '', newUrl)
 }
 
 /* ------------------------------------------------------------------ */
@@ -582,30 +636,8 @@ function encodeToHash(code: string, language: Language): string {
 function getInitialState(): { code: string; language: Language } {
   if (typeof window === 'undefined') return { code: DEFAULT_CODE, language: 'python' }
   // URL hash takes priority, then localStorage, then default.
-  const hash = window.location.hash
-  if (hash && hash.length > 2) {
-    try {
-      const params = new URLSearchParams(hash.slice(1))
-      const codeB64 = params.get('c')
-      const lang = params.get('l')
-      if (codeB64) {
-        const decode = (s: string) => {
-          const padded = s.replace(/-/g, '+').replace(/_/g, '/')
-          const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4))
-          const bin = atob(padded + pad)
-          const bytes = new Uint8Array(bin.length)
-          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-          return new TextDecoder('utf-8').decode(bytes)
-        }
-        return {
-          code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash','fortran','cobol'].includes(lang) ? lang : 'python',
-        }
-      }
-    } catch {
-      /* fall through */
-    }
-  }
+  const fromHash = decodeFromHash(window.location.hash)
+  if (fromHash) return fromHash
   const persisted = loadState()
   if (persisted) {
     return { code: persisted.code, language: persisted.language }
@@ -656,11 +688,45 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const isRunningRef = useRef(false)
   const languageRef = useRef<Language>(language)
+  // True while we are restoring state from a popstate event (browser Back/Forward).
+  // Prevents the debounced localStorage-persistence effect from pushing a
+  // duplicate history entry — we only push entries on explicit user actions
+  // (Share, Load example, Switch language).
+  const isRestoringFromHistoryRef = useRef(false)
 
   // Keep languageRef in sync so the socket callbacks can read the current value
   useEffect(() => {
     languageRef.current = language
   }, [language])
+
+  // ---- Browser Back/Forward support (popstate) ----
+  // When the user presses the browser's Back or Forward button, the URL
+  // hash changes and we restore the { code, language } encoded there.
+  // We do NOT push a new history entry here (that would create a loop);
+  // we only sync React state from the URL.
+  useEffect(() => {
+    const onPopState = () => {
+      isRestoringFromHistoryRef.current = true
+      const fromHash = decodeFromHash(window.location.hash)
+      if (fromHash) {
+        setCode(fromHash.code)
+        setLanguage(fromHash.language)
+      } else {
+        // No hash → restore to default editor state.
+        setCode(DEFAULT_CODE)
+        setLanguage('python')
+      }
+      // Clear console output so the previous run's output doesn't linger.
+      setChunks([])
+      setResult(null)
+      setActiveExampleId(null)
+      // Reset the flag on the next tick so the debounced localStorage save
+      // runs normally.
+      setTimeout(() => { isRestoringFromHistoryRef.current = false }, 0)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
   // ---- Persist code + language (debounced) ----
   useEffect(() => {
@@ -738,7 +804,7 @@ export default function Home() {
       // Inline image (matplotlib figure rendered as PNG). The runner already
       // base64-encoded the bytes — we wrap it as a data URL for <img src>.
       const mime = msg.mime ?? 'image/png'
-      const src = `data:$\{mime};base64,$\{msg.data}`
+      const src = `data:${mime};base64,${msg.data}`
       const id = ++chunkIdRef.current
       setChunks((prev) => [
         ...prev,
@@ -761,12 +827,12 @@ export default function Home() {
           {
             id,
             stream: 'server',
-            text: `Server started on port $\{msg.port}`,
+            text: `Server started on port ${msg.port}`,
             port: msg.port,
           },
         ])
         toast.success('Server started', {
-          description: `Listening on port $\{msg.port} — click the link in the console to open it.`,
+          description: `Listening on port ${msg.port} — click the link in the console to open it.`,
           duration: 8000,
         })
       }
@@ -931,10 +997,11 @@ export default function Home() {
   }, [])
 
   // Switch language — load the default starter code for that language.
+  // Each language switch pushes a new history entry so the user can press
+  // the browser Back button to undo it.
   const handleLanguageChange = useCallback((lang: Language) => {
     if (lang === language) return
-    setLanguage(lang)
-    setCode(
+    const newCode =
       lang === 'java' ? DEFAULT_JAVA_CODE :
       lang === 'c' ? DEFAULT_C_CODE :
       lang === 'cpp' ? DEFAULT_CPP_CODE :
@@ -957,10 +1024,12 @@ export default function Home() {
       lang === 'fortran' ? DEFAULT_FORTRAN_CODE :
       lang === 'cobol' ? DEFAULT_COBOL_CODE :
       DEFAULT_CODE
-    )
+    setLanguage(lang)
+    setCode(newCode)
     setChunks([])
     setResult(null)
     setActiveExampleId(null)
+    pushHistoryState(newCode, lang)
   }, [language])
 
   const handleCopy = useCallback(async () => {
@@ -976,9 +1045,9 @@ export default function Home() {
 
   const handleShare = useCallback(async () => {
     try {
-      const hash = encodeToHash(code, language)
-      const newUrl = `$\{window.location.pathname}$\{hash}`
-      window.history.replaceState(null, '', newUrl)
+      // Push a new history entry (NOT replaceState) so that pressing the
+      // browser Back button returns the user to the previous snippet.
+      pushHistoryState(code, language)
       await navigator.clipboard.writeText(window.location.href)
       setShared(true)
       toast.success('Share link copied to clipboard', {
@@ -1045,25 +1114,29 @@ export default function Home() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `snippet.$\{ext}`
+    a.download = `snippet.${ext}`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    toast.success(`Downloaded snippet.$\{ext}`)
+    toast.success(`Downloaded snippet.${ext}`)
   }, [code, language])
 
   const handleSelectExample = useCallback((ex: Snippet) => {
     setCode(ex.code)
     // Auto-switch language if the example specifies one
+    const newLang = ex.language ?? language
     if (ex.language) {
       setLanguage(ex.language)
     }
     setActiveExampleId(ex.id)
     setChunks([])
     setResult(null)
-    toast.success(`Loaded "$\{ex.name}"`, { description: ex.description })
-  }, [])
+    // Push a history entry so the browser Back button returns to the
+    // previous snippet (not the example just loaded).
+    pushHistoryState(ex.code, newLang)
+    toast.success(`Loaded "${ex.name}"`, { description: ex.description })
+  }, [language])
 
   // resolvedTheme is undefined during SSR; default to dark to match the
   // ThemeProvider's `defaultTheme='dark'` setting. After mount the actual
@@ -1081,7 +1154,7 @@ export default function Home() {
     if (result.timedOut) return { label: 'Timed out', tone: 'error' as const }
     if (result.error) return { label: 'Error', tone: 'error' as const }
     if (result.code === 0) return { label: 'Success', tone: 'success' as const }
-    return { label: `Exit $\{result.code}`, tone: 'error' as const }
+    return { label: `Exit ${result.code}`, tone: 'error' as const }
   }, [isRunning, awaitingInput, result])
 
   const lineCount = useMemo(() => code.split('\n').length, [code])
@@ -1117,7 +1190,7 @@ export default function Home() {
                 </h1>
                 <Badge
                   variant="secondary"
-                  className={`hidden sm:inline-flex border $\{
+                  className={`hidden sm:inline-flex border ${
                     language === 'java'
                       ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
                       : language === 'c'
@@ -1274,7 +1347,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('python')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'python'
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1285,7 +1358,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('java')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'java'
                     ? 'bg-orange-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1296,7 +1369,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('c')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'c'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1307,7 +1380,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('cpp')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'cpp'
                     ? 'bg-purple-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1318,7 +1391,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('r')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'r'
                     ? 'bg-cyan-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1329,7 +1402,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('javascript')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'javascript'
                     ? 'bg-yellow-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1340,7 +1413,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('php')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'php'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1351,7 +1424,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('csharp')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'csharp'
                     ? 'bg-pink-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1362,7 +1435,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('dart')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'dart'
                     ? 'bg-teal-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -2449,9 +2522,9 @@ function StatusBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium $\{styles}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${styles}`}
     >
-      {icon ?? <span className={`h-1.5 w-1.5 rounded-full $\{dot}`} />}
+      {icon ?? <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}
       {status.label}
     </span>
   )
@@ -2477,7 +2550,7 @@ function ConsoleLine({ chunk }: { chunk: OutputChunk }) {
   // to the user's running Flask/Django/http.server app.
   if (chunk.stream === 'server' && chunk.port) {
     const port = chunk.port
-    const href = `/?XTransformPort=$\{port}`
+    const href = `/?XTransformPort=${port}`
     return (
       <span
         className="my-2 block rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2"
