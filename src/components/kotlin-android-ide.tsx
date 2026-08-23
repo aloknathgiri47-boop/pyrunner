@@ -204,11 +204,7 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
       <div className="flex-none flex h-12 items-center gap-1.5 border-b border-border bg-muted/30 px-3 overflow-x-auto">
         <Button onClick={() => runAction('validate')} disabled={isRunning} size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white flex-none">
           {isRunning && status === 'validating' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          <span className="hidden sm:inline">Validate</span>
-        </Button>
-        <Button onClick={() => runAction('build')} disabled={isRunning} size="sm" variant="secondary" className="gap-1.5 flex-none">
-          {isRunning && status === 'building' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
-          <span className="hidden sm:inline">Build APK</span>
+          <span className="hidden sm:inline">Run</span>
         </Button>
         {isRunning && <Button onClick={handleStop} variant="destructive" size="sm" className="gap-1.5 flex-none"><Square className="h-3.5 w-3.5" /><span className="hidden sm:inline">Stop</span></Button>}
         <div className="w-px h-6 bg-border mx-1 flex-none" />
@@ -287,7 +283,7 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
                 {chunks.length === 0 && !isRunning ? (
                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground px-6 text-center">
                     <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                    <p className="text-xs">Click <span className="text-emerald-400 font-mono">Validate</span> to check structure, <span className="text-amber-400 font-mono">Build APK</span> for build info, or <span className="text-blue-400 font-mono">Preview Layout</span> to render the UI.</p>
+                    <p className="text-xs">Click <span className="text-emerald-400 font-mono">Run</span> to validate the project, <span className="text-blue-400 font-mono">Preview Layout</span> to render the UI, or <span className="text-emerald-400 font-mono">Download ZIP</span> to build locally.</p>
                   </div>
                 ) : (
                   <div className="px-3 py-2.5 font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-words" style={{ fontFamily: 'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', tabSize: 4 }}>
