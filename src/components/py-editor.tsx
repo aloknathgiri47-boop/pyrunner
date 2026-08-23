@@ -15,6 +15,7 @@ import { html as htmlLang } from '@codemirror/lang-html'
 import { sql as sqlLang } from '@codemirror/lang-sql'
 import { xml as xmlLang } from '@codemirror/lang-xml'
 import { r } from '@codemirror/legacy-modes/mode/r'
+import { go } from '@codemirror/legacy-modes/mode/go'
 import { clike } from '@codemirror/legacy-modes/mode/clike'
 import { oneDark } from '@codemirror/theme-one-dark'
 
@@ -24,7 +25,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android' | 'xml'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android' | 'xml' | 'go'
 }
 
 // Dart keywords for syntax highlighting via clike mode
@@ -165,6 +166,7 @@ export default function PyEditor({
       language === 'dart' || language === 'flutter' ? StreamLanguage.define(clike({ keywords: dartKeywords })) :
       language === 'html' ? htmlLang() :
       language === 'sql' ? sqlLang() :
+      language === 'go' ? StreamLanguage.define(go) :
       language === 'kotlin' || language === 'kotlin-android' ? StreamLanguage.define(clike({ keywords: kotlinKeywords })) :
       language === 'xml' ? xmlLang() :
       python()

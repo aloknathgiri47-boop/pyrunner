@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'kotlin-android'
   stdin?: string
   files?: Record<string, string>
   action?: 'validate' | 'build'
@@ -1804,6 +1804,50 @@ if __name__ == "__main__":
   }
 
   /**
+   * spawnGo — runs Go code via `go run`.
+   */
+  async function spawnGo(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const workspaceRoot = join('/tmp/go-runner', sessionId)
+    await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
+    const scriptPath = join(workspaceRoot, 'main.go')
+
+    try {
+      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write Go file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
+      return null
+    }
+
+    const goBin = existsSync('/home/z/.local/go/bin/go')
+      ? '/home/z/.local/go/bin/go'
+      : 'go'
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `Running with Go 1.23...\n`,
+      promptLike: false,
+    })
+
+    const child = spawn(goBin, ['run', scriptPath], {
+      cwd: workspaceRoot,
+      env: {
+        ...process.env,
+        PATH: '/home/z/.local/go/bin:' + (process.env.PATH || ''),
+        GOROOT: '/home/z/.local/go',
+      } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
+  /**
    * spawnKotlinAndroid — validates an Android project STRUCTURALLY.
    * Does NOT run kotlinc on .kt files (because android.* / androidx.* / R.*
    * can't resolve without the Android SDK, producing false errors).
@@ -2035,6 +2079,8 @@ if __name__ == "__main__":
       child = await spawnSql(code, sessionId, socket)
     } else if (language === 'kotlin') {
       child = await spawnKotlin(code, sessionId, socket)
+    } else if (language === 'go') {
+      child = await spawnGo(code, sessionId, socket)
     } else if (language === 'kotlin-android') {
       child = await spawnKotlinAndroid(payload, sessionId, socket)
     } else {

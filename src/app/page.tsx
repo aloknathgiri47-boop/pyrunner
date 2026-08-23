@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go'
 
 interface PersistedState {
   code: string
@@ -302,6 +302,32 @@ fun add(a: Int, b: Int): Int = a + b
 data class Person(val name: String, val age: Int)
 `
 
+const DEFAULT_GO_CODE = `// Go 1.23 — runs with go run
+// Press Run (or Ctrl+Enter) to execute.
+
+package main
+
+import "fmt"
+
+func main() {
+        fmt.Println("Hello from Go!")
+
+        name := "World"
+        fmt.Println("Hello, " + name + "!")
+
+        result := add(3, 4)
+        fmt.Println("3 + 4 =", result)
+
+        for i := 1; i <= 3; i++ {
+                fmt.Printf("Count: %d\n", i)
+        }
+}
+
+func add(a, b int) int {
+        return a + b
+}
+`
+
 
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
@@ -316,7 +342,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -360,7 +386,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
@@ -600,6 +626,7 @@ export default function Home() {
           language === 'html' ? 'Write some HTML/CSS first.' :
           language === 'sql' ? 'Write some SQL first.' :
           language === 'kotlin' ? 'Write some Kotlin code first.' :
+          language === 'go' ? 'Write some Go code first.' :
           'Write some Python first.',
       })
       return
@@ -695,6 +722,7 @@ export default function Home() {
       lang === 'dart' ? DEFAULT_DART_CODE :
       lang === 'flutter' ? DEFAULT_FLUTTER_CODE :
       lang === 'kotlin' ? DEFAULT_KOTLIN_CODE :
+      lang === 'go' ? DEFAULT_GO_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -743,6 +771,7 @@ export default function Home() {
       language === 'html' ? 'html' :
       language === 'sql' ? 'sql' :
       language === 'kotlin' ? 'kt' :
+      language === 'go' ? 'go' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -757,6 +786,7 @@ export default function Home() {
       language === 'html' ? 'text/html;charset=utf-8' :
       language === 'sql' ? 'application/sql;charset=utf-8' :
       language === 'kotlin' ? 'text/x-kotlin;charset=utf-8' :
+      language === 'go' ? 'text/x-go;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -859,7 +889,8 @@ export default function Home() {
                                           ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
                                           : language === 'kotlin'
                                             ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
-                                              ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                                            : language === 'go'
+                                              ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20'
                                               : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
@@ -887,7 +918,9 @@ export default function Home() {
                                         ? 'SQLite 3.53'
                                         : language === 'kotlin'
                                           ? 'Kotlin 2.0'
-                                          : 'Python 3.12'}
+                                          : language === 'go'
+                                            ? 'Go 1.23'
+                                            : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -915,7 +948,9 @@ export default function Home() {
                                       ? 'Interactive SQLite SQL console'
                                       : language === 'kotlin'
                                         ? 'Interactive Kotlin/JVM console with live stdin'
-                                        : 'Interactive Python console with live input()'}
+                                        : language === 'go'
+                                          ? 'Interactive Go console with live stdin'
+                                          : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -1065,6 +1100,17 @@ export default function Home() {
                 }`}
               >
                 Kotlin
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('go')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'go'
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Go
               </button>
             </div>
           </div>
@@ -1302,6 +1348,23 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Go examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'go').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1458,7 +1521,9 @@ export default function Home() {
                                           ? 'query.sql'
                                           : language === 'kotlin'
                                             ? 'Main.kt'
-                                            : 'code.py'}
+                                            : language === 'go'
+                                              ? 'main.go'
+                                              : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button

@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go'
   files?: Record<string, string>
 }
 
@@ -3223,6 +3223,105 @@ object Counter {
     val nullableList: List<String?> = listOf("a", null, "b", null, "c")
     val nonNull = nullableList.filterNotNull()
     println("Non-null: " + nonNull)
+}
+`,
+  },
+  {
+    id: 'go-hello',
+    name: 'Go: Hello World',
+    description: 'Basic Go program with main function.',
+    language: 'go',
+    code: `package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("Hello from Go!")
+    name := "World"
+    fmt.Println("Hello, " + name + "!")
+}
+`,
+  },
+  {
+    id: 'go-functions',
+    name: 'Go: Functions & Structs',
+    description: 'Functions, structs, methods, slices.',
+    language: 'go',
+    code: `package main
+
+import "fmt"
+
+type Person struct {
+    Name string
+    Age  int
+}
+
+func (p Person) Greet() string {
+    return "Hello, I'm " + p.Name
+}
+
+func add(a, b int) int {
+    return a + b
+}
+
+func main() {
+    fmt.Println("3 + 4 =", add(3, 4))
+
+    person := Person{Name: "Alice", Age: 30}
+    fmt.Println(person.Greet())
+    fmt.Printf("%s is %d years old\n", person.Name, person.Age)
+
+    fruits := []string{"apple", "banana", "cherry"}
+    for i, fruit := range fruits {
+        fmt.Printf("%d: %s\n", i, fruit)
+    }
+
+    nums := map[string]int{"one": 1, "two": 2, "three": 3}
+    for k, v := range nums {
+        fmt.Printf("%s = %d\n", k, v)
+    }
+}
+`,
+  },
+  {
+    id: 'go-goroutines',
+    name: 'Go: Goroutines & Channels',
+    description: 'Concurrent programming with goroutines.',
+    language: 'go',
+    code: `package main
+
+import (
+    "fmt"
+    "sync"
+)
+
+func worker(id int, wg *sync.WaitGroup) {
+    defer wg.Done()
+    fmt.Printf("Worker %d starting\n", id)
+    fmt.Printf("Worker %d done\n", id)
+}
+
+func main() {
+    var wg sync.WaitGroup
+
+    for i := 1; i <= 3; i++ {
+        wg.Add(1)
+        go worker(i, &wg)
+    }
+
+    wg.Wait()
+    fmt.Println("All workers finished!")
+
+    // Channel example
+    ch := make(chan int, 3)
+    ch <- 1
+    ch <- 2
+    ch <- 3
+    close(ch)
+
+    for val := range ch {
+        fmt.Println("Received:", val)
+    }
 }
 `,
   },
