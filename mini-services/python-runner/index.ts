@@ -1471,6 +1471,24 @@ if (!function_exists('readline')) {
    */
   async function spawnFlutter(code: string, sessionId: string, socket: any, stdin?: string): Promise<ChildProcess | null> {
     const home = process.env.HOME || '/home/z'
+
+    // Check if Flutter SDK is available
+    const flutterBinPath = join(home, '.local', 'flutter', 'bin', 'flutter')
+    const flutterInPath = existsSync('/usr/local/bin/flutter')
+    const hasFlutter = existsSync(flutterBinPath) || flutterInPath
+
+    if (!hasFlutter) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: 'Flutter SDK is not installed on this server.\n\nFlutter apps require the full Flutter SDK (~1.5GB) to build web apps, which is too large for cloud deployment.\n\nTo run Flutter code, please use the local development environment at localhost:81.\n',
+        promptLike: false,
+      })
+      socket.emit('exit', {
+        code: 1, signal: null, timedOut: false, durationMs: 0, error: 'NO_FLUTTER_SDK',
+      })
+      return null
+    }
+
     // Use a PERSISTENT location (not /tmp) so /tmp cleanups don't wipe the project.
     const flutterProjectDir = join(home, 'flutter_workspace', 'flutter_project')
     const libDir = join(flutterProjectDir, 'lib')
