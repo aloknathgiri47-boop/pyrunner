@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran' | 'cobol'
 
 interface PersistedState {
   code: string
@@ -511,6 +511,36 @@ contains
 end program main
 `
 
+const DEFAULT_COBOL_CODE = `      *> COBOL 3.2 — runs with GnuCOBOL
+      *> Press Run (or Ctrl+Enter) to execute.
+
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. HELLO.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  NAME      PIC X(10) VALUE "World".
+       01  RESULT    PIC 9(4).
+       01  COUNTER   PIC 9(2).
+
+       PROCEDURE DIVISION.
+           DISPLAY "Hello from COBOL!".
+           DISPLAY "Hello, " NAME "!".
+
+           PERFORM ADD-NUMBERS.
+           DISPLAY "3 + 4 = " RESULT.
+
+           PERFORM VARYING COUNTER FROM 1 BY 1
+               UNTIL COUNTER > 3
+               DISPLAY "Count: " COUNTER
+           END-PERFORM.
+
+           STOP RUN.
+
+       ADD-NUMBERS.
+           ADD 3 TO 4 GIVING RESULT.
+`
+
 
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
@@ -525,7 +555,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash','fortran'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash','fortran','cobol'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -569,7 +599,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash','fortran'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash','fortran','cobol'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
@@ -819,6 +849,7 @@ export default function Home() {
           language === 'powershell' ? 'Write some PowerShell code first.' :
           language === 'bash' ? 'Write some Bash code first.' :
           language === 'fortran' ? 'Write some Fortran code first.' :
+          language === 'cobol' ? 'Write some COBOL code first.' :
           'Write some Python first.',
       })
       return
@@ -924,6 +955,7 @@ export default function Home() {
       lang === 'powershell' ? DEFAULT_PS_CODE :
       lang === 'bash' ? DEFAULT_BASH_CODE :
       lang === 'fortran' ? DEFAULT_FORTRAN_CODE :
+      lang === 'cobol' ? DEFAULT_COBOL_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -982,6 +1014,7 @@ export default function Home() {
       language === 'powershell' ? 'ps1' :
       language === 'bash' ? 'sh' :
       language === 'fortran' ? 'f90' :
+      language === 'cobol' ? 'cbl' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -1006,6 +1039,7 @@ export default function Home() {
       language === 'powershell' ? 'text/powershell;charset=utf-8' :
       language === 'bash' ? 'text/x-sh;charset=utf-8' :
       language === 'fortran' ? 'text/fortran;charset=utf-8' :
+      language === 'cobol' ? 'text/cobol;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -1128,7 +1162,9 @@ export default function Home() {
                                                               ? 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20'
                                                               : language === 'fortran'
                                                                 ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20'
-                                                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                                                : language === 'cobol'
+                                                                  ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                                                                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
                   {language === 'java'
@@ -1175,7 +1211,9 @@ export default function Home() {
                                                             ? 'Bash 5.2'
                                                             : language === 'fortran'
                                                               ? 'Fortran 14'
-                                                              : 'Python 3.12'}
+                                                              : language === 'cobol'
+                                                                ? 'COBOL 3.2'
+                                                                : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -1223,7 +1261,9 @@ export default function Home() {
                                                           ? 'Interactive Bash console with live stdin'
                                                           : language === 'fortran'
                                                             ? 'Interactive Fortran console with live stdin'
-                                                            : 'Interactive Python console with live input()'}
+                                                            : language === 'cobol'
+                                                              ? 'Interactive COBOL console with live stdin'
+                                                              : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -1483,6 +1523,17 @@ export default function Home() {
                 }`}
               >
                 Fortran
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('cobol')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'cobol'
+                    ? 'bg-rose-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                COBOL
               </button>
             </div>
           </div>
@@ -1890,6 +1941,23 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  COBOL examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'cobol').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -2066,7 +2134,9 @@ export default function Home() {
                                                               ? 'script.sh'
                                                               : language === 'fortran'
                                                                 ? 'main.f90'
-                                                                : 'code.py'}
+                                                                : language === 'cobol'
+                                                                  ? 'main.cbl'
+                                                                  : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button

@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran' | 'kotlin-android'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran' | 'cobol' | 'kotlin-android'
   stdin?: string
   files?: Record<string, string>
   action?: 'validate' | 'build'
@@ -2260,6 +2260,56 @@ if __name__ == "__main__":
   }
 
   /**
+   * spawnCobol — compiles and runs COBOL code via GnuCOBOL (cobc).
+   */
+  async function spawnCobol(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const workspaceRoot = join('/tmp/cobol-runner', sessionId)
+    await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
+    const scriptPath = join(workspaceRoot, 'main.cbl')
+    const binPath = join(workspaceRoot, 'main_bin')
+
+    try {
+      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write COBOL file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
+      return null
+    }
+
+    const cobcBin = existsSync('/home/z/.local/gnucobol/bin/cobc')
+      ? '/home/z/.local/gnucobol/bin/cobc'
+      : 'cobc'
+
+    const cobolLib = '/home/z/.local/gnucobol/lib'
+    const dbLib = '/home/z/.local/gnucobol-deps/usr/lib/x86_64-linux-gnu'
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `Compiling with GnuCOBOL 3.2...\n`,
+      promptLike: false,
+    })
+
+    const child = spawn('bash', ['-c',
+      `${cobcBin} -x -o "${binPath}" "${scriptPath}" 2>&1 && echo "---RUNNING---" && LD_LIBRARY_PATH=${cobolLib}:${dbLib} "${binPath}" 2>&1`
+    ], {
+      cwd: workspaceRoot,
+      env: {
+        ...process.env,
+        PATH: '/home/z/.local/gnucobol/bin:' + (process.env.PATH || ''),
+        LD_LIBRARY_PATH: `${cobolLib}:${dbLib}`,
+      } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
+  /**
    * spawnKotlinAndroid — validates an Android project STRUCTURALLY.
    * Does NOT run kotlinc on .kt files (because android.* / androidx.* / R.*
    * can't resolve without the Android SDK, producing false errors).
@@ -2511,6 +2561,8 @@ if __name__ == "__main__":
       child = await spawnBash(code, sessionId, socket)
     } else if (language === 'fortran') {
       child = await spawnFortran(code, sessionId, socket)
+    } else if (language === 'cobol') {
+      child = await spawnCobol(code, sessionId, socket)
     } else if (language === 'kotlin-android') {
       child = await spawnKotlinAndroid(payload, sessionId, socket)
     } else {

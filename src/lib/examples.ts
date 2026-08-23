@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran' | 'cobol'
   files?: Record<string, string>
 }
 
@@ -4604,6 +4604,137 @@ contains
         end if
     end function factorial
 end program main
+`,
+  },
+  {
+    id: 'cobol-hello',
+    name: 'COBOL: Hello World',
+    description: 'Basic COBOL with DISPLAY, PERFORM, arithmetic.',
+    language: 'cobol',
+    code: `       IDENTIFICATION DIVISION.
+       PROGRAM-ID. HELLO.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  NAME      PIC X(10) VALUE "World".
+       01  RESULT    PIC 9(4).
+       01  COUNTER   PIC 9(2).
+
+       PROCEDURE DIVISION.
+           DISPLAY "Hello from COBOL!".
+           DISPLAY "Hello, " NAME "!".
+
+           ADD 3 TO 4 GIVING RESULT.
+           DISPLAY "3 + 4 = " RESULT.
+
+           PERFORM VARYING COUNTER FROM 1 BY 1
+               UNTIL COUNTER > 3
+               DISPLAY "Count: " COUNTER
+           END-PERFORM.
+
+           STOP RUN.
+`,
+  },
+  {
+    id: 'cobol-data',
+    name: 'COBOL: Data & Files',
+    description: 'File I/O, tables, computation, conditions.',
+    language: 'cobol',
+    code: `       IDENTIFICATION DIVISION.
+       PROGRAM-ID. DATADEMO.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  STUDENT-TABLE.
+           05  STUDENT OCCURS 3 TIMES.
+               10  STU-NAME   PIC X(15).
+               10  STU-SCORE  PIC 9(3).
+       01  I               PIC 9(2).
+       01  TOTAL           PIC 9(4) VALUE 0.
+       01  AVERAGE         PIC 9(2)V9(1).
+
+       PROCEDURE DIVISION.
+           MOVE "Alice" TO STU-NAME(1).
+           MOVE 85 TO STU-SCORE(1).
+           MOVE "Bob" TO STU-NAME(2).
+           MOVE 92 TO STU-SCORE(2).
+           MOVE "Charlie" TO STU-NAME(3).
+           MOVE 78 TO STU-SCORE(3).
+
+           DISPLAY "Student Scores:".
+           PERFORM VARYING I FROM 1 BY 1 UNTIL I > 3
+               DISPLAY "  " STU-NAME(I) ": " STU-SCORE(I)
+               ADD STU-SCORE(I) TO TOTAL
+           END-PERFORM.
+
+           COMPUTE AVERAGE = TOTAL / 3.
+           DISPLAY "Average: " AVERAGE.
+
+           IF AVERAGE >= 85
+               DISPLAY "Class grade: A"
+           ELSE
+               IF AVERAGE >= 75
+                   DISPLAY "Class grade: B"
+               ELSE
+                   DISPLAY "Class grade: C"
+           END-IF.
+
+           STOP RUN.
+`,
+  },
+  {
+    id: 'cobol-business',
+    name: 'COBOL: Business App',
+    description: 'Payroll calculation with input, tax, output.',
+    language: 'cobol',
+    code: `       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PAYROLL.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  EMP-NAME        PIC X(20).
+       01  HOURS-WORKED    PIC 9(3).
+       01  HOURLY-RATE     PIC 9(4)V99.
+       01  GROSS-PAY       PIC 9(6)V99.
+       01  TAX-RATE        PIC V99 VALUE .15.
+       01  TAX-AMOUNT      PIC 9(5)V99.
+       01  NET-PAY         PIC 9(6)V99.
+       01  EMP-COUNT       PIC 9(2) VALUE 0.
+       01  TOTAL-PAYROLL   PIC 9(8)V99 VALUE 0.
+
+       PROCEDURE DIVISION.
+           PERFORM PROCESS-EMPLOYEE 3 TIMES.
+           DISPLAY "Total payroll: $" TOTAL-PAYROLL.
+           STOP RUN.
+
+       PROCESS-EMPLOYEE.
+           ADD 1 TO EMP-COUNT.
+           EVALUATE EMP-COUNT
+               WHEN 1
+                   MOVE "Alice Smith" TO EMP-NAME
+                   MOVE 40 TO HOURS-WORKED
+                   MOVE 25.50 TO HOURLY-RATE
+               WHEN 2
+                   MOVE "Bob Johnson" TO EMP-NAME
+                   MOVE 35 TO HOURS-WORKED
+                   MOVE 30.00 TO HOURLY-RATE
+               WHEN 3
+                   MOVE "Charlie Brown" TO EMP-NAME
+                   MOVE 45 TO HOURS-WORKED
+                   MOVE 22.75 TO HOURLY-RATE
+           END-EVALUATE.
+
+           COMPUTE GROSS-PAY = HOURS-WORKED * HOURLY-RATE.
+           COMPUTE TAX-AMOUNT = GROSS-PAY * TAX-RATE.
+           COMPUTE NET-PAY = GROSS-PAY - TAX-AMOUNT.
+           ADD NET-PAY TO TOTAL-PAYROLL.
+
+           DISPLAY "Employee: " EMP-NAME.
+           DISPLAY "  Hours: " HOURS-WORKED.
+           DISPLAY "  Rate: $" HOURLY-RATE.
+           DISPLAY "  Gross: $" GROSS-PAY.
+           DISPLAY "  Tax: $" TAX-AMOUNT.
+           DISPLAY "  Net: $" NET-PAY.
 `,
   },
 ]
