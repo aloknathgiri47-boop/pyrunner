@@ -8,7 +8,7 @@ import JSZip from 'jszip'
 import {
   Play, Square, Trash2, Download, Loader2, CircleAlert, CircleCheck,
   FileCode2, FilePlus, FolderPlus, ChevronRight, ChevronDown, Pencil,
-  Package, Eye, X, Cloud, Smartphone,
+  Package, Eye, X,
 } from 'lucide-react'
 
 import PyEditor from '@/components/py-editor'
@@ -22,12 +22,10 @@ interface OutputChunk { id: number; stream: 'stdout' | 'stderr' | 'system'; text
 interface RunResult { code: number | null; signal: string | null; timedOut: boolean; durationMs: number; error?: string }
 
 const STORAGE_KEY = 'pyrunner:kotlin-android-project:v1'
-const LEGACY_KEYS: string[] = []
 
 function loadProject(): Record<string, string> {
   if (typeof window === 'undefined') return { ...KOTLIN_ANDROID_TEMPLATE }
   try {
-    for (const k of LEGACY_KEYS) window.localStorage.removeItem(k)
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return { ...KOTLIN_ANDROID_TEMPLATE }
     const parsed = JSON.parse(raw)
@@ -82,12 +80,6 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
   const [newItemIsFolder, setNewItemIsFolder] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [previewRenderKey, setPreviewRenderKey] = useState(0)
-  // Appetize.io integration
-  const [appetizeToken, setAppetizeToken] = useState<string>('')
-  const [appetizePublicKey, setAppetizePublicKey] = useState<string>('')
-  const [showAppetizeModal, setShowAppetizeModal] = useState(false)
-  const [appetizeLoading, setAppetizeLoading] = useState(false)
-  const [previewMode, setPreviewMode] = useState<'layout' | 'appetize'>('layout')
   const socketRef = useRef<Socket | null>(null)
   const chunkIdRef = useRef(0)
   const consoleEndRef = useRef<HTMLDivElement | null>(null)
@@ -98,13 +90,6 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
     setProjectFiles(files)
     const ma = Object.keys(files).find(p => p.endsWith('MainActivity.kt'))
     if (ma) { setActiveFilePath(ma); setOpenTabs([ma]) }
-    // Load Appetize credentials
-    try {
-      const t = window.localStorage.getItem('pyrunner:appetize-token')
-      const p = window.localStorage.getItem('pyrunner:appetize-publickey')
-      if (t) setAppetizeToken(t)
-      if (p) setAppetizePublicKey(p)
-    } catch {}
   }, [])
 
   useEffect(() => { const t = setTimeout(() => saveProject(projectFiles), 400); return () => clearTimeout(t) }, [projectFiles])
@@ -139,7 +124,6 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
     const emit = () => sock.emit('run', { code: '', language: 'kotlin-android', action, files: projectFiles })
     if (sock.connected) emit()
     else { sock.once('connect', emit); if (!sock.active) sock.connect() }
-    // Auto-open preview after run completes
     setTimeout(() => {
       if (Object.keys(projectFiles).some(p => p.includes('/layout/') && p.endsWith('.xml'))) {
         setShowPreview(true)
@@ -161,120 +145,6 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
       toast.success('Project downloaded', { description: 'kotlin-android-project.zip' })
     } catch (e) { toast.error('Failed to create ZIP', { description: (e as Error).message }) }
   }, [projectFiles])
-
-  /* ---- Appetize.io: upload ZIP file → tmpfiles.org → Appetize API ---- */
-  const handleAppetizeUploadZip = useCallback(async (zipFile: File) => {
-    if (!appetizeToken) {
-      toast.error('Appetize token not set', { description: 'Enter your token first' })
-      return
-    }
-    setAppetizeLoading(true)
-    const append = (stream: 'stdout' | 'stderr' | 'system', data: string) => {
-      const id = ++chunkIdRef.current
-      setChunks(prev => [...prev, { id, stream, text: data }])
-    }
-
-    try {
-      append('system', `\n=== Step 1/3: Uploading ZIP to tmpfiles.org ===\n`)
-      const formData = new FormData()
-      formData.append('file', zipFile)
-
-      const uploadRes = await fetch('https://tmpfiles.org/api/v1/upload', {
-        method: 'POST',
-        body: formData,
-      })
-      const uploadData = await uploadRes.json()
-      if (uploadData.status !== 'success' || !uploadData.data?.url) {
-        throw new Error('Upload to tmpfiles.org failed: ' + JSON.stringify(uploadData))
-      }
-
-      // Convert view URL to download URL
-      // https://tmpfiles.org/xxx/file → https://tmpfiles.org/dl/xxx/file
-      const viewUrl = uploadData.data.url as string
-      const apkUrl = viewUrl.replace('tmpfiles.org/', 'tmpfiles.org/dl/')
-      append('stdout', `✓ Uploaded to: ${apkUrl}\n`)
-
-      append('system', `\n=== Step 2/3: Uploading to Appetize.io ===\n`)
-      append('stdout', `Sending APK URL to Appetize...\n`)
-      const apiRes = await fetch(`https://${appetizeToken}@api.appetize.io/v1/apps`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: apkUrl, platform: 'android' }),
-      })
-      const apiData = await apiRes.json()
-      if (apiData.publicKey) {
-        setAppetizePublicKey(apiData.publicKey)
-        try { window.localStorage.setItem('pyrunner:appetize-publickey', apiData.publicKey) } catch {}
-        append('stdout', `✓ App created on Appetize!\n`)
-        append('stdout', `Public Key: ${apiData.publicKey}\n`)
-        append('system', `\n=== Step 3/3: Launching app ===\n`)
-        setPreviewMode('appetize')
-        setShowPreview(true)
-        setPreviewRenderKey(k => k + 1)
-        toast.success('App launched on Appetize!', { description: 'Interactive preview ready' })
-      } else {
-        throw new Error('Appetize API error: ' + JSON.stringify(apiData).slice(0, 300))
-      }
-    } catch (e) {
-      append('stderr', `\nError: ${(e as Error).message}\n`)
-      toast.error('Upload failed', { description: (e as Error).message })
-    } finally {
-      setAppetizeLoading(false)
-    }
-  }, [appetizeToken])
-
-  /* ---- Update existing Appetize app with new ZIP ---- */
-  const handleAppetizeUpdateZip = useCallback(async (zipFile: File) => {
-    if (!appetizeToken || !appetizePublicKey) {
-      toast.error('Not connected to Appetize')
-      return
-    }
-    setAppetizeLoading(true)
-    const append = (stream: 'stdout' | 'stderr' | 'system', data: string) => {
-      const id = ++chunkIdRef.current
-      setChunks(prev => [...prev, { id, stream, text: data }])
-    }
-
-    try {
-      append('system', `\n=== Step 1/2: Uploading new ZIP ===\n`)
-      const formData = new FormData()
-      formData.append('file', zipFile)
-
-      const uploadRes = await fetch('https://tmpfiles.org/api/v1/upload', {
-        method: 'POST',
-        body: formData,
-      })
-      const uploadData = await uploadRes.json()
-      if (uploadData.status !== 'success' || !uploadData.data?.url) {
-        throw new Error('Upload to tmpfiles.org failed')
-      }
-      const viewUrl = uploadData.data.url as string
-      const apkUrl = viewUrl.replace('tmpfiles.org/', 'tmpfiles.org/dl/')
-      append('stdout', `✓ Uploaded to: ${apkUrl}\n`)
-
-      append('system', `\n=== Step 2/2: Updating Appetize app ===\n`)
-      const apiRes = await fetch(`https://${appetizeToken}@api.appetize.io/v1/apps/${appetizePublicKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: apkUrl, platform: 'android' }),
-      })
-      const apiData = await apiRes.json()
-      if (apiData.publicKey || apiData.appId) {
-        append('stdout', `✓ App updated!\n`)
-        setPreviewMode('appetize')
-        setShowPreview(true)
-        setPreviewRenderKey(k => k + 1)
-        toast.success('App updated on Appetize!')
-      } else {
-        throw new Error('Appetize update failed: ' + JSON.stringify(apiData).slice(0, 300))
-      }
-    } catch (e) {
-      append('stderr', `\nError: ${(e as Error).message}\n`)
-      toast.error('Update failed', { description: (e as Error).message })
-    } finally {
-      setAppetizeLoading(false)
-    }
-  }, [appetizeToken, appetizePublicKey])
 
   const openFile = useCallback((path: string) => { setActiveFilePath(path); setOpenTabs(prev => prev.includes(path) ? prev : [...prev, path]) }, [])
   const closeTab = useCallback((path: string) => {
@@ -335,24 +205,11 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
         </Button>
         {isRunning && <Button onClick={handleStop} variant="destructive" size="sm" className="gap-1.5 flex-none"><Square className="h-3.5 w-3.5" /><span className="hidden sm:inline">Stop</span></Button>}
         <div className="w-px h-6 bg-border mx-1 flex-none" />
-        <Button onClick={() => { setShowPreview(!showPreview); setPreviewMode('layout'); setPreviewRenderKey(k => k + 1) }} variant={showPreview && previewMode === 'layout' ? 'secondary' : 'ghost'} size="sm" className="gap-1.5 flex-none" title="Render layout visually (browser-side)">
-          <Eye className="h-4 w-4" /><span className="hidden sm:inline">Layout</span>
-        </Button>
-        <Button
-          onClick={() => {
-            if (!appetizeToken) { setShowAppetizeModal(true); return }
-            if (appetizePublicKey) { setPreviewMode('appetize'); setShowPreview(true); setPreviewRenderKey(k => k + 1) }
-            else setShowAppetizeModal(true)
-          }}
-          variant={showPreview && previewMode === 'appetize' ? 'secondary' : 'ghost'}
-          size="sm"
-          className="gap-1.5 flex-none"
-          title="Run on real Android via Appetize.io cloud emulator"
-        >
-          {appetizeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
-          <span className="hidden sm:inline">Cloud Run</span>
-          {appetizePublicKey && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-none" title="Appetize connected" />}
-        </Button>
+        {layoutFiles.length > 0 && (
+          <Button onClick={() => { setShowPreview(!showPreview); setPreviewRenderKey(k => k + 1) }} variant={showPreview ? 'secondary' : 'ghost'} size="sm" className="gap-1.5 flex-none" title="Render layout visually">
+            <Eye className="h-4 w-4" /><span className="hidden sm:inline">{showPreview ? 'Hide Preview' : 'Preview Layout'}</span>
+          </Button>
+        )}
         <div className="flex-1" />
         <Button onClick={handleDownloadZip} variant="ghost" size="sm" className="gap-1.5 flex-none">
           <Download className="h-4 w-4" /><span className="hidden sm:inline">Download ZIP</span>
@@ -423,7 +280,7 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
                 {chunks.length === 0 && !isRunning ? (
                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground px-6 text-center">
                     <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                    <p className="text-xs">Click <span className="text-emerald-400 font-mono">Run</span> to validate the project, <span className="text-blue-400 font-mono">Preview Layout</span> to render the UI, or <span className="text-emerald-400 font-mono">Download ZIP</span> to build locally.</p>
+                    <p className="text-xs">Click <span className="text-emerald-400 font-mono">Run</span> to validate, <span className="text-blue-400 font-mono">Preview Layout</span> to render UI, or <span className="text-emerald-400 font-mono">Download ZIP</span> for Android Studio.</p>
                   </div>
                 ) : (
                   <div className="px-3 py-2.5 font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-words" style={{ fontFamily: 'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', tabSize: 4 }}>
@@ -435,45 +292,18 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
               </div>
             </div>
           </Panel>
-          {/* Preview Panel (Layout OR Appetize) */}
-          {showPreview && (
+          {/* Layout Preview */}
+          {showPreview && currentPreviewLayout && (
             <>
               <PanelResizeHandle className="w-1.5 bg-border hover:bg-emerald-500/50 transition-colors" />
-              <Panel defaultSize={previewMode === 'appetize' ? 40 : 25} minSize={15}>
+              <Panel defaultSize={25} minSize={15}>
                 <div className="h-full flex flex-col bg-card/30">
                   <div className="flex-none flex h-9 items-center justify-between border-b border-border px-3 bg-muted/30">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      {previewMode === 'appetize' ? <><Cloud className="h-3 w-3" /> Appetize Cloud</> : <><Eye className="h-3 w-3" /> Layout Preview</>}
-                    </span>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"><Eye className="h-3 w-3" /> Layout Preview</span>
                     <button onClick={() => setShowPreview(false)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Close preview"><X className="h-3.5 w-3.5" /></button>
                   </div>
                   <div className="flex-1 min-h-0 overflow-auto">
-                    {previewMode === 'appetize' ? (
-                      appetizePublicKey ? (
-                        <iframe
-                          key={previewRenderKey}
-                          src={`https://appetize.io/embed/${appetizePublicKey}?device=iphone8&scale=auto&orientation=portrait&deviceColor=black`}
-                          title="Appetize Cloud Emulator"
-                          className="h-full w-full border-0"
-                          allow="autoplay; encrypted-media; fullscreen"
-                          style={{ minHeight: 600 }}
-                        />
-                      ) : (
-                        <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-6 text-center gap-3">
-                          <Cloud className="h-10 w-10 opacity-50" />
-                          <div className="text-sm">No app uploaded</div>
-                          <Button onClick={() => setShowAppetizeModal(true)} variant="secondary" size="sm" className="gap-1.5 mt-2">
-                            <Cloud className="h-3.5 w-3.5" /> Upload APK
-                          </Button>
-                        </div>
-                      )
-                    ) : currentPreviewLayout ? (
-                      <AndroidLayoutPreview key={previewRenderKey} files={projectFiles} layoutPath={currentPreviewLayout} />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-muted-foreground text-sm p-4 text-center">
-                        No layout XML found. Add a file to app/src/main/res/layout/.
-                      </div>
-                    )}
+                    <AndroidLayoutPreview key={previewRenderKey} files={projectFiles} layoutPath={currentPreviewLayout} />
                   </div>
                 </div>
               </Panel>
@@ -481,22 +311,6 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
           )}
         </PanelGroup>
       </div>
-
-      {/* Appetize Modal */}
-      {showAppetizeModal && (
-        <AppetizeModal
-          token={appetizeToken}
-          publicKey={appetizePublicKey}
-          onSaveToken={(t) => {
-            setAppetizeToken(t)
-            try { window.localStorage.setItem('pyrunner:appetize-token', t) } catch {}
-          }}
-          onUploadZip={(file) => { handleAppetizeUploadZip(file); setShowAppetizeModal(false) }}
-          onUpdateZip={(file) => { handleAppetizeUpdateZip(file); setShowAppetizeModal(false) }}
-          onClose={() => setShowAppetizeModal(false)}
-          loading={appetizeLoading}
-        />
-      )}
     </div>
   )
 }
@@ -558,133 +372,4 @@ function StatusBadge({ status, label }: { status: Status; label: string }) {
   const cls = tone === 'success' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : tone === 'error' ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400' : tone === 'running' ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400' : 'bg-muted text-muted-foreground'
   const icon = tone === 'success' ? <CircleCheck className="h-3 w-3" /> : tone === 'error' ? <CircleAlert className="h-3 w-3" /> : tone === 'running' ? <Loader2 className="h-3 w-3 animate-spin" /> : null
   return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${cls}`}>{icon}{label}</span>
-}
-
-/* ------------------------------------------------------------------ */
-/* AppetizeModal — connect Appetize.io + upload APK URL               */
-/* ------------------------------------------------------------------ */
-
-interface AppetizeModalProps {
-  token: string
-  publicKey: string
-  onSaveToken: (t: string) => void
-  onUploadZip: (file: File) => void
-  onUpdateZip: (file: File) => void
-  onClose: () => void
-  loading: boolean
-}
-
-function AppetizeModal({ token, publicKey, onSaveToken, onUploadZip, onUpdateZip, onClose, loading }: AppetizeModalProps) {
-  const [tokenDraft, setTokenDraft] = useState(token)
-  const [tokenSaved, setTokenSaved] = useState(!!token)
-  const [dragOver, setDragOver] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const handleFile = (file: File) => {
-    if (!file.name.endsWith('.zip') && !file.name.endsWith('.apk')) {
-      toast.error('Please upload a .zip or .apk file')
-      return
-    }
-    if (publicKey) {
-      onUpdateZip(file)
-    } else {
-      onUploadZip(file)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-background border border-border rounded-lg shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-          <div className="flex items-center gap-2">
-            <Cloud className="h-4 w-4 text-blue-500" />
-            <h2 className="text-sm font-semibold">Appetize.io Cloud Run</h2>
-            {publicKey && <span className="text-[10px] bg-emerald-500/15 text-emerald-500 rounded-full px-2 py-0.5">App: {publicKey.slice(0, 8)}…</span>}
-          </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-muted text-muted-foreground"><X className="h-4 w-4" /></button>
-        </div>
-
-        <div className="flex-1 overflow-auto p-4 space-y-4">
-          {!tokenSaved ? (
-            <>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Appetize API Token</label>
-                <input
-                  type="text"
-                  value={tokenDraft}
-                  onChange={(e) => setTokenDraft(e.target.value)}
-                  placeholder="tok_xxxxxxxxxxxxxxxxxxxxxxxx"
-                  autoFocus
-                  className="w-full bg-background border border-border rounded px-3 py-2 text-sm outline-none focus:border-blue-500 font-mono"
-                />
-                <p className="text-[10px] text-muted-foreground mt-1.5">
-                  Get your token from <a href="https://app.appetize.io/account" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">app.appetize.io/account</a> → API & Settings
-                </p>
-              </div>
-              <Button
-                onClick={() => { onSaveToken(tokenDraft.trim()); setTokenSaved(true) }}
-                disabled={!tokenDraft.trim()}
-                size="sm"
-                className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <Cloud className="h-3.5 w-3.5" /> Save Token
-              </Button>
-            </>
-          ) : (
-            <>
-              <div className="rounded-md bg-blue-500/10 border border-blue-500/30 p-3 text-xs whitespace-pre-wrap">
-                <div className="font-medium text-blue-600 dark:text-blue-400 mb-1">How it works</div>
-                1. Download your project as ZIP (button in toolbar)
-2. Or build APK in Android Studio
-3. Drop the .zip or .apk file below
-4. We upload it and launch on Appetize — interactive in your browser!
-              </div>
-
-              {/* File drop zone */}
-              <div
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault(); setDragOver(false)
-                  const file = e.dataTransfer.files[0]
-                  if (file) handleFile(file)
-                }}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                  dragOver ? 'border-blue-500 bg-blue-500/10' : 'border-border hover:border-blue-500/50 hover:bg-muted/30'
-                }`}
-              >
-                <Cloud className={`h-10 w-10 mx-auto mb-2 ${dragOver ? 'text-blue-500' : 'text-muted-foreground'}`} />
-                <div className="text-sm font-medium mb-1">
-                  {loading ? 'Uploading...' : 'Drop your .zip or .apk here'}
-                </div>
-                <div className="text-[10px] text-muted-foreground">
-                  or click to browse
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".zip,.apk"
-                  className="hidden"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }}
-                />
-              </div>
-
-              {loading && (
-                <div className="flex items-center gap-2 text-xs text-blue-500">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>Uploading to tmpfiles.org → Appetize.io...</span>
-                </div>
-              )}
-
-              <div className="text-[10px] text-muted-foreground/60 border-t border-border pt-2">
-                Token saved: <code className="text-emerald-400">{token.slice(0, 12)}…</code>
-                <button onClick={() => setTokenSaved(false)} className="ml-2 text-blue-500 hover:underline">Change token</button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  )
 }
