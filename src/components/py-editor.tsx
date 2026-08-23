@@ -173,7 +173,7 @@ export default function PyEditor({
       language === 'r' ? StreamLanguage.define(r) :
       language === 'javascript' ? javascript() :
       language === 'php' ? phpLang() :
-      language === 'dart' || language === 'flutter' ? StreamLanguage.define(clike({ keywords: dartKeywords })) :
+      language === 'dart' || language === 'flutter' ? StreamLanguage.define(clike({ name: 'dart', keywords: dartKeywords })) :
       language === 'html' ? htmlLang() :
       language === 'sql' ? sqlLang() :
       language === 'go' ? StreamLanguage.define(go) :
@@ -187,7 +187,7 @@ export default function PyEditor({
       language === 'bash' ? StreamLanguage.define(shellLang) :
       language === 'fortran' ? StreamLanguage.define(fortranLang) :
       language === 'cobol' ? StreamLanguage.define(cobolLang) :
-      language === 'kotlin' || language === 'kotlin-android' ? StreamLanguage.define(clike({ keywords: kotlinKeywords })) :
+      language === 'kotlin' || language === 'kotlin-android' ? StreamLanguage.define(clike({ name: 'kotlin', keywords: kotlinKeywords })) :
       language === 'xml' ? xmlLang() :
       python()
     const exts: Extension[] = [
@@ -242,10 +242,10 @@ export default function PyEditor({
           autocompletion: true,
           bracketMatching: true,
           closeBrackets: true,
-          // Disable auto-indent on input — it mangles Python indentation
-          // (auto-indents to 8 spaces instead of 4 after function definitions).
-          // Users type their own indentation.
-          indentOnInput: false,
+          // Re-enabled with proper indentUnit (4 spaces) to fix the
+          // 8-space auto-indent bug. The indentUnit extension above
+          // ensures all auto-indentation uses exactly 4 spaces.
+          indentOnInput: true,
           tabSize: 4,
         }}
         style={{ height: '100%' }}

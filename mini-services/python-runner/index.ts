@@ -57,6 +57,11 @@ interface Session {
   // Used to prevent the idle timer from closing stdin while the user
   // is actively interacting with the program.
   receivedInteractiveInput: boolean
+  // The binary being executed (e.g. "python3", "node", "ruby") — used in
+  // error messages so users see the correct tool name instead of "python3".
+  binaryName: string
+  // Per-session workspace dir (for multi-file runs). Cleaned up on session end.
+  workspaceDir: string | null
 }
 
 const sessions = new Map<string, Session>()
@@ -110,6 +115,8 @@ async function setupMultiFileWorkspace(
     } catch { /* ignore */ }
   }
   const entryPath = join(workspaceDir, entryFile)
+  // Store on globalThis so the session creation can pick it up for cleanup.
+  ;(globalThis as any).__lastWorkspaceDir = workspaceDir
   return { workspaceDir, entryPath, isMultiFile: true }
 }
 
@@ -132,6 +139,8 @@ function filterInternalNoise(text: string): string {
     .join('\n')
 }
 
+const { rm } = require('fs/promises')
+
 function killSession(session: Session, reason: 'timeout' | 'client_disconnect' | 'stop') {
   if (session.killed) return
   session.killed = true
@@ -147,6 +156,11 @@ function killSession(session: Session, reason: 'timeout' | 'client_disconnect' |
     session.child.kill('SIGKILL')
   } catch {
     /* noop */
+  }
+  // Clean up the per-session workspace dir (multi-file runs create proj_<uuid>/ dirs
+  // that would otherwise accumulate in /tmp forever).
+  if (session.workspaceDir) {
+    rm(session.workspaceDir, { recursive: true, force: true }).catch(() => {})
   }
   void reason
 }
@@ -325,7 +339,7 @@ function setupSession(socketId: string, session: Session, socket: any) {
   child.on('error', (err) => {
     socket.emit('output', {
       stream: 'stderr',
-      data: `Failed to spawn python3: ${err.message}\n`,
+      data: `Failed to spawn ${session.binaryName}: ${err.message}\n`,
       promptLike: false,
     })
     socket.emit('exit', {
@@ -959,10 +973,21 @@ readline <- function(prompt = "") {
       return null
     }
 
-    // Locate the portable R install
+    // Locate the portable R install.
+    // Rscript has a hardcoded /usr/lib/R path that can't be overridden, so we
+    // use the R exec binary directly with the correct R_HOME + LD_LIBRARY_PATH.
     const home = process.env.HOME || '/home/z'
+    const rHome = join(home, '.local', 'r', 'lib', 'R')
+    const rHomeAlt = join(home, '.local', 'r', 'usr', 'lib', 'R')
+    const actualRHome = existsSync(rHome) ? rHome : rHomeAlt
+    // Prefer the exec binary (bypasses the shell wrapper that hardcodes paths).
+    const rExecPath = join(actualRHome, 'bin', 'exec', 'R')
+    const rScriptPath = join(home, '.local', 'r', 'bin', 'R')
     const rscriptPath = join(home, '.local', 'r', 'bin', 'Rscript')
-    const actualRscript = existsSync(rscriptPath) ? rscriptPath : 'Rscript'
+    const actualR = existsSync(rExecPath) ? rExecPath
+      : existsSync(rScriptPath) ? rScriptPath
+      : existsSync(rscriptPath) ? rscriptPath
+      : 'Rscript'
 
     socket.emit('output', {
       stream: 'system',
@@ -973,13 +998,17 @@ readline <- function(prompt = "") {
     // R needs R_HOME and LD_LIBRARY_PATH set correctly.
     // --slave suppresses the startup banner, --no-restore prevents loading .RData,
     // --no-save prevents saving .RData on exit.
-    const child = spawn(actualRscript, [rFilePath], {
+    // When using the exec binary directly, use -f <file> to run a script.
+    const rArgs = actualR === rExecPath
+      ? ['--slave', '--no-restore', '--no-save', '-f', rFilePath]
+      : [rFilePath]
+    const child = spawn(actualR, rArgs, {
       cwd: sandboxDir,
       env: {
         ...process.env,
-        R_HOME: join(home, '.local', 'r', 'usr', 'lib', 'R'),
+        R_HOME: actualRHome,
         LD_LIBRARY_PATH: [
-          join(home, '.local', 'r', 'usr', 'lib', 'R', 'lib'),
+          join(actualRHome, 'lib'),
           join(home, '.local', 'r', 'usr', 'lib', 'x86_64-linux-gnu'),
           '/lib/x86_64-linux-gnu',
           '/usr/lib/x86_64-linux-gnu',
@@ -2742,7 +2771,10 @@ if __name__ == "__main__":
     const binPath = join(workspaceRoot, 'main_bin')
 
     try {
-      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 })
+      // Ensure the source ends with a newline to avoid the cobc warning:
+      // "line not terminated by a newline [-Wmissing-newline]"
+      const safeCode = code.endsWith('\n') ? code : code + '\n'
+      await writeFile(scriptPath, safeCode, { encoding: 'utf8', mode: 0o600 })
     } catch (e) {
       socket.emit('output', {
         stream: 'stderr',
@@ -2949,6 +2981,8 @@ if __name__ == "__main__":
 
 
   socket.on('run', async (payload: RunPayload) => {
+    // Clear the workspace dir tracker from the previous run.
+    ;(globalThis as any).__lastWorkspaceDir = null
     // If a previous session is still alive on this socket, kill it first.
     const prev = sessions.get(socket.id)
     if (prev) {
@@ -3042,6 +3076,23 @@ if __name__ == "__main__":
 
     if (!child) return // Error already emitted by spawn function
 
+    // Determine the binary name for error messages (replaces the old
+    // hardcoded "Failed to spawn python3" message that was shown for ALL languages).
+    const BINARY_NAMES: Record<string, string> = {
+      python: 'python3', java: 'java', c: 'gcc', cpp: 'g++', r: 'Rscript',
+      javascript: 'node', php: 'php', csharp: 'dotnet', dart: 'dart',
+      flutter: 'flutter', html: 'node', sql: 'sqlite3', kotlin: 'kotlinc',
+      go: 'go', typescript: 'bun', rust: 'rustc', ruby: 'ruby',
+      swift: 'swift', lua: 'lua', perl: 'perl', powershell: 'pwsh',
+      bash: 'bash', fortran: 'gfortran', cobol: 'cobc',
+      'kotlin-android': 'kotlinc',
+    }
+    const binaryName = BINARY_NAMES[language] ?? 'interpreter'
+
+    // Track the workspace dir for cleanup (set by setupMultiFileWorkspace).
+    // We read it from the global state set during spawn* execution.
+    const workspaceDir = (globalThis as any).__lastWorkspaceDir ?? null
+
     const session: Session = {
       child,
       startedAt: Date.now(),
@@ -3055,6 +3106,8 @@ if __name__ == "__main__":
       serverDetected: false,
       stdinIdleTimer: null,
       receivedInteractiveInput: false,
+      binaryName,
+      workspaceDir,
     }
 
     sessions.set(socket.id, session)
