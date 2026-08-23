@@ -1940,8 +1940,12 @@ if __name__ == "__main__":
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'main.rb')
 
+    // Prepend STDOUT.sync = true to disable output buffering
+    const preamble = code.includes('STDOUT.sync') ? '' : 'STDOUT.sync = true\n'
+    const finalCode = preamble + code
+
     try {
-      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 })
+      await writeFile(scriptPath, finalCode, { encoding: 'utf8', mode: 0o600 })
     } catch (e) {
       socket.emit('output', {
         stream: 'stderr',
