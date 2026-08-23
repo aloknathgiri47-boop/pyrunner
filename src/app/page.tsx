@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash'
 
 interface PersistedState {
   code: string
@@ -466,6 +466,24 @@ for ($i = 1; $i -le 3; $i++) {
 }
 `
 
+const DEFAULT_BASH_CODE = `#!/bin/bash
+# Bash 5.2 — runs with bash
+# Press Run (or Ctrl+Enter) to execute.
+
+add() {
+    echo $(( $1 + $2 ))
+}
+
+echo "Hello from Bash!"
+name="World"
+echo "Hello, $name!"
+result=$(add 3 4)
+echo "3 + 4 = $result"
+for i in 1 2 3; do
+    echo "Count: $i"
+done
+`
+
 
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
@@ -480,7 +498,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -524,7 +542,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
@@ -772,6 +790,7 @@ export default function Home() {
           language === 'lua' ? 'Write some Lua code first.' :
           language === 'perl' ? 'Write some Perl code first.' :
           language === 'powershell' ? 'Write some PowerShell code first.' :
+          language === 'bash' ? 'Write some Bash code first.' :
           'Write some Python first.',
       })
       return
@@ -875,6 +894,7 @@ export default function Home() {
       lang === 'lua' ? DEFAULT_LUA_CODE :
       lang === 'perl' ? DEFAULT_PERL_CODE :
       lang === 'powershell' ? DEFAULT_PS_CODE :
+      lang === 'bash' ? DEFAULT_BASH_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -931,6 +951,7 @@ export default function Home() {
       language === 'lua' ? 'lua' :
       language === 'perl' ? 'pl' :
       language === 'powershell' ? 'ps1' :
+      language === 'bash' ? 'sh' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -953,6 +974,7 @@ export default function Home() {
       language === 'lua' ? 'text/lua;charset=utf-8' :
       language === 'perl' ? 'text/perl;charset=utf-8' :
       language === 'powershell' ? 'text/powershell;charset=utf-8' :
+      language === 'bash' ? 'text/x-sh;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -1071,7 +1093,9 @@ export default function Home() {
                                                           ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'
                                                           : language === 'powershell'
                                                             ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20'
-                                                            : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                                            : language === 'bash'
+                                                              ? 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20'
+                                                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
                   {language === 'java'
@@ -1114,7 +1138,9 @@ export default function Home() {
                                                         ? 'Perl 5.40'
                                                         : language === 'powershell'
                                                           ? 'PowerShell 7'
-                                                          : 'Python 3.12'}
+                                                          : language === 'bash'
+                                                            ? 'Bash 5.2'
+                                                            : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -1158,7 +1184,9 @@ export default function Home() {
                                                       ? 'Interactive Perl console with live stdin'
                                                       : language === 'powershell'
                                                         ? 'Interactive PowerShell console with live stdin'
-                                                        : 'Interactive Python console with live input()'}
+                                                        : language === 'bash'
+                                                          ? 'Interactive Bash console with live stdin'
+                                                          : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -1396,6 +1424,17 @@ export default function Home() {
                 }`}
               >
                 PS
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('bash')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'bash'
+                    ? 'bg-zinc-700 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Bash
               </button>
             </div>
           </div>
@@ -1769,6 +1808,23 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Bash examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'bash').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1941,7 +1997,9 @@ export default function Home() {
                                                           ? 'main.pl'
                                                           : language === 'powershell'
                                                             ? 'main.ps1'
-                                                            : 'code.py'}
+                                                            : language === 'bash'
+                                                              ? 'script.sh'
+                                                              : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button

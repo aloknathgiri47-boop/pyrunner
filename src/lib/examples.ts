@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash'
   files?: Record<string, string>
 }
 
@@ -4303,6 +4303,151 @@ Write-Host "PATH: $env:PATH".Substring(0, 50) + "..."
 # Date
 $now = Get-Date
 Write-Host "Date: $($now.ToString('yyyy-MM-dd HH:mm:ss'))"
+`,
+  },
+  {
+    id: 'bash-hello',
+    name: 'Bash: Hello World',
+    description: 'Basic Bash with functions, variables, loops.',
+    language: 'bash',
+    code: `#!/bin/bash
+
+add() {
+    echo $(( $1 + $2 ))
+}
+
+echo "Hello from Bash!"
+name="World"
+echo "Hello, $name!"
+result=$(add 3 4)
+echo "3 + 4 = $result"
+for i in 1 2 3; do
+    echo "Count: $i"
+done
+`,
+  },
+  {
+    id: 'bash-strings',
+    name: 'Bash: Strings & Arrays',
+    description: 'String manipulation, arrays, conditionals.',
+    language: 'bash',
+    code: `#!/bin/bash
+
+# String operations
+text="Hello, World!"
+echo "Upper: $(echo $text | tr a-z A-Z)"
+echo "Lower: $(echo $text | tr A-Z a-z)"
+echo "Length: $(echo -n $text | wc -c)"
+echo "Substring: $(echo $text | cut -c1-5)"
+echo "Replace: $(echo $text | sed 's/World/Bash/')"
+
+# Arrays
+fruits=("apple" "banana" "cherry" "date")
+echo "Array: \${fruits[@]}"
+echo "Count: \${#fruits[@]}"
+idx=0
+for f in "\${fruits[@]}"; do
+    echo "  $idx: $f"
+    idx=$((idx + 1))
+done
+
+# Array operations
+nums=(5 2 8 1 9 3)
+sorted=($(printf '%s\n' "\${nums[@]}" | sort -n))
+echo "Sorted: \${sorted[@]}"
+
+# Conditionals
+age=20
+if [ $age -ge 18 ]; then
+    echo "Adult"
+elif [ $age -ge 13 ]; then
+    echo "Teenager"
+else
+    echo "Child"
+fi
+
+# Case statement
+day="Monday"
+case $day in
+    Monday|Tuesday|Wednesday|Thursday|Friday)
+        echo "Weekday" ;;
+    Saturday|Sunday)
+        echo "Weekend" ;;
+    *)
+        echo "Unknown" ;;
+esac
+
+# Reading input from a file
+echo "line1\nline2\nline3" > /tmp/bash_test.txt
+while IFS= read -r line; do
+    echo "  > $line"
+done < /tmp/bash_test.txt
+rm /tmp/bash_test.txt
+`,
+  },
+  {
+    id: 'bash-system',
+    name: 'Bash: System & Functions',
+    description: 'File ops, process management, networking.',
+    language: 'bash',
+    code: `#!/bin/bash
+
+# System info
+echo "OS: $(uname -s)"
+echo "Hostname: $(hostname)"
+echo "User: $(whoami)"
+echo "Date: $(date)"
+echo "Uptime: $(uptime -p)"
+
+# Disk usage
+echo ""
+echo "Disk usage:"
+df -h / | tail -1 | awk '{print "  Total: "$2"  Used: "$3"  Free: "$4}'
+
+# Memory
+echo ""
+echo "Memory:"
+free -h | head -2
+
+# Functions with local variables
+calculate_area() {
+    local width=$1
+    local height=$2
+    local area=$((width * height))
+    echo $area
+}
+
+rect_area=$(calculate_area 5 3)
+echo ""
+echo "Rectangle area (5x3): $rect_area"
+
+# Recursive function
+factorial() {
+    if [ $1 -le 1 ]; then
+        echo 1
+    else
+        local prev=$(factorial $(( $1 - 1 )))
+        echo $(( $1 * prev ))
+    fi
+}
+
+echo "5! = $(factorial 5)"
+
+# String splitting
+csv="apple,banana,cherry"
+IFS=',' read -ra items <<< "$csv"
+for item in "\${items[@]}"; do
+    echo "Item: $item"
+done
+
+# Find files
+echo ""
+echo "Temp files:"
+find /tmp -maxdepth 1 -name "*.txt" 2>/dev/null | head -3
+
+# Count lines in output
+echo ""
+echo "Running processes: $(ps aux | wc -l)"
 `,
   },
 ]
