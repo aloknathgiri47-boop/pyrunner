@@ -378,7 +378,12 @@ export default function Home() {
     // the polling handshake and the query gets dropped by the gateway).
     // Enable reconnection so if the runner restarts (watchdog auto-restart),
     // the client automatically reconnects without showing "xhr poll error".
-    const sock = io('/?XTransformPort=3003', {
+    // When deployed on Vercel, connect to the Render runner URL directly.
+    // When running locally (dev), use the gateway proxy.
+    const runnerUrl = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+      ? 'https://codehubz-runner.onrender.com'
+      : undefined
+    const sock = io(runnerUrl ?? '/?XTransformPort=3003', {
       transports: ['polling', 'websocket'],
       forceNew: true,
       reconnection: true,
