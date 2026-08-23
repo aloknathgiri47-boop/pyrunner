@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android'
 
 interface PersistedState {
   code: string
@@ -295,7 +295,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','kotlin-android'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -339,7 +339,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','kotlin-android'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
