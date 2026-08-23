@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby'
   files?: Record<string, string>
 }
 
@@ -3604,6 +3604,133 @@ fn calculate_length(s: &String) -> usize {
 fn append_world(s: &mut String) {
     s.push_str(", world!");
 }
+`,
+  },
+  {
+    id: 'ruby-hello',
+    name: 'Ruby: Hello World',
+    description: 'Basic Ruby with methods and blocks.',
+    language: 'ruby',
+    code: `# Ruby 3.3 — runs with ruby
+def add(a, b)
+  a + b
+end
+
+puts "Hello from Ruby!"
+name = "World"
+puts "Hello, #{name}!"
+result = add(3, 4)
+puts "3 + 4 = #{result}"
+3.times do |i|
+  puts "Count: #{i + 1}"
+end
+`,
+  },
+  {
+    id: 'ruby-classes',
+    name: 'Ruby: Classes & Blocks',
+    description: 'Classes, modules, blocks, iterators.',
+    language: 'ruby',
+    code: `# Ruby OOP and blocks
+
+class Person
+  attr_accessor :name, :age
+
+  def initialize(name, age)
+    @name = name
+    @age = age
+  end
+
+  def greet
+    "Hello, I'm #{@name} and I'm #{@age} years old"
+  end
+
+  def to_s
+    "Person(name=#{@name}, age=#{@age})"
+  end
+end
+
+class Student < Person
+  attr_accessor :major
+
+  def initialize(name, age, major)
+    super(name, age)
+    @major = major
+  end
+
+  def greet
+    super + ". I study #{@major}."
+  end
+end
+
+alice = Person.new("Alice", 30)
+puts alice.greet
+puts alice.to_s
+
+bob = Student.new("Bob", 20, "Computer Science")
+puts bob.greet
+
+# Blocks and iterators
+fruits = ["apple", "banana", "cherry"]
+fruits.each_with_index do |fruit, i|
+  puts "#{i + 1}. #{fruit.capitalize}"
+end
+
+# Hash
+prices = { "apple" => 1.5, "banana" => 0.5, "cherry" => 3.0 }
+total = prices.values.sum
+puts "Total: $#{total}"
+
+# Map/select
+numbers = [1, 2, 3, 4, 5]
+doubled = numbers.map { |n| n * 2 }
+evens = numbers.select(&:even?)
+puts "Doubled: #{doubled}"
+puts "Evens: #{evens}"
+`,
+  },
+  {
+    id: 'ruby-metaprogramming',
+    name: 'Ruby: Procs & Lambdas',
+    description: 'Procs, lambdas, symbols, enumerable.',
+    language: 'ruby',
+    code: `# Ruby procs, lambdas, and functional style
+
+# Proc
+square = Proc.new { |x| x * x }
+puts "Square of 5: #{square.call(5)}"
+
+# Lambda
+add = ->(a, b) { a + b }
+puts "3 + 4 = #{add.call(3, 4)}"
+
+# Difference: lambda checks arity, proc doesn't
+# add.call(1)  # would raise ArgumentError
+
+# Using & to convert proc to block
+numbers = [1, 2, 3, 4, 5]
+double = Proc.new { |x| x * 2 }
+puts "Doubled: #{numbers.map(&double).inspect}"
+
+# reduce/inject
+sum = numbers.reduce(0) { |acc, n| acc + n }
+product = numbers.reduce(1) { |acc, n| acc * n }
+puts "Sum: #{sum}, Product: #{product}"
+
+# group_by
+words = ["apple", "bat", "cat", "ant", "ball"]
+grouped = words.group_by { |w| w[0] }
+puts "Grouped: #{grouped.inspect}"
+
+# sort_by
+sorted = words.sort_by { |w| w.length }
+puts "Sorted by length: #{sorted.inspect}"
+
+# flatten, compact, uniq
+nested = [1, [2, 3], [4, [5, 6]], nil, 1, 2]
+puts "Flattened: #{nested.flatten.inspect}"
+puts "Compact: #{nested.compact.inspect}"
+puts "Uniq: #{nested.flatten.uniq.inspect}"
 `,
   },
 ]

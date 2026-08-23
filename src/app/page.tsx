@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby'
 
 interface PersistedState {
   code: string
@@ -377,6 +377,23 @@ fn add(a: i32, b: i32) -> i32 {
 }
 `
 
+const DEFAULT_RUBY_CODE = `# Ruby 3.3 — runs with ruby
+# Press Run (or Ctrl+Enter) to execute.
+
+def add(a, b)
+  a + b
+end
+
+puts "Hello from Ruby!"
+name = "World"
+puts "Hello, #{name}!"
+result = add(3, 4)
+puts "3 + 4 = #{result}"
+3.times do |i|
+  puts "Count: #{i + 1}"
+end
+`
+
 
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
@@ -391,7 +408,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -435,7 +452,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
@@ -678,6 +695,7 @@ export default function Home() {
           language === 'go' ? 'Write some Go code first.' :
           language === 'typescript' ? 'Write some TypeScript code first.' :
           language === 'rust' ? 'Write some Rust code first.' :
+          language === 'ruby' ? 'Write some Ruby code first.' :
           'Write some Python first.',
       })
       return
@@ -776,6 +794,7 @@ export default function Home() {
       lang === 'go' ? DEFAULT_GO_CODE :
       lang === 'typescript' ? DEFAULT_TS_CODE :
       lang === 'rust' ? DEFAULT_RUST_CODE :
+      lang === 'ruby' ? DEFAULT_RUBY_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -827,6 +846,7 @@ export default function Home() {
       language === 'go' ? 'go' :
       language === 'typescript' ? 'ts' :
       language === 'rust' ? 'rs' :
+      language === 'ruby' ? 'rb' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -844,6 +864,7 @@ export default function Home() {
       language === 'go' ? 'text/x-go;charset=utf-8' :
       language === 'typescript' ? 'text/typescript;charset=utf-8' :
       language === 'rust' ? 'text/rust;charset=utf-8' :
+      language === 'ruby' ? 'text/x-ruby;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -952,7 +973,9 @@ export default function Home() {
                                                 ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
                                                 : language === 'rust'
                                                   ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
-                                                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                                  : language === 'ruby'
+                                                    ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+                                                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
                   {language === 'java'
@@ -985,7 +1008,9 @@ export default function Home() {
                                               ? 'TypeScript 5'
                                               : language === 'rust'
                                                 ? 'Rust 1.98'
-                                                : 'Python 3.12'}
+                                                : language === 'ruby'
+                                                  ? 'Ruby 3.3'
+                                                  : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -1019,7 +1044,9 @@ export default function Home() {
                                             ? 'Interactive TypeScript console with live stdin'
                                             : language === 'rust'
                                               ? 'Interactive Rust console with live stdin'
-                                              : 'Interactive Python console with live input()'}
+                                              : language === 'ruby'
+                                                ? 'Interactive Ruby console with live stdin'
+                                                : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -1202,6 +1229,17 @@ export default function Home() {
                 }`}
               >
                 Rust
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('ruby')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'ruby'
+                    ? 'bg-red-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Ruby
               </button>
             </div>
           </div>
@@ -1490,6 +1528,23 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Ruby examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'ruby').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1652,7 +1707,9 @@ export default function Home() {
                                                 ? 'index.ts'
                                                 : language === 'rust'
                                                   ? 'main.rs'
-                                                  : 'code.py'}
+                                                  : language === 'ruby'
+                                                    ? 'main.rb'
+                                                    : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button
