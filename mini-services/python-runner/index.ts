@@ -1255,9 +1255,14 @@ if (!function_exists('readline')) {
     }
 
     // Locate the .NET SDK and reference assemblies
+    // Check both ~/.dotnet (local install) and /usr/share/dotnet (system install)
     const home = process.env.HOME || '/home/z'
-    const sdkDir = existsSync(join(home, '.dotnet', 'sdk'))
-      ? join(home, '.dotnet', 'sdk')
+    const dotnetHome = join(home, '.dotnet')
+    const dotnetSystem = '/usr/share/dotnet'
+    const sdkDir = existsSync(join(dotnetHome, 'sdk'))
+      ? join(dotnetHome, 'sdk')
+      : existsSync(join(dotnetSystem, 'sdk'))
+      ? join(dotnetSystem, 'sdk')
       : null
     if (!sdkDir) {
       socket.emit('output', {
@@ -1287,8 +1292,9 @@ if (!function_exists('readline')) {
     }
     const actualSdkDir = join(sdkDir, sdkVersions[0])
 
-    // Find reference assemblies
-    const refBase = join(home, '.dotnet', 'packs', 'Microsoft.NETCore.App.Ref')
+    // Find reference assemblies — check both ~/.dotnet and /usr/share/dotnet
+    const dotnetRoot = existsSync(dotnetHome) ? dotnetHome : dotnetSystem
+    const refBase = join(dotnetRoot, 'packs', 'Microsoft.NETCore.App.Ref')
     let refDir = ''
     if (existsSync(refBase)) {
       const refVersions = readdirSync(refBase).filter(d => d.startsWith('8.'))
@@ -1308,7 +1314,7 @@ if (!function_exists('readline')) {
       return null
     }
 
-    const dotnetBin = join(home, '.dotnet', 'dotnet')
+    const dotnetBin = join(dotnetRoot, 'dotnet')
     const cscDll = join(actualSdkDir, 'Roslyn', 'bincore', 'csc.dll')
 
     // Compile step
