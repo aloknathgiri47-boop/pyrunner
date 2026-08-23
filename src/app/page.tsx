@@ -810,7 +810,7 @@ export default function Home() {
 
   // ---- Keyboard shortcuts ----
   // Ctrl/Cmd+Enter  → Run
-  // Ctrl/Cmd+S      → Save (mark active file as saved locally; cloud save in Phase 2)
+  // Ctrl/Cmd+S      → Save (marks the active file as saved)
   // Ctrl/Cmd+P      → Quick file switcher
   // Ctrl/Cmd+F      → Find in file (CodeMirror built-in; we just intercept browser's)
   // Ctrl/Cmd+H      → Replace (Phase 3 — for now, prevent browser history dialog)
@@ -824,12 +824,8 @@ export default function Home() {
         handleRun()
       } else if (e.key === 's' || e.key === 'S') {
         e.preventDefault()
-        // Mark the active file as saved locally (no cloud sync in Phase 1).
         markActiveFileSaved()
-        toast.success('Saved locally', {
-          description: 'Cloud save comes online once Google login is wired up (Phase 2).',
-          duration: 2500,
-        })
+        toast.success('Saved')
       } else if (e.key === 'p' || e.key === 'P') {
         // Only trigger if NOT pressed inside an input/textarea (so users can
         // still type Ctrl+P for printing in textareas).
@@ -1822,13 +1818,8 @@ export default function Home() {
             <TooltipTrigger asChild>
               <Button
                 onClick={() => {
-                  // Phase 1: Save = mark active file as saved locally + persist to IDB.
-                  // Phase 2 (Google login) will plug in here.
                   markActiveFileSaved()
-                  toast.success('Project saved locally', {
-                    description: 'Cloud sync (Google login) arrives in Phase 2.',
-                    duration: 2500,
-                  })
+                  toast.success('Saved')
                 }}
                 variant={isProjectDirty ? 'default' : 'ghost'}
                 size="sm"
@@ -1840,7 +1831,7 @@ export default function Home() {
                 </span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Save (Ctrl+S) — local for now</TooltipContent>
+            <TooltipContent>Save (Ctrl+S)</TooltipContent>
           </Tooltip>
 
           <Tooltip>
