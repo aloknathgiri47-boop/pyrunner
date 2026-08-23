@@ -12,7 +12,7 @@ export const EXAMPLES: Snippet[] = [
     id: 'hello',
     name: 'Hello, World',
     description: 'The classic first program.',
-    code: `# Welcome to PyRunner — a fast Python playground.
+    code: `# Welcome to CodeHubz — a fast Python playground.
 # Press Run (or Ctrl+Enter) to execute.
 
 print("Hello, World!")
@@ -448,7 +448,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 httpd = HTTPServer(("127.0.0.1", 5557), Handler)
-# Print this exact line so PyRunner detects the server and cancels the timeout.
+# Print this exact line so CodeHubz detects the server and cancels the timeout.
 print(f" * Running on http://127.0.0.1:5557/")
 httpd.serve_forever()
 `,
@@ -482,7 +482,7 @@ print(f"  Slides: {len(data['slideshow']['slides'])}")
 
 # Custom headers (e.g. User-Agent, Authorization)
 headers = {
-    "User-Agent": "PyRunner/1.0",
+    "User-Agent": "CodeHubz/1.0",
     "Accept": "application/json",
 }
 
@@ -585,7 +585,7 @@ print(df.groupby("species").mean(numeric_only=True).to_string())
     name: 'Java: Hello World',
     description: 'Classic first Java program.',
     language: 'java',
-    code: `// Welcome to PyRunner — Java 21 playground.
+    code: `// Welcome to CodeHubz — Java 21 playground.
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 public class Hello {
@@ -762,7 +762,7 @@ public class Broken {
     name: 'C: Hello World',
     description: 'Classic first C program with printf.',
     language: 'c',
-    code: `// Welcome to PyRunner — C (gcc 14) playground.
+    code: `// Welcome to CodeHubz — C (gcc 14) playground.
 // Compiled with: gcc -std=c11 -Wall -O2 -lm
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
@@ -1009,7 +1009,7 @@ int main(void) {
     name: 'C++: Hello World',
     description: 'Classic first C++ program with iostream.',
     language: 'cpp',
-    code: `// Welcome to PyRunner — C++ (g++ 14, C++20) playground.
+    code: `// Welcome to CodeHubz — C++ (g++ 14, C++20) playground.
 // Compiled with: g++ -std=c++20 -Wall -O2
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
@@ -1313,7 +1313,7 @@ int main() {
     name: 'R: Hello World',
     description: 'Basic R vectors and statistics.',
     language: 'r',
-    code: `# Welcome to PyRunner — R 4.5 playground
+    code: `# Welcome to CodeHubz — R 4.5 playground
 # Press Run (or Ctrl/Cmd+Enter) to execute.
 
 print("Hello, World!")
@@ -1473,7 +1473,7 @@ print(eigen(A)$values)
     name: 'JS: Hello World',
     description: 'Basic JavaScript with console.log and arrays.',
     language: 'javascript',
-    code: `// Welcome to PyRunner — JavaScript (Node.js 24) playground
+    code: `// Welcome to CodeHubz — JavaScript (Node.js 24) playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 console.log("Hello, World!");
@@ -1787,7 +1787,7 @@ console.log("\\nTotal price: $" + total);
     name: 'JS: Browser APIs',
     description: 'prompt(), alert(), confirm() polyfilled.',
     language: 'javascript',
-    code: `// Browser APIs work in PyRunner!
+    code: `// Browser APIs work in CodeHubz!
 // prompt() reads from stdin (Program Input panel)
 // alert() prints to stdout
 // confirm() reads y/n from stdin
@@ -1818,7 +1818,7 @@ if (likesPython) {
     description: 'Basic PHP with echo and arrays.',
     language: 'php',
     code: `<?php
-// Welcome to PyRunner — PHP 8.4 playground
+// Welcome to CodeHubz — PHP 8.4 playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 echo "Hello, World!\\n";
@@ -2001,7 +2001,7 @@ for ($i = 1; $i <= 30; $i++) {
     name: 'C#: Hello World',
     description: 'Basic C# with Console.WriteLine and LINQ.',
     language: 'csharp',
-    code: `// PyRunner — C# (.NET 8) playground
+    code: `// CodeHubz — C# (.NET 8) playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 using System;
@@ -2186,7 +2186,7 @@ class Program {
     name: 'Dart: Hello World',
     description: 'Basic Dart with print and lists.',
     language: 'dart',
-    code: `// PyRunner - Dart 3.13 playground
+    code: `// CodeHubz - Dart 3.13 playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 void main() {
@@ -2513,7 +2513,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PyRunner Demo',
+      title: 'CodeHubz Demo',
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF6366F1),
         useMaterial3: true,

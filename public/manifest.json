@@ -1,6 +1,6 @@
 {
-  "name": "PyRunner — Online Python Compiler",
-  "short_name": "PyRunner",
+  "name": "CodeHubz — Online Python Compiler",
+  "short_name": "CodeHubz",
   "description": "Write, run, and share Python code right in your browser.",
   "start_url": "/",
   "display": "standalone",

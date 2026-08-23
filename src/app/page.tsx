@@ -881,7 +881,7 @@ export default function Home() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="truncate text-base font-semibold tracking-tight">
-                  PyRunner
+                  CodeHubz
                 </h1>
                 <Badge
                   variant="secondary"

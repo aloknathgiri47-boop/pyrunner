@@ -9,7 +9,7 @@
  */
 import type { Language } from './languages'
 
-export const DEFAULT_CODE = `# PyRunner — Python 3 playground
+export const DEFAULT_CODE = `# CodeHubz — Python 3 playground
 # Press Run (or Ctrl/Cmd+Enter) to execute.
 
 def greet(name: str) -> str:
@@ -23,7 +23,7 @@ name = input("What's your name? ")
 print(f"Nice to meet you, {name}!")
 `
 
-export const DEFAULT_JAVA_CODE = `// PyRunner — Java 21 playground
+export const DEFAULT_JAVA_CODE = `// CodeHubz — Java 21 playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 // The public class name is detected automatically.
 
@@ -40,7 +40,7 @@ public class Hello {
 }
 `
 
-export const DEFAULT_C_CODE = `// PyRunner — C (gcc 14) playground
+export const DEFAULT_C_CODE = `// CodeHubz — C (gcc 14) playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 // Compiled with: gcc -std=c11 -Wall -O2 -lm
 
@@ -59,7 +59,7 @@ int main(void) {
 }
 `
 
-export const DEFAULT_CPP_CODE = `// PyRunner — C++ (g++ 14, C++20) playground
+export const DEFAULT_CPP_CODE = `// CodeHubz — C++ (g++ 14, C++20) playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 // Compiled with: g++ -std=c++20 -Wall -O2
 
@@ -79,7 +79,7 @@ int main() {
 }
 `
 
-export const DEFAULT_R_CODE = `# PyRunner — R 4.5 playground
+export const DEFAULT_R_CODE = `# CodeHubz — R 4.5 playground
 # Press Run (or Ctrl/Cmd+Enter) to execute.
 
 print("Hello, World!")
@@ -95,7 +95,7 @@ print(paste("Squared:", paste(x^2, collapse=", ")))
 # Or load the "R: Interactive Input" example from the Examples menu.
 `
 
-export const DEFAULT_JS_CODE = `// PyRunner — JavaScript (Node.js 24) playground
+export const DEFAULT_JS_CODE = `// CodeHubz — JavaScript (Node.js 24) playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 // Supports both CommonJS (require) and ES modules (import).
 
@@ -116,7 +116,7 @@ console.log(user.name + " is " + user.age + " years old.");
 `
 
 export const DEFAULT_PHP_CODE = `<?php
-// PyRunner — PHP 8.4 playground
+// CodeHubz — PHP 8.4 playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 echo "Hello, World!\\n";
@@ -132,7 +132,7 @@ $name = trim(fgets(STDIN));
 echo "Nice to meet you, $name!\\n";
 `
 
-export const DEFAULT_CSHARP_CODE = `// PyRunner - C# (.NET 8) playground
+export const DEFAULT_CSHARP_CODE = `// CodeHubz - C# (.NET 8) playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 using System;
@@ -155,7 +155,7 @@ class Program {
 }
 `
 
-export const DEFAULT_DART_CODE = `// PyRunner - Dart 3.13 playground
+export const DEFAULT_DART_CODE = `// CodeHubz - Dart 3.13 playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 import 'dart:io';
