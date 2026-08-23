@@ -2076,14 +2076,20 @@ if __name__ == "__main__":
 
   /**
    * spawnPerl — runs Perl code via perl interpreter.
+   * Prepends $| = 1 (autoflush) so print() output is immediately visible
+   * for interactive input prompts.
    */
   async function spawnPerl(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
     const workspaceRoot = join('/tmp/perl-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'main.pl')
 
+    // Prepend autoflush preamble if user hasn't already set it
+    const preamble = code.includes('$|') ? '' : 'BEGIN { $| = 1; }\n'
+    const finalCode = preamble + code
+
     try {
-      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o700 })
+      await writeFile(scriptPath, finalCode, { encoding: 'utf8', mode: 0o700 })
     } catch (e) {
       socket.emit('output', {
         stream: 'stderr',
