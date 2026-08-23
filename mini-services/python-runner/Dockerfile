@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     r-base \
     php-cli \
     gfortran \
-    wget \
+    wget unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install .NET SDK 8.0 at ~/.dotnet (where the runner expects it)
@@ -28,6 +28,13 @@ RUN wget https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh && \
 
 ENV DOTNET_ROOT=/root/.dotnet
 ENV PATH="${PATH}:/root/.dotnet:/root/.dotnet/tools"
+
+# Install Dart SDK
+RUN wget -qO- https://storage.googleapis.com/dart-archive/channels/stable/release/latest/sdk/dartsdk-linux-x64-release.zip > /tmp/dart.zip && \
+    unzip -q /tmp/dart.zip -d /opt && \
+    rm /tmp/dart.zip && \
+    ln -s /opt/dart-sdk/bin/dart /usr/local/bin/dart && \
+    ln -s /opt/dart-sdk/bin/dartaotruntime /usr/local/bin/dartaotruntime 2>/dev/null || true
 
 # Install Python libraries
 RUN pip3 install --break-system-packages numpy pandas matplotlib

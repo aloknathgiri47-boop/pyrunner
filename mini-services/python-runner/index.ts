@@ -1433,10 +1433,15 @@ if (!function_exists('readline')) {
       return null
     }
 
-    // Locate the Dart SDK
+    // Locate the Dart SDK — check ~/.local/dart-sdk, /opt/dart-sdk, and PATH
     const home = process.env.HOME || '/home/z'
-    const dartBin = join(home, '.local', 'dart-sdk', 'bin', 'dart')
-    const actualDart = existsSync(dartBin) ? dartBin : 'dart'
+    const dartBin = existsSync(join(home, '.local', 'dart-sdk', 'bin', 'dart'))
+      ? join(home, '.local', 'dart-sdk', 'bin', 'dart')
+      : existsSync('/opt/dart-sdk/bin/dart')
+      ? '/opt/dart-sdk/bin/dart'
+      : existsSync('/usr/local/bin/dart')
+      ? '/usr/local/bin/dart'
+      : 'dart'
 
     socket.emit('output', {
       stream: 'system',
@@ -1445,7 +1450,7 @@ if (!function_exists('readline')) {
     })
 
     // Run with dart run (JIT mode — no compilation needed)
-    const child = spawn(actualDart, ['run', dartFilePath], {
+    const child = spawn(dartBin, ['run', dartFilePath], {
       cwd: sandboxDir,
       env: { ...process.env } as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
