@@ -1985,10 +1985,11 @@ if __name__ == "__main__":
     const hasMainAttribute = /^\s*@main\s*$/m.test(code)
     if (hasMainAttribute) {
       finalCode = code.replace(/^\s*@main\s*$/m, '')
-      // Find struct/class name
-      const match = code.match(/(?:struct|class|enum)\s+(\w+)/)
-      if (match) {
-        finalCode += '\n' + match[1] + '.main()\n'
+      // Find the struct/class/enum that has @main — it's the one right after @main
+      // Use multiline match: @main followed by struct/class/enum Name
+      const mainMatch = code.match(/@main\s*\n\s*(?:struct|class|enum)\s+(\w+)/)
+      if (mainMatch) {
+        finalCode += '\n' + mainMatch[1] + '.main()\n'
       }
     }
 
