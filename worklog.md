@@ -147,3 +147,60 @@ Artifacts:
 - /home/z/my-project/src/components/quick-switcher.tsx (modified — read from selected project)
 - /home/z/my-project/src/app/page.tsx (modified — removed 458 lines of DEFAULT_*_CODE, refactored handleLanguageChange/handleSelectExample/share-link/popstate to use setSelectedLanguage)
 - /home/z/my-project/download/per-lang-*.png (screenshots)
+
+---
+Task ID: multi-file-execution-all-languages
+Agent: main (super-z)
+Task: Test and fix multi-file execution for all 14 programming language tabs. Each language must support 2 files where main imports/uses helper, with clean output and no internal temp paths/debug logs.
+
+Work Log:
+- Inspected the python-runner's 24 spawn functions. Only `spawnPython` and `spawnKotlinAndroid` supported multi-file execution (via `files` + `entryFile` payload). All other 22 spawn functions only accepted `code` (single-file).
+- Added a shared `setupMultiFileWorkspace(payload, sessionId)` helper that writes all files from `payload.files` to a per-session workspace dir (`/tmp/py-compiler/proj_<sessionId>/`) and returns `{ workspaceDir, entryPath, isMultiFile }`. Path traversal is blocked (no `/`, `..`, or NUL bytes).
+- Added a `filterInternalNoise(text)` helper that strips `/tmp/py-compiler/proj_<uuid>/` prefixes, `/tmp/<lang>-runner/<sessionId>/` prefixes, and "Picked up JAVA_TOOL_OPTIONS" noise from output.
+- Updated 13 spawn functions to accept `payload?: RunPayload` and branch on multi-file mode:
+  - **spawnJavaScript**: multi-file mode runs `node <entryPath>` directly (no preamble wrapping, so `require('./helper')` works)
+  - **spawnTypeScript**: multi-file mode runs `bun run <entryPath>` (native TS import resolution)
+  - **spawnJava**: multi-file mode compiles all `*.java` files together via `javac *.java` (shell glob), then runs the entry class
+  - **spawnGo**: multi-file mode lists all `.go` files via `readdirSync` and passes them explicitly to `go run <files...>` with `GO111MODULE=off` (avoids go.mod requirement)
+  - **spawnRust**: multi-file mode compiles the entry file via `rustc <entryPath>` — rustc automatically resolves `mod helper;` declarations
+  - **spawnSwift**: multi-file mode runs `swift *.swift` (shell glob) — Swift treats multiple files as one program
+  - **spawnRuby**: multi-file mode runs `ruby <entryPath>` with cwd=workspaceDir (so `require_relative './helper'` works)
+  - **spawnLua**: multi-file mode runs `lua <entryPath>` with `LUA_PATH=<workspaceDir>/?.lua` (so `require('helper')` works)
+  - **spawnPerl**: multi-file mode runs `perl <entryPath>` with cwd=workspaceDir (so `require './helper.pl'` works)
+  - **spawnPowerShell**: multi-file mode runs `pwsh -File <entryPath>` with cwd=workspaceDir (so `. ./helper.ps1` works)
+  - **spawnBash**: multi-file mode runs `bash <entryPath>` with cwd=workspaceDir (so `source ./helper.sh` works)
+  - **spawnFortran**: multi-file mode compiles all `*.f90` files together via `gfortran *.f90 -o <bin>` (shell glob)
+  - **spawnCobol**: multi-file mode compiles all `*.cob` files together via `cobc -x -o <bin> *.cob` (shell glob, so CALL subprograms resolve)
+- Updated the dispatcher to pass `payload` to all 13 updated spawn functions.
+- Updated `page.tsx` `handleRun` to send the multi-file payload (`files` + `entryFile`) for all languages except Flutter, HTML, and SQL (which are single-file-only).
+- Added `import { basename } from 'path'` to the runner (used by spawnJava to derive the entry class name from the entry file's basename).
+- Exposed `window.__projectStore` for automated testing (Playwright/agent-browser can now drive the store directly without fragile UI interactions).
+- Fixed a Go-specific issue: `go run .` requires a go.mod file. Changed to `go run <files...>` with `GO111MODULE=off` so multi-file Go works without go.mod.
+
+Stage Summary:
+- **All 14 languages PASS multi-file execution tests:**
+  - Python: `main.py` + `helper.py` → `from helper import greet` → "Hello from multi-file!" ✓
+  - JavaScript: `main.js` + `helper.js` → `require('./helper')` → ✓
+  - TypeScript: `main.ts` + `helper.ts` → `import { greet } from './helper'` → ✓
+  - Java: `Main.java` + `Helper.java` → `Helper.greet()` → ✓
+  - Go: `main.go` + `helper.go` → `Greet()` function → ✓
+  - Rust: `main.rs` + `helper.rs` → `mod helper; helper::greet()` → ✓
+  - Swift: `main.swift` + `helper.swift` → `greet(name:)` function → ✓
+  - Ruby: `main.rb` + `helper.rb` → `require_relative './helper'` → ✓
+  - Lua: `main.lua` + `helper.lua` → `require('helper')` → ✓
+  - Perl: `main.pl` + `helper.pl` → `require './helper.pl'` → ✓
+  - PowerShell: `main.ps1` + `helper.ps1` → `. ./helper.ps1` → ✓
+  - Bash: `main.sh` + `helper.sh` → `source ./helper.sh` → ✓
+  - Fortran: `main.f90` + `helper.f90` → `use helper` module → ✓
+  - COBOL: `main.cob` + `helper.cob` → `CALL "HELPER"` subprogram → ✓
+- Each language's runner correctly uses only that language's compiler/interpreter — no cross-language injection.
+- Internal temp paths (`/tmp/py-compiler/proj_<uuid>/`) are stripped from error messages via `filterInternalNoise()`.
+- The "Running with..." / "Compiling..." status messages are clean (no debug noise).
+- Single-file mode is preserved for all languages (backward compatible).
+- Lint passes cleanly. Dev server returns HTTP 200.
+
+Artifacts:
+- /home/z/my-project/mini-services/python-runner/index.ts (modified — added setupMultiFileWorkspace + filterInternalNoise helpers; updated 13 spawn functions to support multi-file mode; updated dispatcher to pass payload)
+- /home/z/my-project/src/app/page.tsx (modified — send multi-file payload for all languages except Flutter/HTML/SQL)
+- /home/z/my-project/src/lib/project-store.ts (modified — exposed window.__projectStore for testing)
+- /home/z/my-project/scripts/test-all-multifile.sh (new — comprehensive test script)

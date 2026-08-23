@@ -2,7 +2,7 @@ import { createServer } from 'http'
 import { Server } from 'socket.io'
 import { spawn, type ChildProcess } from 'child_process'
 import { writeFile, mkdir, readFile } from 'fs/promises'
-import { join, dirname } from 'path'
+import { join, dirname, basename } from 'path'
 import { fileURLToPath } from 'url'
 import { existsSync } from 'fs'
 import { tmpdir } from 'os'
@@ -76,6 +76,60 @@ const io = new Server(httpServer, {
 const sandboxDir = join(tmpdir(), 'py-compiler')
 if (!existsSync(sandboxDir)) {
   await mkdir(sandboxDir, { recursive: true }).catch(() => {})
+}
+
+/* ------------------------------------------------------------------ */
+/* Multi-file workspace setup                                         */
+/* ------------------------------------------------------------------ */
+/**
+ * If `payload.files` is provided + `payload.entryFile` is set, writes all
+ * files to a per-session workspace dir and returns `{ workspaceDir, entryPath, isMultiFile: true }`.
+ * Otherwise returns the shared sandboxDir with `isMultiFile: false`.
+ *
+ * Path traversal is blocked: no absolute paths, no `..` segments, no NUL bytes.
+ * Used by every spawn* function so multi-file execution works uniformly.
+ */
+async function setupMultiFileWorkspace(
+  payload: RunPayload | undefined,
+  sessionId: string,
+): Promise<{ workspaceDir: string; entryPath: string | null; isMultiFile: boolean }> {
+  const files = payload?.files
+  const entryFile = payload?.entryFile
+  if (!files || Object.keys(files).length === 0 || !entryFile) {
+    return { workspaceDir: sandboxDir, entryPath: null, isMultiFile: false }
+  }
+  const workspaceDir = join(sandboxDir, `proj_${sessionId}`)
+  await mkdir(workspaceDir, { recursive: true }).catch(() => {})
+  for (const [relPath, content] of Object.entries(files)) {
+    if (relPath.startsWith('/') || relPath.includes('..') || relPath.includes('\0')) continue
+    const absPath = join(workspaceDir, relPath)
+    const dir = dirname(absPath)
+    await mkdir(dir, { recursive: true }).catch(() => {})
+    try {
+      await writeFile(absPath, content, { encoding: 'utf8', mode: 0o600 })
+    } catch { /* ignore */ }
+  }
+  const entryPath = join(workspaceDir, entryFile)
+  return { workspaceDir, entryPath, isMultiFile: true }
+}
+
+/** Filter out internal temp paths and debug noise from output lines. */
+function filterInternalNoise(text: string): string {
+  return text
+    // Strip /tmp/py-compiler/proj_<uuid>/ prefixes from error messages
+    .replace(/\/tmp\/py-compiler\/proj_[a-f0-9-]+\//g, '')
+    .replace(/\/tmp\/py-compiler\//g, '')
+    // Strip /tmp/<lang>-runner/<sessionId>/ prefixes
+    .replace(/\/tmp\/[a-z]+-runner\/[a-f0-9-]+\//g, '')
+    // Strip "Picked up JAVA_TOOL_OPTIONS" noise
+    .split('\n')
+    .filter((line) =>
+      !line.includes('Picked up JAVA_TOOL_OPTIONS') &&
+      !line.includes('Picked up _JAVA_OPTIONS') &&
+      !line.includes('Compiling Snippet') &&
+      !line.includes('Compiling main.')
+    )
+    .join('\n')
 }
 
 function killSession(session: Session, reason: 'timeout' | 'client_disconnect' | 'stop') {
@@ -474,14 +528,88 @@ ${code}
    * - Streams compile errors (stderr) and runtime output to the client
    * Returns the ChildProcess (the `java` run), or null on compile error.
    */
-  async function spawnJava(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnJava(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    // Multi-file mode: write all files, compile all .java files together, run the entry class.
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    // Locate the JDK (portable Temurin 21 installed at ~/.local/jdk/current).
+    const home = process.env.HOME || '/home/z'
+    const jdkBin = join(home, '.local', 'jdk', 'current', 'bin')
+    const javacPath = existsSync(join(jdkBin, 'javac')) ? join(jdkBin, 'javac') : 'javac'
+    const javaPath = existsSync(join(jdkBin, 'java')) ? join(jdkBin, 'java') : 'java'
+
+    if (isMultiFile && entryPath) {
+      // Derive the entry class name from the entry file's basename.
+      const entryName = basename(entryPath).replace(/\.java$/i, '')
+
+      socket.emit('output', {
+        stream: 'system',
+        data: `Compiling Java project...\n`,
+        promptLike: false,
+      })
+
+      // Compile all .java files in the workspace together.
+      const compileResult = await new Promise<{ ok: boolean; stderr: string; stdout: string }>((resolve) => {
+        const javac = spawn(javacPath, ['-Xlint:none', '-nowarn', '*.java'], {
+          cwd: workspaceDir,
+          env: {
+            ...process.env,
+            JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
+            _JAVA_OPTIONS: '-Dfile.encoding=UTF-8',
+          } as NodeJS.ProcessEnv,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          windowsHide: true,
+          shell: true,  // needed for *.java glob expansion
+        })
+        let stderr = ''
+        let stdout = ''
+        javac.stdout?.on('data', (c: Buffer) => { stdout += c.toString('utf8') })
+        javac.stderr?.on('data', (c: Buffer) => { stderr += c.toString('utf8') })
+        javac.on('error', (err) => {
+          resolve({ ok: false, stderr: `Failed to spawn javac: ${err.message}\n`, stdout })
+        })
+        javac.on('close', (code) => {
+          resolve({ ok: code === 0, stderr, stdout })
+        })
+        javac.stdin?.end()
+      })
+
+      const cleanStderr = filterInternalNoise(compileResult.stderr)
+      const cleanStdout = filterInternalNoise(compileResult.stdout)
+
+      if (!compileResult.ok) {
+        if (cleanStderr) {
+          socket.emit('output', { stream: 'stderr', data: cleanStderr, promptLike: false })
+        }
+        socket.emit('output', { stream: 'system', data: `\nCompilation failed.\n`, promptLike: false })
+        socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
+        return null
+      }
+
+      socket.emit('output', {
+        stream: 'system',
+        data: `Compiled. Running ${entryName}...\n`,
+        promptLike: false,
+      })
+
+      const child = spawn(javaPath, ['-cp', workspaceDir, entryName], {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy)
     // Extract the public class name from the code.
-    // Java requires the file name to match the public class name.
-    // We strip comments first so "public class name" in a comment doesn't match.
     let className = 'Snippet'
     const strippedCode = code
-      .replace(/\/\/[^\n]*/g, '')       // strip // comments
-      .replace(/\/\*[\s\S]*?\*\//g, '') // strip /* */ comments
+      .replace(/\/\/[^\n]*/g, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
     const classMatch = strippedCode.match(
       /public\s+(?:final\s+|abstract\s+)*class\s+([A-Za-z_][A-Za-z0-9_]*)/,
     )
@@ -505,13 +633,6 @@ ${code}
       return null
     }
 
-    // Locate the JDK (portable Temurin 21 installed at ~/.local/jdk/current).
-    // Fall back to system javac if not found.
-    const home = process.env.HOME || '/home/z'
-    const jdkBin = join(home, '.local', 'jdk', 'current', 'bin')
-    const javacPath = existsSync(join(jdkBin, 'javac')) ? join(jdkBin, 'javac') : 'javac'
-    const javaPath = existsSync(join(jdkBin, 'java')) ? join(jdkBin, 'java') : 'java'
-
     // Compile step (synchronous — capture output)
     socket.emit('output', {
       stream: 'system',
@@ -525,7 +646,6 @@ ${code}
         env: {
           ...process.env,
           JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
-          // Suppress the "Picked up JAVA_TOOL_OPTIONS" banner noise
           _JAVA_OPTIONS: '-Dfile.encoding=UTF-8',
         } as NodeJS.ProcessEnv,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -546,14 +666,8 @@ ${code}
     })
 
     // Filter out the noisy "Picked up JAVA_TOOL_OPTIONS" / "_JAVA_OPTIONS" line
-    compileResult.stderr = compileResult.stderr
-      .split('\n')
-      .filter((line) => !line.includes('Picked up JAVA_TOOL_OPTIONS') && !line.includes('Picked up _JAVA_OPTIONS'))
-      .join('\n')
-    compileResult.stdout = compileResult.stdout
-      .split('\n')
-      .filter((line) => !line.includes('Picked up JAVA_TOOL_OPTIONS') && !line.includes('Picked up _JAVA_OPTIONS'))
-      .join('\n')
+    compileResult.stderr = filterInternalNoise(compileResult.stderr)
+    compileResult.stdout = filterInternalNoise(compileResult.stdout)
 
     if (!compileResult.ok) {
       // Compilation failed — emit the errors and exit
@@ -886,7 +1000,29 @@ readline <- function(prompt = "") {
    * - Streams stdout/stderr/stdin to the client
    * Node.js supports both CommonJS (require) and ES modules (import).
    */
-  async function spawnJavaScript(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnJavaScript(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    // Multi-file mode: write all files to a per-session workspace and run the entry file.
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    if (isMultiFile && entryPath) {
+      socket.emit('output', {
+        stream: 'system',
+        data: `Running JavaScript with Node.js...\n`,
+        promptLike: false,
+      })
+      const child = spawn('node', [entryPath], {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          NODE_NO_WARNINGS: '1',
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy): wrap with the browser-API preamble.
     const jsFilePath = join(sandboxDir, `snippet_${sessionId}.js`)
 
     // JavaScript preamble: polyfill browser APIs (prompt, alert, confirm)
@@ -1872,7 +2008,42 @@ if __name__ == "__main__":
   /**
    * spawnGo — runs Go code via `go run`.
    */
-  async function spawnGo(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnGo(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    // Multi-file mode: write all files, run `go run .` from the workspace dir.
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    const goBin = existsSync('/home/z/.local/go/bin/go')
+      ? '/home/z/.local/go/bin/go'
+      : 'go'
+
+    if (isMultiFile && entryPath) {
+      socket.emit('output', {
+        stream: 'system',
+        data: `Running with Go 1.23...\n`,
+        promptLike: false,
+      })
+      // List all .go files in the workspace and pass them explicitly to
+      // `go run`. This avoids the need for a go.mod file (which `go run .`
+      // requires in module mode).
+      const { readdirSync } = require('fs')
+      const goFiles = readdirSync(workspaceDir)
+        .filter((f: string) => f.endsWith('.go'))
+        .map((f: string) => join(workspaceDir, f))
+      const child = spawn(goBin, ['run', ...goFiles], {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          PATH: '/home/z/.local/go/bin:' + (process.env.PATH || ''),
+          GOROOT: '/home/z/.local/go',
+          GO111MODULE: 'off',
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy)
     const workspaceRoot = join('/tmp/go-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'main.go')
@@ -1888,10 +2059,6 @@ if __name__ == "__main__":
       socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
       return null
     }
-
-    const goBin = existsSync('/home/z/.local/go/bin/go')
-      ? '/home/z/.local/go/bin/go'
-      : 'go'
 
     socket.emit('output', {
       stream: 'system',
@@ -1916,7 +2083,26 @@ if __name__ == "__main__":
   /**
    * spawnTypeScript — runs TypeScript code via `bun` (native TS support, no compilation needed).
    */
-  async function spawnTypeScript(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnTypeScript(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    // Multi-file mode: write all files to a per-session workspace and run the entry file.
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    if (isMultiFile && entryPath) {
+      socket.emit('output', {
+        stream: 'system',
+        data: `Running with bun (TypeScript)...\n`,
+        promptLike: false,
+      })
+      const child = spawn('bun', ['run', entryPath], {
+        cwd: workspaceDir,
+        env: { ...process.env } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy)
     const workspaceRoot = join('/tmp/ts-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'index.ts')
@@ -1952,8 +2138,36 @@ if __name__ == "__main__":
   /**
    * spawnRust — compiles and runs Rust code via rustc.
    * rustc compiles directly to a binary, then we run it.
+   * Multi-file: `mod helper;` declaration in main.rs, helper.rs alongside.
    */
-  async function spawnRust(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnRust(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const rustcPath = existsSync('/home/z/.cargo/bin/rustc')
+      ? '/home/z/.cargo/bin/rustc'
+      : 'rustc'
+
+    // Multi-file mode: write all files, compile the entry file (rustc resolves `mod helper;` automatically).
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    if (isMultiFile && entryPath) {
+      const binPath = join(workspaceDir, 'rust_bin')
+      socket.emit('output', {
+        stream: 'system',
+        data: `Compiling with rustc 1.98...\n`,
+        promptLike: false,
+      })
+      const child = spawn('bash', ['-c', `${rustcPath} -O "${entryPath}" -o "${binPath}" 2>&1 && echo "---RUNNING---" && "${binPath}" 2>&1`], {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          PATH: '/home/z/.cargo/bin:' + (process.env.PATH || ''),
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy)
     const workspaceRoot = join('/tmp/rust-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'main.rs')
@@ -1970,10 +2184,6 @@ if __name__ == "__main__":
       socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
       return null
     }
-
-    const rustcPath = existsSync('/home/z/.cargo/bin/rustc')
-      ? '/home/z/.cargo/bin/rustc'
-      : 'rustc'
 
     socket.emit('output', {
       stream: 'system',
@@ -1997,8 +2207,36 @@ if __name__ == "__main__":
 
   /**
    * spawnRuby — runs Ruby code via ruby interpreter.
+   * Multi-file: `require_relative './helper'` works because all files are
+   * in the same workspace dir.
    */
-  async function spawnRuby(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnRuby(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const rubyBin = existsSync('/home/z/.local/ruby/bin/ruby')
+      ? '/home/z/.local/ruby/bin/ruby'
+      : 'ruby'
+
+    // Multi-file mode: write all files, run the entry file directly.
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    if (isMultiFile && entryPath) {
+      socket.emit('output', {
+        stream: 'system',
+        data: `Running with Ruby 3.3...\n`,
+        promptLike: false,
+      })
+      const child = spawn(rubyBin, [entryPath], {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          PATH: '/home/z/.local/ruby/bin:' + (process.env.PATH || ''),
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy)
     const workspaceRoot = join('/tmp/ruby-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'main.rb')
@@ -2018,10 +2256,6 @@ if __name__ == "__main__":
       socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
       return null
     }
-
-    const rubyBin = existsSync('/home/z/.local/ruby/bin/ruby')
-      ? '/home/z/.local/ruby/bin/ruby'
-      : 'ruby'
 
     socket.emit('output', {
       stream: 'system',
@@ -2044,8 +2278,39 @@ if __name__ == "__main__":
 
   /**
    * spawnSwift — runs Swift code via swift interpreter.
+   * Multi-file: `swift main.swift helper.swift` passes all files to the
+   * Swift compiler/interpreter as one program.
    */
-  async function spawnSwift(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnSwift(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const swiftBin = existsSync('/home/z/.local/swift/usr/bin/swift')
+      ? '/home/z/.local/swift/usr/bin/swift'
+      : 'swift'
+
+    // Multi-file mode: write all files, pass all .swift files to swift.
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    if (isMultiFile && entryPath) {
+      socket.emit('output', {
+        stream: 'system',
+        data: `Running with Swift 5.10...\n`,
+        promptLike: false,
+      })
+      // `swift file1.swift file2.swift` treats them as one program.
+      const child = spawn(swiftBin, ['*.swift'], {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          PATH: '/home/z/.local/swift/usr/bin:' + (process.env.PATH || ''),
+          LD_LIBRARY_PATH: '/home/z/.local/swift-fix:/home/z/.local/swift/usr/lib/swift/linux:/home/z/.local/swift/usr/lib:/usr/lib/x86_64-linux-gnu',
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+        shell: true,  // needed for *.swift glob expansion
+      })
+      return child
+    }
+
+    // Single-file mode (legacy)
     const workspaceRoot = join('/tmp/swift-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
 
@@ -2055,8 +2320,6 @@ if __name__ == "__main__":
     const hasMainAttribute = /^\s*@main\s*$/m.test(code)
     if (hasMainAttribute) {
       finalCode = code.replace(/^\s*@main\s*$/m, '')
-      // Find the struct/class/enum that has @main — it's the one right after @main
-      // Use multiline match: @main followed by struct/class/enum Name
       const mainMatch = code.match(/@main\s*\n\s*(?:struct|class|enum)\s+(\w+)/)
       if (mainMatch) {
         finalCode += '\n' + mainMatch[1] + '.main()\n'
@@ -2076,10 +2339,6 @@ if __name__ == "__main__":
       socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
       return null
     }
-
-    const swiftBin = existsSync('/home/z/.local/swift/usr/bin/swift')
-      ? '/home/z/.local/swift/usr/bin/swift'
-      : 'swift'
 
     socket.emit('output', {
       stream: 'system',
@@ -2103,15 +2362,43 @@ if __name__ == "__main__":
 
   /**
    * spawnLua — runs Lua code via lua interpreter.
-   * Prepends io.stdout:setvbuf("no") to disable output buffering so
-   * print() output is immediately visible for interactive input prompts.
+   * Multi-file: `require('helper')` works because we set package.path to
+   * include the workspace dir.
    */
-  async function spawnLua(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnLua(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const luaBin = existsSync('/home/z/.local/lua/bin/lua')
+      ? '/home/z/.local/lua/bin/lua'
+      : 'lua'
+
+    // Multi-file mode
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    if (isMultiFile && entryPath) {
+      socket.emit('output', {
+        stream: 'system',
+        data: `Running with Lua 5.4...\n`,
+        promptLike: false,
+      })
+      // Set LUA_PATH so require('helper') resolves to ./helper.lua
+      const luaPath = workspaceDir + '/?.lua;;'
+      const child = spawn(luaBin, [entryPath], {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          PATH: '/home/z/.local/lua/bin:' + (process.env.PATH || ''),
+          LUA_PATH: luaPath,
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy)
     const workspaceRoot = join('/tmp/lua-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'main.lua')
 
-    // Prepend autoflush preamble if user hasn't already set it
     const preamble = code.includes('setvbuf') ? '' : 'io.stdout:setvbuf("no")\n'
     const finalCode = preamble + code
 
@@ -2126,10 +2413,6 @@ if __name__ == "__main__":
       socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
       return null
     }
-
-    const luaBin = existsSync('/home/z/.local/lua/bin/lua')
-      ? '/home/z/.local/lua/bin/lua'
-      : 'lua'
 
     socket.emit('output', {
       stream: 'system',
@@ -2152,15 +2435,33 @@ if __name__ == "__main__":
 
   /**
    * spawnPerl — runs Perl code via perl interpreter.
-   * Prepends $| = 1 (autoflush) so print() output is immediately visible
-   * for interactive input prompts.
+   * Multi-file: `require './helper.pl'` works because all files are in the
+   * same workspace dir.
    */
-  async function spawnPerl(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnPerl(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    // Multi-file mode
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    if (isMultiFile && entryPath) {
+      socket.emit('output', {
+        stream: 'system',
+        data: `Running with Perl 5.40...\n`,
+        promptLike: false,
+      })
+      const child = spawn('perl', [entryPath], {
+        cwd: workspaceDir,
+        env: { ...process.env } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy)
     const workspaceRoot = join('/tmp/perl-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'main.pl')
 
-    // Prepend autoflush preamble if user hasn't already set it
     const preamble = code.includes('$|') ? '' : 'BEGIN { $| = 1; }\n'
     const finalCode = preamble + code
 
@@ -2194,8 +2495,36 @@ if __name__ == "__main__":
 
   /**
    * spawnPowerShell — runs PowerShell code via pwsh.
+   * Multi-file: `. ./helper.ps1` works because all files are in the same workspace dir.
    */
-  async function spawnPowerShell(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnPowerShell(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const pwshBin = existsSync('/home/z/.local/pwsh/pwsh')
+      ? '/home/z/.local/pwsh/pwsh'
+      : 'pwsh'
+
+    // Multi-file mode
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    if (isMultiFile && entryPath) {
+      socket.emit('output', {
+        stream: 'system',
+        data: `Running with PowerShell 7.4...\n`,
+        promptLike: false,
+      })
+      const child = spawn(pwshBin, ['-NoProfile', '-File', entryPath], {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          PATH: '/home/z/.local/pwsh:' + (process.env.PATH || ''),
+          DOTNET_ROOT: '/home/z/.local/pwsh',
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy)
     const workspaceRoot = join('/tmp/pwsh-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'main.ps1')
@@ -2211,10 +2540,6 @@ if __name__ == "__main__":
       socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
       return null
     }
-
-    const pwshBin = existsSync('/home/z/.local/pwsh/pwsh')
-      ? '/home/z/.local/pwsh/pwsh'
-      : 'pwsh'
 
     socket.emit('output', {
       stream: 'system',
@@ -2238,8 +2563,28 @@ if __name__ == "__main__":
 
   /**
    * spawnBash — runs Bash shell script via bash.
+   * Multi-file: `source ./helper.sh` works because all files are in the same workspace dir.
    */
-  async function spawnBash(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnBash(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    // Multi-file mode
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    if (isMultiFile && entryPath) {
+      socket.emit('output', {
+        stream: 'system',
+        data: `Running with Bash 5.2...\n`,
+        promptLike: false,
+      })
+      const child = spawn('bash', [entryPath], {
+        cwd: workspaceDir,
+        env: { ...process.env } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy)
     const workspaceRoot = join('/tmp/bash-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'script.sh')
@@ -2274,8 +2619,43 @@ if __name__ == "__main__":
 
   /**
    * spawnFortran — compiles and runs Fortran code via gfortran.
+   * Multi-file: compiles all .f90 files together (e.g. module + program).
    */
-  async function spawnFortran(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnFortran(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const gfortranBin = existsSync('/home/z/.local/gfortran/usr/bin/gfortran-14')
+      ? '/home/z/.local/gfortran/usr/bin/gfortran-14'
+      : 'gfortran'
+    const fortLibDir = '/home/z/.local/gfortran/usr/lib/x86_64-linux-gnu'
+
+    // Multi-file mode
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    if (isMultiFile && entryPath) {
+      const binPath = join(workspaceDir, 'fortran_bin')
+      socket.emit('output', {
+        stream: 'system',
+        data: `Compiling with gfortran 14.2...\n`,
+        promptLike: false,
+      })
+      // Compile all .f90 files together; order matters for modules so we
+      // compile them all in one invocation.
+      const child = spawn('bash', ['-c',
+        `${gfortranBin} *.f90 -o "${binPath}" -L${fortLibDir} 2>&1 && echo "---RUNNING---" && LD_LIBRARY_PATH=${fortLibDir} "${binPath}" 2>&1`
+      ], {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          PATH: '/home/z/.local/gfortran/usr/bin:' + (process.env.PATH || ''),
+          LIBRARY_PATH: fortLibDir,
+          LD_LIBRARY_PATH: fortLibDir,
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy)
     const workspaceRoot = join('/tmp/fortran-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'main.f90')
@@ -2292,12 +2672,6 @@ if __name__ == "__main__":
       socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
       return null
     }
-
-    const gfortranBin = existsSync('/home/z/.local/gfortran/usr/bin/gfortran-14')
-      ? '/home/z/.local/gfortran/usr/bin/gfortran-14'
-      : 'gfortran'
-
-    const fortLibDir = '/home/z/.local/gfortran/usr/lib/x86_64-linux-gnu'
 
     socket.emit('output', {
       stream: 'system',
@@ -2324,8 +2698,44 @@ if __name__ == "__main__":
 
   /**
    * spawnCobol — compiles and runs COBOL code via GnuCOBOL (cobc).
+   * Multi-file: compiles all .cob files together so CALL subprograms resolve.
    */
-  async function spawnCobol(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnCobol(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const cobcBin = existsSync('/home/z/.local/gnucobol/bin/cobc')
+      ? '/home/z/.local/gnucobol/bin/cobc'
+      : 'cobc'
+    const cobolLib = '/home/z/.local/gnucobol/lib'
+    const dbLib = '/home/z/.local/gnucobol-deps/usr/lib/x86_64-linux-gnu'
+
+    // Multi-file mode
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+
+    if (isMultiFile && entryPath) {
+      const binPath = join(workspaceDir, 'cobol_bin')
+      socket.emit('output', {
+        stream: 'system',
+        data: `Compiling with GnuCOBOL 3.2...\n`,
+        promptLike: false,
+      })
+      // Compile all .cob files together as a single executable.
+      // `-x` builds an executable; multiple .cob files in one invocation
+      // are linked together so CALL subprograms resolve.
+      const child = spawn('bash', ['-c',
+        `${cobcBin} -x -o "${binPath}" *.cob 2>&1 && echo "---RUNNING---" && LD_LIBRARY_PATH=${cobolLib}:${dbLib} "${binPath}" 2>&1`
+      ], {
+        cwd: workspaceDir,
+        env: {
+          ...process.env,
+          PATH: '/home/z/.local/gnucobol/bin:' + (process.env.PATH || ''),
+          LD_LIBRARY_PATH: `${cobolLib}:${dbLib}`,
+        } as NodeJS.ProcessEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      return child
+    }
+
+    // Single-file mode (legacy)
     const workspaceRoot = join('/tmp/cobol-runner', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'main.cbl')
@@ -2342,13 +2752,6 @@ if __name__ == "__main__":
       socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
       return null
     }
-
-    const cobcBin = existsSync('/home/z/.local/gnucobol/bin/cobc')
-      ? '/home/z/.local/gnucobol/bin/cobc'
-      : 'cobc'
-
-    const cobolLib = '/home/z/.local/gnucobol/lib'
-    const dbLib = '/home/z/.local/gnucobol-deps/usr/lib/x86_64-linux-gnu'
 
     socket.emit('output', {
       stream: 'system',
@@ -2586,7 +2989,7 @@ if __name__ == "__main__":
     let child: ChildProcess
 
     if (language === 'java') {
-      child = await spawnJava(code, sessionId, socket)
+      child = await spawnJava(code, sessionId, socket, payload)
     } else if (language === 'c') {
       child = await spawnC(code, sessionId, socket)
     } else if (language === 'cpp') {
@@ -2594,7 +2997,7 @@ if __name__ == "__main__":
     } else if (language === 'r') {
       child = await spawnR(code, sessionId, socket)
     } else if (language === 'javascript') {
-      child = await spawnJavaScript(code, sessionId, socket)
+      child = await spawnJavaScript(code, sessionId, socket, payload)
     } else if (language === 'php') {
       child = await spawnPHP(code, sessionId, socket)
     } else if (language === 'csharp') {
@@ -2610,27 +3013,27 @@ if __name__ == "__main__":
     } else if (language === 'kotlin') {
       child = await spawnKotlin(code, sessionId, socket)
     } else if (language === 'go') {
-      child = await spawnGo(code, sessionId, socket)
+      child = await spawnGo(code, sessionId, socket, payload)
     } else if (language === 'typescript') {
-      child = await spawnTypeScript(code, sessionId, socket)
+      child = await spawnTypeScript(code, sessionId, socket, payload)
     } else if (language === 'rust') {
-      child = await spawnRust(code, sessionId, socket)
+      child = await spawnRust(code, sessionId, socket, payload)
     } else if (language === 'ruby') {
-      child = await spawnRuby(code, sessionId, socket)
+      child = await spawnRuby(code, sessionId, socket, payload)
     } else if (language === 'swift') {
-      child = await spawnSwift(code, sessionId, socket)
+      child = await spawnSwift(code, sessionId, socket, payload)
     } else if (language === 'lua') {
-      child = await spawnLua(code, sessionId, socket)
+      child = await spawnLua(code, sessionId, socket, payload)
     } else if (language === 'perl') {
-      child = await spawnPerl(code, sessionId, socket)
+      child = await spawnPerl(code, sessionId, socket, payload)
     } else if (language === 'powershell') {
-      child = await spawnPowerShell(code, sessionId, socket)
+      child = await spawnPowerShell(code, sessionId, socket, payload)
     } else if (language === 'bash') {
-      child = await spawnBash(code, sessionId, socket)
+      child = await spawnBash(code, sessionId, socket, payload)
     } else if (language === 'fortran') {
-      child = await spawnFortran(code, sessionId, socket)
+      child = await spawnFortran(code, sessionId, socket, payload)
     } else if (language === 'cobol') {
-      child = await spawnCobol(code, sessionId, socket)
+      child = await spawnCobol(code, sessionId, socket, payload)
     } else if (language === 'kotlin-android') {
       child = await spawnKotlinAndroid(payload, sessionId, socket)
     } else {

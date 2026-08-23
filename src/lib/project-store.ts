@@ -827,6 +827,13 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
   ),
 )
 
+// Expose the store on window for debugging + automated testing.
+// This lets Playwright tests drive the store directly without going through
+// the UI (which is fragile for multi-file setup: rename inputs, menu navigation, etc.).
+if (typeof window !== 'undefined') {
+  ;(window as any).__projectStore = useProjectStore
+}
+
 /* ------------------------------------------------------------------ */
 /* Selector helpers                                                   */
 /* ------------------------------------------------------------------ */

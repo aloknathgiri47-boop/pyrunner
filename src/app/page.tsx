@@ -556,21 +556,26 @@ export default function Home() {
     chunkIdRef.current = 0
 
     const sock = ensureSocket()
-    // Multi-file Python execution: send the full project file tree + entry
-    // file path so the runner can write them all to a workspace dir and
-    // let `import utils` / `from src.helper import calc` work natively.
+    // Multi-file execution: send the full project file tree + entry file
+    // path for every language. Each spawn* function in the runner knows
+    // how to handle multi-file mode for its language (Python: PYTHONPATH,
+    // JS: run entry directly, Java: compile *.java together, Go: go run .,
+    // Rust: rustc entry resolves `mod helper;`, etc.).
     //
-    // Single-file mode (no entry path or non-Python language): fall back
-    // to the legacy `{ code, language }` payload so other languages and
-    // older clients keep working.
-    const files = language === 'python' ? getFilesForRunner() : undefined
-    const entryFile = language === 'python' ? getEntryFilePath() : undefined
+    // Flutter, HTML, and SQL are single-file-only (their spawn functions
+    // don't use the `files` payload), so we skip the payload for them.
+    const isMultiFileLanguage =
+      language !== 'flutter' &&
+      language !== 'html' &&
+      language !== 'sql'
+    const files = isMultiFileLanguage ? getFilesForRunner() : undefined
+    const entryFile = isMultiFileLanguage ? getEntryFilePath() : undefined
     const emitRun = () => sock.emit('run', {
       code,
       language,
       timeout: (language === 'flutter' || language === 'html') ? 120000 : 30000,
       stdin: stdinText,
-      // Only send files+entryFile for Python multi-file projects (>=1 file).
+      // Only send files+entryFile when we have at least 1 file AND an entry path.
       // The runner ignores these for single-file runs.
       ...(files && Object.keys(files).length >= 1 && entryFile ? { files, entryFile } : {}),
     })
