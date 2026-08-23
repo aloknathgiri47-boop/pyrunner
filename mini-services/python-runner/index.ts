@@ -2007,7 +2007,7 @@ if __name__ == "__main__":
       env: {
         ...process.env,
         PATH: '/home/z/.local/swift/usr/bin:' + (process.env.PATH || ''),
-        LD_LIBRARY_PATH: '/home/z/.local/swift/usr/lib/swift/linux:/usr/lib/x86_64-linux-gnu',
+        LD_LIBRARY_PATH: '/home/z/.local/swift-fix:/home/z/.local/swift/usr/lib/swift/linux:/home/z/.local/swift/usr/lib:/usr/lib/x86_64-linux-gnu',
       } as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
