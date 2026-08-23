@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl'
   files?: Record<string, string>
 }
 
@@ -4037,6 +4037,147 @@ end)
 if not ok then
     print("Caught error: " .. err)
 end
+`,
+  },
+  {
+    id: 'perl-hello',
+    name: 'Perl: Hello World',
+    description: 'Basic Perl with subs, scalars, loops.',
+    language: 'perl',
+    code: `#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub add {
+    return $_[0] + $_[1];
+}
+
+print "Hello from Perl!\n";
+my $name = "World";
+print "Hello, $name!\n";
+my $result = add(3, 4);
+print "3 + 4 = $result\n";
+for my $i (1..3) {
+    print "Count: $i\n";
+}
+`,
+  },
+  {
+    id: 'perl-data',
+    name: 'Perl: Arrays & Hashes',
+    description: 'Arrays, hashes, references, regex.',
+    language: 'perl',
+    code: `#!/usr/bin/perl
+use strict;
+use warnings;
+
+# Arrays
+my @fruits = ("apple", "banana", "cherry");
+for my $i (0..$#fruits) {
+    print "$i: $fruits[$i]\n";
+}
+
+# Array functions
+my @nums = (5, 2, 8, 1, 9, 3);
+my @sorted = sort { $a <=> $b } @nums;
+print "Sorted: @sorted\n";
+my @reversed = reverse @nums;
+print "Reversed: @reversed\n";
+my $sum = 0;
+$sum += $_ for @nums;
+print "Sum: $sum\n";
+
+# Hashes
+my %prices = (apple => 1.5, banana => 0.5, cherry => 3.0);
+for my $fruit (sort keys %prices) {
+    print "$fruit: \$$prices{$fruit}\n";
+}
+
+# References
+my $person = {
+    name => "Alice",
+    age => 30,
+    hobbies => ["reading", "coding"],
+};
+print "\nPerson: $person->{name}, age $person->{age}\n";
+print "Hobbies: @{$person->{hobbies}}\n";
+
+# Regex
+my $text = "Hello, World! 12345";
+if ($text =~ /(\w+), (\w+)! (\d+)/) {
+    print "Match: $1, $2, $3\n";
+}
+$text =~ s/World/Perl/;
+print "Replaced: $text\n";
+
+# Map/grep
+my @upper = map { uc($_) } @fruits;
+print "Uppercase: @upper\n";
+my @long = grep { length($_) > 5 } @fruits;
+print "Long (>5): @long\n";
+`,
+  },
+  {
+    id: 'perl-oop',
+    name: 'Perl: OOP & File I/O',
+    description: 'Packages, bless, file operations.',
+    language: 'perl',
+    code: `#!/usr/bin/perl
+use strict;
+use warnings;
+
+# OOP with bless
+package Animal;
+
+sub new {
+    my ($class, %args) = @_;
+    my $self = bless \%args, $class;
+    return $self;
+}
+
+sub name { return shift->{name}; }
+sub sound { return shift->{sound}; }
+
+sub speak {
+    my $self = shift;
+    return $self->{name} . " says " . $self->{sound};
+}
+
+package Dog;
+our @ISA = ('Animal');
+
+sub new {
+    my ($class, $name) = @_;
+    return $class->SUPER::new(name => $name, sound => "Woof");
+}
+
+sub fetch {
+    my $self = shift;
+    return $self->{name} . " fetches the ball!";
+}
+
+package main;
+
+my $dog = Dog->new("Rex");
+print $dog->speak(), "\n";
+print $dog->fetch(), "\n";
+
+# File I/O
+my $filename = "/tmp/perl_test.txt";
+open(my $fh, '>', $filename) or die "Cannot open $filename: $!";
+print $fh "Hello from file!\n";
+print $fh "Line 2\n";
+close($fh);
+
+print "\nReading file:\n";
+open(my $in, '<', $filename) or die "Cannot read $filename: $!";
+while (my $line = <$in>) {
+    chomp $line;
+    print "  > $line\n";
+}
+close($in);
+unlink($filename);
+print "File deleted.\n";
 `,
   },
 ]

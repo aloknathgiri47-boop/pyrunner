@@ -75,7 +75,7 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua'
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl'
 
 interface PersistedState {
   code: string
@@ -428,6 +428,27 @@ for i = 1, 3 do
 end
 `
 
+const DEFAULT_PERL_CODE = `#!/usr/bin/perl
+# Perl 5.40 — runs with perl
+# Press Run (or Ctrl+Enter) to execute.
+
+use strict;
+use warnings;
+
+sub add {
+    return $_[0] + $_[1];
+}
+
+print "Hello from Perl!\\n";
+my $name = "World";
+print "Hello, $name!\\n";
+my $result = add(3, 4);
+print "3 + 4 = $result\\n";
+for my $i (1..3) {
+    print "Count: $i\\n";
+}
+`
+
 
 /* ------------------------------------------------------------------ */
 /* Persistence helpers                                                 */
@@ -442,7 +463,7 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua'].includes(parsed.language) ? parsed.language : 'python',
+      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl'].includes(parsed.language) ? parsed.language : 'python',
     }
   } catch {
     return null
@@ -486,7 +507,7 @@ function getInitialState(): { code: string; language: Language } {
         }
         return {
           code: decode(codeB64),
-          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua'].includes(lang) ? lang : 'python',
+          language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl'].includes(lang) ? lang : 'python',
         }
       }
     } catch {
@@ -732,6 +753,7 @@ export default function Home() {
           language === 'ruby' ? 'Write some Ruby code first.' :
           language === 'swift' ? 'Write some Swift code first.' :
           language === 'lua' ? 'Write some Lua code first.' :
+          language === 'perl' ? 'Write some Perl code first.' :
           'Write some Python first.',
       })
       return
@@ -833,6 +855,7 @@ export default function Home() {
       lang === 'ruby' ? DEFAULT_RUBY_CODE :
       lang === 'swift' ? DEFAULT_SWIFT_CODE :
       lang === 'lua' ? DEFAULT_LUA_CODE :
+      lang === 'perl' ? DEFAULT_PERL_CODE :
       DEFAULT_CODE
     )
     setChunks([])
@@ -887,6 +910,7 @@ export default function Home() {
       language === 'ruby' ? 'rb' :
       language === 'swift' ? 'swift' :
       language === 'lua' ? 'lua' :
+      language === 'perl' ? 'pl' :
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -907,6 +931,7 @@ export default function Home() {
       language === 'ruby' ? 'text/x-ruby;charset=utf-8' :
       language === 'swift' ? 'text/swift;charset=utf-8' :
       language === 'lua' ? 'text/lua;charset=utf-8' :
+      language === 'perl' ? 'text/perl;charset=utf-8' :
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -1021,7 +1046,9 @@ export default function Home() {
                                                       ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
                                                       : language === 'lua'
                                                         ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'
-                                                        : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                                        : language === 'perl'
+                                                          ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'
+                                                          : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   }`}
                 >
                   {language === 'java'
@@ -1060,7 +1087,9 @@ export default function Home() {
                                                     ? 'Swift 5.10'
                                                     : language === 'lua'
                                                       ? 'Lua 5.4'
-                                                      : 'Python 3.12'}
+                                                      : language === 'perl'
+                                                        ? 'Perl 5.40'
+                                                        : 'Python 3.12'}
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -1100,7 +1129,9 @@ export default function Home() {
                                                   ? 'Interactive Swift console with live stdin'
                                                   : language === 'lua'
                                                     ? 'Interactive Lua console with live stdin'
-                                                    : 'Interactive Python console with live input()'}
+                                                    : language === 'perl'
+                                                      ? 'Interactive Perl console with live stdin'
+                                                      : 'Interactive Python console with live input()'}
               </p>
             </div>
           </div>
@@ -1316,6 +1347,17 @@ export default function Home() {
                 }`}
               >
                 Lua
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('perl')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'perl'
+                    ? 'bg-green-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Perl
               </button>
             </div>
           </div>
@@ -1655,6 +1697,23 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Perl examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'perl').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1823,7 +1882,9 @@ export default function Home() {
                                                       ? 'main.swift'
                                                       : language === 'lua'
                                                         ? 'main.lua'
-                                                        : 'code.py'}
+                                                        : language === 'perl'
+                                                          ? 'main.pl'
+                                                          : 'code.py'}
                   </span>
                   <div className="flex-1" />
                   <button

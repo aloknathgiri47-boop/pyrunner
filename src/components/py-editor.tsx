@@ -19,6 +19,7 @@ import { r } from '@codemirror/legacy-modes/mode/r'
 import { ruby as rubyLang } from '@codemirror/legacy-modes/mode/ruby'
 import { swift as swiftLang } from '@codemirror/legacy-modes/mode/swift'
 import { lua as luaLang } from '@codemirror/legacy-modes/mode/lua'
+import { perl as perlLang } from '@codemirror/legacy-modes/mode/perl'
 import { go } from '@codemirror/legacy-modes/mode/go'
 import { clike } from '@codemirror/legacy-modes/mode/clike'
 import { oneDark } from '@codemirror/theme-one-dark'
@@ -29,7 +30,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android' | 'xml' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android' | 'xml' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl'
 }
 
 // Dart keywords for syntax highlighting via clike mode
@@ -176,6 +177,7 @@ export default function PyEditor({
       language === 'ruby' ? StreamLanguage.define(rubyLang) :
       language === 'swift' ? StreamLanguage.define(swiftLang) :
       language === 'lua' ? StreamLanguage.define(luaLang) :
+      language === 'perl' ? StreamLanguage.define(perlLang) :
       language === 'kotlin' || language === 'kotlin-android' ? StreamLanguage.define(clike({ keywords: kotlinKeywords })) :
       language === 'xml' ? xmlLang() :
       python()
