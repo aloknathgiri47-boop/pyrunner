@@ -1761,10 +1761,6 @@ void main() {
    * No build step is needed — HTML/CSS/JS is interpreted by the browser.
    */
   async function spawnHtml(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
-    // Create a per-session workspace directory
-    const workspaceRoot = join('/tmp/html-runner', sessionId)
-    await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
-
     // Sanitize and normalize the user's code:
     // - If user provided a full HTML document, use as-is
     // - If user only provided HTML fragments or CSS, wrap in a basic document
@@ -1788,54 +1784,24 @@ ${code}
 </html>`
     }
 
-    const htmlPath = join(workspaceRoot, 'index.html')
-    try {
-      await writeFile(htmlPath, htmlContent, { encoding: 'utf8', mode: 0o600 })
-    } catch (e) {
-      socket.emit('output', {
-        stream: 'stderr',
-        data: `Failed to write HTML file: ${(e as Error).message}\n`,
-        promptLike: false,
-      })
-      socket.emit('exit', {
-        code: 1, signal: null, timedOut: false, durationMs: 0,
-      })
-      return null
-    }
-
-    // Find a free port for serving
-    const net = await import('net')
-    const findFreePort = (): Promise<number> => {
-      return new Promise((resolve) => {
-        const server = net.createServer()
-        server.listen(0, '127.0.0.1', () => {
-          const port = (server.address() as any).port
-          server.close(() => resolve(port))
-        })
-      })
-    }
-    const servePort = await findFreePort()
-
     socket.emit('output', {
       stream: 'system',
-      data: `HTML preview ready — serving on port ${servePort}.\n`,
+      data: `HTML preview ready.\n`,
       promptLike: false,
     })
 
-    // Emit server event so frontend opens the preview iframe
-    socket.emit('server', { port: servePort, host: '127.0.0.1' })
+    // Emit the HTML content directly to the frontend.
+    // This works on both local (Caddy gateway) and cloud (Render) deployments
+    // without needing a separate HTTP server.
+    socket.emit('html_preview', { html: htmlContent })
 
-    // Serve the HTML using our existing flutter-server.py (it handles
-    // HTML base-href rewriting, correct Content-Length, CORS headers, etc.)
-    const serverScript = join(__dirname, 'flutter-server.py')
-    const child = spawn('python3', [serverScript, servePort.toString(), workspaceRoot], {
-      cwd: workspaceRoot,
-      env: { ...process.env } as NodeJS.ProcessEnv,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true,
+    // Exit immediately — the preview is served client-side via srcdoc
+    socket.emit('exit', {
+      code: 0, signal: null, timedOut: false, durationMs: 0,
     })
 
-    return child
+    // Return a dummy process that's already "exited"
+    return spawn('true', [], { stdio: ['ignore', 'ignore', 'ignore'] })
   }
 
   /**

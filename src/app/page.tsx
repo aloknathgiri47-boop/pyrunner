@@ -273,6 +273,7 @@ export default function Home() {
   const [stdinText, setStdinText] = useState('')
   const [showStdin, setShowStdin] = useState(false)
   const [flutterPort, setFlutterPort] = useState<number | null>(null)
+  const [htmlPreview, setHtmlPreview] = useState<string | null>(null)
   // Hydration flag: false during SSR and the very first client render,
   // true after mount. Used to gate rendering of any client-only UI
   // (like theme-dependent icons or persisted state).
@@ -470,6 +471,17 @@ export default function Home() {
       }
     })
 
+    // HTML preview — emitted by spawnHtml when running on cloud (Render).
+    // The HTML content is loaded directly into the iframe via srcdoc,
+    // no separate HTTP server needed.
+    sock.on('html_preview', (msg: { html: string }) => {
+      setHtmlPreview(msg.html)
+      setFlutterPort(null) // Clear the port-based preview
+      toast.success('HTML preview is live!', {
+        duration: 3000,
+      })
+    })
+
     sock.on('exit', (res: RunResult) => {
       setResult(res)
       setIsRunning(false)
@@ -560,6 +572,7 @@ export default function Home() {
     setChunks([])
     setAwaitingInput(false)
     setFlutterPort(null)
+    setHtmlPreview(null)
     chunkIdRef.current = 0
 
     const sock = ensureSocket()
@@ -2026,7 +2039,15 @@ export default function Home() {
               {(language === 'flutter' || language === 'html') ? (
                 /* Full-screen Preview (Flutter OR HTML/CSS) */
                 <div className="relative h-full w-full overflow-hidden bg-white dark:bg-black">
-                  {flutterPort ? (
+                  {htmlPreview ? (
+                    <iframe
+                      key={htmlPreview.length}
+                      srcDoc={htmlPreview}
+                      title="HTML Preview"
+                      className="absolute inset-0 h-full w-full border-0"
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                    />
+                  ) : flutterPort ? (
                     <iframe
                       key={flutterPort}
                       src={`/?XTransformPort=${flutterPort}`}
