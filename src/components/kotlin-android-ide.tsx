@@ -8,7 +8,7 @@ import JSZip from 'jszip'
 import {
   Play, Square, Trash2, Download, Loader2, CircleAlert, CircleCheck,
   FileCode2, FilePlus, FolderPlus, ChevronRight, ChevronDown, Pencil,
-  Package, Eye, X, QrCode, ExternalLink, Smartphone,
+  Package, Eye, X, Smartphone,
 } from 'lucide-react'
 
 import PyEditor from '@/components/py-editor'
@@ -84,9 +84,7 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
   const [showPreview, setShowPreview] = useState(false)
   const [previewRenderKey, setPreviewRenderKey] = useState(0)
   // QR + interactive preview state
-  const [showQrModal, setShowQrModal] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string>('')
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('')
   const [previewHtml, setPreviewHtml] = useState<string>('')
   const socketRef = useRef<Socket | null>(null)
   const chunkIdRef = useRef(0)
@@ -233,11 +231,9 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
       append('stdout', `✓ Preview URL: ${data.previewUrl}\n`)
       append('system', `\n✓ Done! Scan the QR code to open on your phone.\n`)
       setPreviewUrl(data.previewUrl)
-      setQrCodeDataUrl(data.qrCode)
       setStatus('success')
       setShowPreview(true)
-      setShowQrModal(true)
-      toast.success('Interactive preview ready!', { description: 'QR code generated — scan with your phone!' })
+      toast.success('Interactive preview ready!')
     } catch (e) {
       append('stderr', `\nError: ${(e as Error).message}\n`)
       setStatus('error')
@@ -325,11 +321,6 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
           </Button>
         )}
         <div className="flex-1" />
-        {previewUrl && (
-          <Button onClick={() => setShowQrModal(true)} variant="ghost" size="sm" className="gap-1.5 flex-none" title="Show QR code and preview URL">
-            <QrCode className="h-4 w-4" /><span className="hidden sm:inline">QR Code</span>
-          </Button>
-        )}
         <Button onClick={handleDownloadZip} variant="ghost" size="sm" className="gap-1.5 flex-none">
           <Download className="h-4 w-4" /><span className="hidden sm:inline">Download ZIP</span>
         </Button>
@@ -431,41 +422,6 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
         </PanelGroup>
       </div>
 
-      {/* QR Code + Preview URL Modal */}
-      {showQrModal && previewUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowQrModal(false)}>
-          <div className="bg-background border border-border rounded-lg shadow-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-              <div className="flex items-center gap-2">
-                <QrCode className="h-4 w-4 text-emerald-500" />
-                <h2 className="text-sm font-semibold">Scan to Open on Phone</h2>
-              </div>
-              <button onClick={() => setShowQrModal(false)} className="p-1 rounded hover:bg-muted text-muted-foreground"><X className="h-4 w-4" /></button>
-            </div>
-            <div className="p-6 flex flex-col items-center gap-4">
-              {qrCodeDataUrl && (
-                <img src={qrCodeDataUrl} alt="QR Code" className="w-64 h-64 rounded-lg border border-border" />
-              )}
-              <div className="text-center w-full">
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Preview URL</div>
-                <div className="text-xs font-mono text-emerald-500 break-all bg-muted/50 rounded p-2">{previewUrl}</div>
-              </div>
-              <div className="flex gap-2 w-full">
-                <Button onClick={() => window.open(previewUrl, '_blank')} variant="secondary" size="sm" className="gap-1.5 flex-1">
-                  <ExternalLink className="h-3.5 w-3.5" /> Open Preview
-                </Button>
-                <Button onClick={() => { navigator.clipboard.writeText(previewUrl); toast.success('URL copied!') }} variant="ghost" size="sm" className="gap-1.5 flex-1">
-                  Copy URL
-                </Button>
-              </div>
-              <div className="text-[10px] text-muted-foreground text-center">
-                Expires in 60 minutes. Scan with your phone camera to open.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Interactive Preview Panel (in the preview area) */}
       {showPreview && previewHtml && (
         <div className="absolute inset-0 z-40 bg-black/90 flex items-center justify-center p-4" onClick={() => setShowPreview(false)}>
@@ -475,16 +431,9 @@ export default function KotlinAndroidIDE({ editorTheme }: { editorTheme: 'light'
                 <Smartphone className="h-3.5 w-3.5 text-emerald-400" />
                 <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">Interactive Preview</span>
               </div>
-              <div className="flex items-center gap-1">
-                {previewUrl && (
-                  <button onClick={() => setShowQrModal(true)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400" title="Show QR">
-                    <QrCode className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                <button onClick={() => setShowPreview(false)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400" title="Close">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
+              <button onClick={() => setShowPreview(false)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400" title="Close">
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
             <iframe
               srcDoc={previewHtml}
