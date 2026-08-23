@@ -14,6 +14,7 @@ import { php as phpLang } from '@codemirror/lang-php'
 import { html as htmlLang } from '@codemirror/lang-html'
 import { sql as sqlLang } from '@codemirror/lang-sql'
 import { xml as xmlLang } from '@codemirror/lang-xml'
+import { rust as rustLang } from '@codemirror/lang-rust'
 import { r } from '@codemirror/legacy-modes/mode/r'
 import { go } from '@codemirror/legacy-modes/mode/go'
 import { clike } from '@codemirror/legacy-modes/mode/clike'
@@ -25,7 +26,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android' | 'xml' | 'go' | 'typescript'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android' | 'xml' | 'go' | 'typescript' | 'rust'
 }
 
 // Dart keywords for syntax highlighting via clike mode
@@ -168,6 +169,7 @@ export default function PyEditor({
       language === 'sql' ? sqlLang() :
       language === 'go' ? StreamLanguage.define(go) :
       language === 'typescript' ? javascript({ typescript: true }) :
+      language === 'rust' ? rustLang() :
       language === 'kotlin' || language === 'kotlin-android' ? StreamLanguage.define(clike({ keywords: kotlinKeywords })) :
       language === 'xml' ? xmlLang() :
       python()

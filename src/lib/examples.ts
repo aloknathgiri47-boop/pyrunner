@@ -3,7 +3,7 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust'
   files?: Record<string, string>
 }
 
@@ -3453,6 +3453,157 @@ function makeSound(animal: Animal): void {
 
 makeSound(dog);
 makeSound(cat);
+`,
+  },
+  {
+    id: 'rust-hello',
+    name: 'Rust: Hello World',
+    description: 'Basic Rust program with functions and loops.',
+    language: 'rust',
+    code: `fn main() {
+    println!("Hello from Rust!");
+
+    let name = "World";
+    println!("Hello, {}!", name);
+
+    let result = add(3, 4);
+    println!("3 + 4 = {}", result);
+
+    for i in 1..=3 {
+        println!("Count: {}", i);
+    }
+}
+
+fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+`,
+  },
+  {
+    id: 'rust-structs',
+    name: 'Rust: Structs & Enums',
+    description: 'Structs, enums, impl blocks, pattern matching.',
+    language: 'rust',
+    code: `// Rust structs, enums, and pattern matching
+
+struct Person {
+    name: String,
+    age: u32,
+}
+
+impl Person {
+    fn new(name: &str, age: u32) -> Self {
+        Person { name: String::from(name), age }
+    }
+
+    fn greet(&self) -> String {
+        format!("Hello, I'm {} and I'm {} years old", self.name, self.age)
+    }
+}
+
+enum Status {
+    Idle,
+    Running(String),
+    Done(u32),
+}
+
+fn describe(status: Status) -> String {
+    match status {
+        Status::Idle => "Idle".to_string(),
+        Status::Running(task) => format!("Running: {}", task),
+        Status::Done(code) => format!("Done with code {}", code),
+    }
+}
+
+fn main() {
+    let alice = Person::new("Alice", 30);
+    println!("{}", alice.greet());
+
+    let s1 = Status::Idle;
+    let s2 = Status::Running("compile".to_string());
+    let s3 = Status::Done(0);
+
+    println!("{}", describe(s1));
+    println!("{}", describe(s2));
+    println!("{}", describe(s3));
+
+    // Vectors
+    let fruits = vec!["apple", "banana", "cherry"];
+    for (i, fruit) in fruits.iter().enumerate() {
+        println!("{}: {}", i, fruit);
+    }
+
+    // Option type
+    let maybe: Option<i32> = Some(42);
+    match maybe {
+        Some(val) => println!("Got value: {}", val),
+        None => println!("Got nothing"),
+    }
+}
+`,
+  },
+  {
+    id: 'rust-ownership',
+    name: 'Rust: Ownership & Traits',
+    description: 'Traits, generics, ownership, borrowing.',
+    language: 'rust',
+    code: `// Rust ownership, borrowing, and traits
+
+trait Area {
+    fn area(&self) -> f64;
+}
+
+struct Rectangle {
+    width: f64,
+    height: f64,
+}
+
+struct Circle {
+    radius: f64,
+}
+
+impl Area for Rectangle {
+    fn area(&self) -> f64 {
+        self.width * self.height
+    }
+}
+
+impl Area for Circle {
+    fn area(&self) -> f64 {
+        3.14159 * self.radius * self.radius
+    }
+}
+
+fn print_area<T: Area>(shape: &T) {
+    println!("Area: {:.2}", shape.area());
+}
+
+fn main() {
+    let rect = Rectangle { width: 5.0, height: 3.0 };
+    let circ = Circle { radius: 2.0 };
+
+    print_area(&rect);
+    print_area(&circ);
+
+    // Ownership and borrowing
+    let s1 = String::from("hello");
+    let s2 = s1.clone();  // clone to keep ownership
+    let len = calculate_length(&s1);  // borrow
+    println!("The length of '{}' is {}", s2, len);
+
+    // Mutable borrow
+    let mut s3 = String::from("hello");
+    append_world(&mut s3);
+    println!("{}", s3);
+}
+
+fn calculate_length(s: &String) -> usize {
+    s.len()
+}
+
+fn append_world(s: &mut String) {
+    s.push_str(", world!");
+}
 `,
   },
 ]

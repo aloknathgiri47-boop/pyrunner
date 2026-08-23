@@ -26,7 +26,7 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'kotlin-android'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'kotlin-android'
   stdin?: string
   files?: Record<string, string>
   action?: 'validate' | 'build'
@@ -1884,6 +1884,53 @@ if __name__ == "__main__":
   }
 
   /**
+   * spawnRust — compiles and runs Rust code via rustc.
+   * rustc compiles directly to a binary, then we run it.
+   */
+  async function spawnRust(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+    const workspaceRoot = join('/tmp/rust-runner', sessionId)
+    await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
+    const scriptPath = join(workspaceRoot, 'main.rs')
+    const binPath = join(workspaceRoot, 'main_bin')
+
+    try {
+      await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 })
+    } catch (e) {
+      socket.emit('output', {
+        stream: 'stderr',
+        data: `Failed to write Rust file: ${(e as Error).message}\n`,
+        promptLike: false,
+      })
+      socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 })
+      return null
+    }
+
+    const rustcPath = existsSync('/home/z/.cargo/bin/rustc')
+      ? '/home/z/.cargo/bin/rustc'
+      : 'rustc'
+
+    socket.emit('output', {
+      stream: 'system',
+      data: `Compiling with rustc 1.98...\n`,
+      promptLike: false,
+    })
+
+    // Compile + run in one step
+    const child = spawn('bash', ['-c', `${rustcPath} -O "${scriptPath}" -o "${binPath}" 2>&1 && echo "---RUNNING---" && "${binPath}" 2>&1`], {
+      cwd: workspaceRoot,
+      env: {
+        ...process.env,
+        PATH: '/home/z/.cargo/bin:' + (process.env.PATH || ''),
+      } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    return child
+  }
+
+  /**
+   * spawnKotlinAndroid — validates an Android project STRUCTURALLY.
    * Does NOT run kotlinc on .kt files (because android.* / androidx.* / R.*
    * can't resolve without the Android SDK, producing false errors).
    *
@@ -2118,6 +2165,8 @@ if __name__ == "__main__":
       child = await spawnGo(code, sessionId, socket)
     } else if (language === 'typescript') {
       child = await spawnTypeScript(code, sessionId, socket)
+    } else if (language === 'rust') {
+      child = await spawnRust(code, sessionId, socket)
     } else if (language === 'kotlin-android') {
       child = await spawnKotlinAndroid(payload, sessionId, socket)
     } else {
