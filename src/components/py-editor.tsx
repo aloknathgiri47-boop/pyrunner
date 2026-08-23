@@ -6,6 +6,7 @@ import CodeMirror, {
   type Extension,
 } from '@uiw/react-codemirror'
 import { StreamLanguage } from '@codemirror/language'
+import { indentUnit } from '@codemirror/language'
 import { python } from '@codemirror/lang-python'
 import { java } from '@codemirror/lang-java'
 import { cpp } from '@codemirror/lang-cpp'
@@ -193,6 +194,9 @@ export default function PyEditor({
       langExt,
       EditorView.lineWrapping,
       EditorView.editable.of(!readOnly),
+      // Set indent unit to 4 spaces so Python auto-indent uses 4 spaces,
+      // not 8 (the default is 2 but some setups double it).
+      indentUnit.of('    '),
       EditorView.theme({
         '.cm-scroller': {
           fontFamily:
@@ -238,7 +242,10 @@ export default function PyEditor({
           autocompletion: true,
           bracketMatching: true,
           closeBrackets: true,
-          indentOnInput: true,
+          // Disable auto-indent on input — it mangles Python indentation
+          // (auto-indents to 8 spaces instead of 4 after function definitions).
+          // Users type their own indentation.
+          indentOnInput: false,
           tabSize: 4,
         }}
         style={{ height: '100%' }}
