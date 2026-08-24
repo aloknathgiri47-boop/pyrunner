@@ -2000,7 +2000,7 @@ if __name__ == "__main__":
    * spawnKotlin — runs PURE Kotlin/JVM code (NOT Android) via kotlinc.
    * Compiles with -include-runtime then runs the JAR with java -jar.
    */
-  async function spawnKotlin(code: string, sessionId: string, socket: any): Promise<ChildProcess | null> {
+  async function spawnKotlin(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
     const workspaceRoot = join('/tmp/kotlin-console', sessionId)
     await mkdir(workspaceRoot, { recursive: true }).catch(() => {})
     const scriptPath = join(workspaceRoot, 'snippet.kt')
