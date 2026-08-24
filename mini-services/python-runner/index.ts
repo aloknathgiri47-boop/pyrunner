@@ -2031,6 +2031,10 @@ if __name__ == "__main__":
 
     const kotlincPath = existsSync('/home/z/.local/kotlinc/bin/kotlinc')
       ? '/home/z/.local/kotlinc/bin/kotlinc'
+      : existsSync('/opt/kotlinc/bin/kotlinc')
+      ? '/opt/kotlinc/bin/kotlinc'
+      : existsSync('/usr/local/bin/kotlinc')
+      ? '/usr/local/bin/kotlinc'
       : 'kotlinc'
 
     socket.emit('output', {
@@ -2044,7 +2048,7 @@ if __name__ == "__main__":
       env: {
         ...process.env,
         JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
-        PATH: '/home/z/.local/kotlinc/bin:' + (process.env.PATH || ''),
+        PATH: '/home/z/.local/kotlinc/bin:/opt/kotlinc/bin:/usr/local/bin:' + (process.env.PATH || ''),
       } as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,

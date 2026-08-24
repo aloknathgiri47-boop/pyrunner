@@ -20,6 +20,11 @@ RUN wget -qO- https://storage.googleapis.com/dart-archive/channels/stable/releas
     unzip -q /tmp/dart.zip -d /opt && rm /tmp/dart.zip && \
     ln -s /opt/dart-sdk/bin/dart /usr/local/bin/dart
 
+# Kotlin compiler
+RUN wget -q https://github.com/JetBrains/kotlin/releases/download/v2.0.21/kotlin-compiler-2.0.21.zip -O /tmp/kotlin.zip && \
+    unzip -q /tmp/kotlin.zip -d /opt && rm /tmp/kotlin.zip && \
+    ln -s /opt/kotlinc/bin/kotlinc /usr/local/bin/kotlinc
+
 RUN pip3 install --break-system-packages numpy pandas matplotlib
 
 WORKDIR /app
