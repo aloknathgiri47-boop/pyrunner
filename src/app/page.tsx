@@ -92,11 +92,8 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
-<<<<<<< HEAD
 type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql'
-=======
 type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran' | 'cobol'
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
 
 interface PersistedState {
   code: string
@@ -120,11 +117,8 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
-<<<<<<< HEAD
       language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql'].includes(parsed.language) ? parsed.language : 'python',
-=======
       language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash','fortran','cobol'].includes(parsed.language) ? parsed.language : 'python',
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
     }
   } catch {
     return null
@@ -205,7 +199,6 @@ function pushHistoryState(code: string, language: Language) {
 function getInitialState(): { code: string; language: Language } {
   if (typeof window === 'undefined') return { code: DEFAULT_CODE, language: 'python' }
   // URL hash takes priority, then localStorage, then default.
-<<<<<<< HEAD
   const hash = window.location.hash
   if (hash && hash.length > 2) {
     try {
@@ -230,10 +223,8 @@ function getInitialState(): { code: string; language: Language } {
       /* fall through */
     }
   }
-=======
   const fromHash = decodeFromHash(window.location.hash)
   if (fromHash) return fromHash
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
   const persisted = loadState()
   if (persisted) {
     return { code: persisted.code, language: persisted.language }
@@ -585,8 +576,6 @@ export default function Home() {
           language === 'flutter' ? 'Write some Flutter code first.' :
           language === 'html' ? 'Write some HTML/CSS first.' :
           language === 'sql' ? 'Write some SQL first.' :
-<<<<<<< HEAD
-=======
           language === 'kotlin' ? 'Write some Kotlin code first.' :
           language === 'go' ? 'Write some Go code first.' :
           language === 'typescript' ? 'Write some TypeScript code first.' :
@@ -599,7 +588,6 @@ export default function Home() {
           language === 'bash' ? 'Write some Bash code first.' :
           language === 'fortran' ? 'Write some Fortran code first.' :
           language === 'cobol' ? 'Write some COBOL code first.' :
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
           'Write some Python first.',
       })
       return
@@ -772,8 +760,6 @@ export default function Home() {
       language === 'flutter' ? 'dart' :
       language === 'html' ? 'html' :
       language === 'sql' ? 'sql' :
-<<<<<<< HEAD
-=======
       language === 'kotlin' ? 'kt' :
       language === 'go' ? 'go' :
       language === 'typescript' ? 'ts' :
@@ -786,7 +772,6 @@ export default function Home() {
       language === 'bash' ? 'sh' :
       language === 'fortran' ? 'f90' :
       language === 'cobol' ? 'cbl' :
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -800,8 +785,6 @@ export default function Home() {
       language === 'flutter' ? 'text/x-dart;charset=utf-8' :
       language === 'html' ? 'text/html;charset=utf-8' :
       language === 'sql' ? 'application/sql;charset=utf-8' :
-<<<<<<< HEAD
-=======
       language === 'kotlin' ? 'text/x-kotlin;charset=utf-8' :
       language === 'go' ? 'text/x-go;charset=utf-8' :
       language === 'typescript' ? 'text/typescript;charset=utf-8' :
@@ -814,7 +797,6 @@ export default function Home() {
       language === 'bash' ? 'text/x-sh;charset=utf-8' :
       language === 'fortran' ? 'text/fortran;charset=utf-8' :
       language === 'cobol' ? 'text/cobol;charset=utf-8' :
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -970,9 +952,7 @@ export default function Home() {
                                         ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
                                         : language === 'sql'
                                           ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-<<<<<<< HEAD
                                           : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-=======
                                           : language === 'kotlin'
                                             ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
                                             : language === 'go'
@@ -998,7 +978,6 @@ export default function Home() {
                                                                 : language === 'cobol'
                                                                   ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
                                                                   : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
                   }`}
                 >
                   {language === 'java'
@@ -1023,9 +1002,7 @@ export default function Home() {
                                       ? 'HTML/CSS'
                                       : language === 'sql'
                                         ? 'SQLite 3.53'
-<<<<<<< HEAD
                                         : 'Python 3.12'}
-=======
                                         : language === 'kotlin'
                                           ? 'Kotlin 2.0'
                                           : language === 'go'
@@ -1051,7 +1028,6 @@ export default function Home() {
                                                               : language === 'cobol'
                                                                 ? 'COBOL 3.2'
                                                                 : 'Python 3.12'}
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -1077,9 +1053,7 @@ export default function Home() {
                                     ? 'Live HTML/CSS/JS preview in iframe'
                                     : language === 'sql'
                                       ? 'Interactive SQLite SQL console'
-<<<<<<< HEAD
                                       : 'Interactive Python console with live input()'}
-=======
                                       : language === 'kotlin'
                                         ? 'Interactive Kotlin/JVM console with live stdin'
                                         : language === 'go'
@@ -1105,7 +1079,6 @@ export default function Home() {
                                                             : language === 'cobol'
                                                               ? 'Interactive COBOL console with live stdin'
                                                               : 'Interactive Python console with live input()'}
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
               </p>
             </div>
           </div>
@@ -1245,8 +1218,6 @@ export default function Home() {
               >
                 SQL
               </button>
-<<<<<<< HEAD
-=======
               <button
                 type="button"
                 onClick={() => handleLanguageChange('kotlin')}
@@ -1379,7 +1350,6 @@ export default function Home() {
               >
                 COBOL
               </button>
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
             </div>
           </div>
 
@@ -1599,8 +1569,6 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
-<<<<<<< HEAD
-=======
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
                   Kotlin examples
@@ -1805,7 +1773,6 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -2000,9 +1967,7 @@ export default function Home() {
                                         ? 'index.html'
                                         : language === 'sql'
                                           ? 'query.sql'
-<<<<<<< HEAD
                                           : 'code.py'}
-=======
                                           : language === 'kotlin'
                                             ? 'Main.kt'
                                             : language === 'go'
@@ -2028,7 +1993,6 @@ export default function Home() {
                                                                 : language === 'cobol'
                                                                   ? 'main.cbl'
                                                                   : 'code.py')}
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
                   </span>
                   <div className="flex-1" />
                   <button

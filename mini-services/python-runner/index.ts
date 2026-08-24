@@ -26,11 +26,8 @@ const IMG_END = '\x00PYRUNNER_IMG_END\x00'
 interface RunPayload {
   code: string
   timeout?: number
-<<<<<<< HEAD
   language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql'
-=======
   language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran' | 'cobol' | 'kotlin-android'
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
   stdin?: string
   files?: Record<string, string>
   /** Path of the entry file within `files`. If omitted, falls back to `code`. */
@@ -2176,7 +2173,6 @@ if __name__ == "__main__":
   }
 
   /**
-<<<<<<< HEAD
    * spawnSql — executes user's SQL using Python's built-in sqlite3 module.
    *
    * Strategy:
@@ -2354,7 +2350,6 @@ if __name__ == "__main__":
 
     // Spawn python3 with the wrapper script, piping SQL code to its stdin
     const child = spawn('python3', [scriptPath], {
-=======
    * spawnRust — compiles and runs Rust code via rustc.
    * rustc compiles directly to a binary, then we run it.
    * Multi-file: `mod helper;` declaration in main.rs, helper.rs alongside.
@@ -2703,14 +2698,12 @@ if __name__ == "__main__":
     })
 
     const child = spawn('perl', [scriptPath], {
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
       cwd: workspaceRoot,
       env: { ...process.env } as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     })
 
-<<<<<<< HEAD
     // Write the SQL code to stdin and close it
     child.stdin?.write(code)
     child.stdin?.end()
@@ -2898,7 +2891,6 @@ if __name__ == "__main__":
     socket.emit('output', { stream: 'system', data: `Compiling with GnuCOBOL...\n`, promptLike: false })
     return spawn('bash', ['-c', `${cobcBin} -x -o "${binPath}" "${scriptPath}" 2>&1 && echo "---RUNNING---" && "${binPath}" 2>&1`], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
   }
-=======
     return child
   }
 
@@ -3359,7 +3351,6 @@ if __name__ == "__main__":
     return spawn('true', [], { stdio: ['ignore', 'ignore', 'ignore'] })
   }
 
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
 
   socket.on('run', async (payload: RunPayload) => {
     console.log('[runner] received run event, language:', payload?.language, 'code length:', payload?.code?.length)
@@ -3427,11 +3418,8 @@ if __name__ == "__main__":
     } else if (language === 'sql') {
       child = await spawnSql(code, sessionId, socket)
     } else if (language === 'kotlin') {
-<<<<<<< HEAD
       child = await spawnKotlin(code, sessionId, socket, payload)
-=======
       child = await spawnKotlin(code, sessionId, socket)
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
     } else if (language === 'go') {
       child = await spawnGo(code, sessionId, socket, payload)
     } else if (language === 'typescript') {
@@ -3454,11 +3442,8 @@ if __name__ == "__main__":
       child = await spawnFortran(code, sessionId, socket, payload)
     } else if (language === 'cobol') {
       child = await spawnCobol(code, sessionId, socket, payload)
-<<<<<<< HEAD
-=======
     } else if (language === 'kotlin-android') {
       child = await spawnKotlinAndroid(payload, sessionId, socket)
->>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
     } else {
       child = await spawnPython(code, sessionId, socket, payload)
     }
