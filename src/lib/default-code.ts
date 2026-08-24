@@ -27,7 +27,7 @@ export const DEFAULT_JAVA_CODE = `// CodeHubz — Java 21 playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 // The public class name is detected automatically.
 
-public class Hello {
+public class Main {
     public static void main(String[] args) {
         System.out.println("Hello, World!");
 
