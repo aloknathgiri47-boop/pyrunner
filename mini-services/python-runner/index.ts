@@ -3617,7 +3617,7 @@ if __name__ == "__main__":
   })
 })
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[python-runner] WebSocket server running on port ${PORT}`)
 })
 
