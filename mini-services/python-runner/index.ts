@@ -547,9 +547,16 @@ ${code}
     // Multi-file mode: write all files, compile all .java files together, run the entry class.
     const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
 
-    // Locate the JDK (portable Temurin 21 installed at ~/.local/jdk/current).
+    // Locate the JDK — check portable install, system JDK, and PATH
     const home = process.env.HOME || '/home/z'
-    const jdkBin = join(home, '.local', 'jdk', 'current', 'bin')
+    const systemJdk = '/usr/lib/jvm/java-21-openjdk-amd64/bin'
+    const portableJdk = join(home, '.local', 'jdk', 'current', 'bin')
+    const jdkBin = existsSync(join(portableJdk, 'javac'))
+      ? portableJdk
+      : existsSync(join(systemJdk, 'javac'))
+      ? systemJdk
+      : '/usr/bin'
+    const javaHome = jdkBin.replace('/bin', '')
     const javacPath = existsSync(join(jdkBin, 'javac')) ? join(jdkBin, 'javac') : 'javac'
     const javaPath = existsSync(join(jdkBin, 'java')) ? join(jdkBin, 'java') : 'java'
 
@@ -569,6 +576,8 @@ ${code}
           cwd: workspaceDir,
           env: {
             ...process.env,
+            JAVA_HOME: javaHome,
+            LD_LIBRARY_PATH: join(javaHome, "lib/server") + ":" + join(javaHome, "lib") + ":" + (process.env.LD_LIBRARY_PATH || ""),
             JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
             _JAVA_OPTIONS: '-Dfile.encoding=UTF-8',
           } as NodeJS.ProcessEnv,
@@ -611,7 +620,9 @@ ${code}
         cwd: workspaceDir,
         env: {
           ...process.env,
-          JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
+          JAVA_HOME: javaHome,
+            LD_LIBRARY_PATH: join(javaHome, "lib/server") + ":" + join(javaHome, "lib") + ":" + (process.env.LD_LIBRARY_PATH || ""),
+            JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
         } as NodeJS.ProcessEnv,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
@@ -660,7 +671,9 @@ ${code}
         cwd: sandboxDir,
         env: {
           ...process.env,
-          JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
+          JAVA_HOME: javaHome,
+            LD_LIBRARY_PATH: join(javaHome, "lib/server") + ":" + join(javaHome, "lib") + ":" + (process.env.LD_LIBRARY_PATH || ""),
+            JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
           _JAVA_OPTIONS: '-Dfile.encoding=UTF-8',
         } as NodeJS.ProcessEnv,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -716,7 +729,9 @@ ${code}
       cwd: sandboxDir,
       env: {
         ...process.env,
-        JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
+        JAVA_HOME: javaHome,
+            LD_LIBRARY_PATH: join(javaHome, "lib/server") + ":" + join(javaHome, "lib") + ":" + (process.env.LD_LIBRARY_PATH || ""),
+            JAVA_TOOL_OPTIONS: '-Dfile.encoding=UTF-8',
       } as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,

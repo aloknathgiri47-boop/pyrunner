@@ -273,7 +273,6 @@ export default function Home() {
   useEffect(() => {
     if (!projectHydrated) return
     if (activeFile) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCode(activeFile.content)
       setLanguage(activeFile.language)
     } else {
@@ -313,7 +312,6 @@ export default function Home() {
   // URL hash takes priority: if `#c=...&l=...` is present, we load that
   // snippet into the active file so share links continue to work.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHydrated(true)
     // If a share-link hash is present, switch to the shared snippet's
     // language project and load the snippet into the active file.
