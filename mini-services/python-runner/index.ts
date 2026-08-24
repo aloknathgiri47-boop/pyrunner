@@ -2064,9 +2064,15 @@ if __name__ == "__main__":
     // Multi-file mode: write all files, run `go run .` from the workspace dir.
     const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
 
-    const goBin = existsSync('/home/z/.local/go/bin/go')
-      ? '/home/z/.local/go/bin/go'
-      : 'go'
+    // Detect Go binary and GOROOT — check multiple locations for local + Docker/Render
+    const goLocal = '/home/z/.local/go'
+    const goOpt = '/usr/local/go'
+    const goUsr = '/usr/lib/go'
+    const goRoot = existsSync(join(goLocal, 'bin', 'go')) ? goLocal
+      : existsSync(join(goOpt, 'bin', 'go')) ? goOpt
+      : existsSync(join(goUsr, 'bin', 'go')) ? goUsr
+      : goLocal
+    const goBin = join(goRoot, 'bin', 'go')
 
     if (isMultiFile && entryPath) {
       socket.emit('output', {
@@ -2085,8 +2091,8 @@ if __name__ == "__main__":
         cwd: workspaceDir,
         env: {
           ...process.env,
-          PATH: '/home/z/.local/go/bin:' + (process.env.PATH || ''),
-          GOROOT: '/home/z/.local/go',
+          PATH: `${goRoot}/bin:` + (process.env.PATH || ''),
+          GOROOT: goRoot,
           GO111MODULE: 'off',
         } as NodeJS.ProcessEnv,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -2122,8 +2128,8 @@ if __name__ == "__main__":
       cwd: workspaceRoot,
       env: {
         ...process.env,
-        PATH: '/home/z/.local/go/bin:' + (process.env.PATH || ''),
-        GOROOT: '/home/z/.local/go',
+        PATH: `${goRoot}/bin:` + (process.env.PATH || ''),
+        GOROOT: goRoot,
       } as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
