@@ -1472,11 +1472,14 @@ if (!function_exists('readline')) {
    */
   async function spawnFlutter(code: string, sessionId: string, socket: any, stdin?: string): Promise<ChildProcess | null> {
     const home = process.env.HOME || '/home/z'
+    console.log('[spawnFlutter] starting, home:', home)
 
     // Check if Flutter SDK is available
     const flutterBinPath = join(home, '.local', 'flutter', 'bin', 'flutter')
     const flutterInPath = existsSync('/usr/local/bin/flutter')
     const hasFlutter = existsSync(flutterBinPath) || flutterInPath
+    console.log('[spawnFlutter] flutterBinPath:', flutterBinPath, 'exists:', existsSync(flutterBinPath))
+    console.log('[spawnFlutter] hasFlutter:', hasFlutter)
 
     if (!hasFlutter) {
       socket.emit('output', {
@@ -1734,10 +1737,13 @@ void main() {
     // Emit server event so frontend opens the preview
     socket.emit('server', { port: servePort, host: '127.0.0.1' })
 
-    // Also emit flutter_preview_url for cloud deployments
-    // The frontend will use this URL directly in the iframe when XTransformPort doesn't work
-    const runnerUrl = process.env.RENDER_EXTERNAL_URL || 'https://codehubz-runner.onrender.com'
-    socket.emit('flutter_preview_url', { url: `${runnerUrl}/preview/${servePort}/` })
+    // Also emit flutter_preview_url for cloud deployments (Render)
+    // On local, the 'server' event above is sufficient (uses Caddy gateway)
+    // On Render, the flutter_preview_url gives the frontend a direct URL
+    if (process.env.RENDER_EXTERNAL_URL || process.env.RENDER) {
+      const runnerUrl = process.env.RENDER_EXTERNAL_URL || 'https://codehubz-runner.onrender.com'
+      socket.emit('flutter_preview_url', { url: `${runnerUrl}/preview/${servePort}/` })
+    }
 
     // Start serving using our custom Flutter server (rewrites HTML to inject XTransformPort)
     const flutterServerScript = join(__dirname, 'flutter-server.py')
