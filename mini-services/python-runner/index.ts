@@ -1755,6 +1755,186 @@ if __name__ == "__main__":
     return child
   }
 
+  async function spawnKotlin(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+    if (isMultiFile && entryPath) {
+      const kotlincBin = existsSync('/usr/local/bin/kotlinc') ? '/usr/local/bin/kotlinc'
+        : existsSync(join(process.env.HOME || '/home/z', '.local', 'kotlinc', 'bin', 'kotlinc')) ? join(process.env.HOME || '/home/z', '.local', 'kotlinc', 'bin', 'kotlinc')
+        : 'kotlinc'
+      socket.emit('output', { stream: 'system', data: `Compiling with kotlinc...\n`, promptLike: false })
+      const jarPath = join(workspaceDir, 'app.jar')
+      const compileResult = await new Promise<{ ok: boolean; stderr: string }>((resolve) => {
+        const kc = spawn(kotlincBin, ['-script', entryPath], { cwd: workspaceDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+        let stderr = ''; let stdout = ''
+        kc.stdout?.on('data', (c: Buffer) => { stdout += c.toString('utf8'); socket.emit('output', { stream: 'stdout', data: c.toString('utf8'), promptLike: false }) })
+        kc.stderr?.on('data', (c: Buffer) => { stderr += c.toString('utf8'); socket.emit('output', { stream: 'stderr', data: c.toString('utf8'), promptLike: false }) })
+        kc.on('error', (err) => resolve({ ok: false, stderr: `Failed to spawn kotlinc: ${err.message}\n` }))
+        kc.on('close', (code) => resolve({ ok: code === 0, stderr }))
+        kc.stdin?.end()
+      })
+      if (!compileResult.ok) { socket.emit('output', { stream: 'system', data: `\nCompilation failed.\n`, promptLike: false }); socket.emit('exit', { code: 1, signal: null, timedOut: false, durationMs: 0 }); return null }
+      return spawn('true', [], { stdio: ['ignore', 'ignore', 'ignore'] })
+    }
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.kt`)
+    try { await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 }) } catch { return null }
+    const kotlincBin = existsSync('/usr/local/bin/kotlinc') ? '/usr/local/bin/kotlinc' : 'kotlinc'
+    socket.emit('output', { stream: 'system', data: `Compiling with kotlinc...\n`, promptLike: false })
+    const child = spawn(kotlincBin, ['-script', scriptPath], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    return child
+  }
+
+  async function spawnGo(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+    const goBin = existsSync('/usr/local/go/bin/go') ? '/usr/local/go/bin/go' : 'go'
+    if (isMultiFile && entryPath) {
+      socket.emit('output', { stream: 'system', data: `Running with Go...\n`, promptLike: false })
+      const child = spawn(goBin, ['run', entryPath], { cwd: workspaceDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+      return child
+    }
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.go`)
+    try { await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 }) } catch { return null }
+    socket.emit('output', { stream: 'system', data: `Running with Go...\n`, promptLike: false })
+    const child = spawn(goBin, ['run', scriptPath], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    return child
+  }
+
+  async function spawnTypeScript(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+    if (isMultiFile && entryPath) {
+      socket.emit('output', { stream: 'system', data: `Running with bun (TypeScript)...\n`, promptLike: false })
+      const child = spawn('bun', ['run', entryPath], { cwd: workspaceDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+      return child
+    }
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.ts`)
+    try { await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 }) } catch { return null }
+    socket.emit('output', { stream: 'system', data: `Running with bun (TypeScript)...\n`, promptLike: false })
+    const child = spawn('bun', ['run', scriptPath], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    return child
+  }
+
+  async function spawnRust(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+    const rustcBin = existsSync(join(process.env.HOME || '/home/z', '.cargo', 'bin', 'rustc')) ? join(process.env.HOME || '/home/z', '.cargo', 'bin', 'rustc') : 'rustc'
+    if (isMultiFile && entryPath) {
+      const binPath = join(workspaceDir, 'rust_bin')
+      socket.emit('output', { stream: 'system', data: `Compiling with rustc...\n`, promptLike: false })
+      const child = spawn('bash', ['-c', `${rustcBin} -O "${entryPath}" -o "${binPath}" 2>&1 && echo "---RUNNING---" && "${binPath}" 2>&1`], { cwd: workspaceDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+      return child
+    }
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.rs`)
+    const binPath = join(sandboxDir, `snippet_${sessionId}.bin`)
+    try { await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 }) } catch { return null }
+    socket.emit('output', { stream: 'system', data: `Compiling with rustc...\n`, promptLike: false })
+    const child = spawn('bash', ['-c', `${rustcBin} -O "${scriptPath}" -o "${binPath}" 2>&1 && echo "---RUNNING---" && "${binPath}" 2>&1`], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    return child
+  }
+
+  async function spawnRuby(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+    const rubyBin = existsSync('/usr/bin/ruby') ? '/usr/bin/ruby' : 'ruby'
+    if (isMultiFile && entryPath) {
+      socket.emit('output', { stream: 'system', data: `Running with Ruby...\n`, promptLike: false })
+      return spawn(rubyBin, [entryPath], { cwd: workspaceDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    }
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.rb`)
+    try { await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 }) } catch { return null }
+    socket.emit('output', { stream: 'system', data: `Running with Ruby...\n`, promptLike: false })
+    return spawn(rubyBin, [scriptPath], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+  }
+
+  async function spawnSwift(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+    const swiftBin = existsSync('/usr/bin/swift') ? '/usr/bin/swift' : 'swift'
+    if (isMultiFile && entryPath) {
+      socket.emit('output', { stream: 'system', data: `Running with Swift...\n`, promptLike: false })
+      return spawn(swiftBin, [entryPath], { cwd: workspaceDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    }
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.swift`)
+    try { await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 }) } catch { return null }
+    socket.emit('output', { stream: 'system', data: `Running with Swift...\n`, promptLike: false })
+    return spawn(swiftBin, [scriptPath], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+  }
+
+  async function spawnLua(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+    const luaBin = existsSync('/usr/bin/lua5.4') ? '/usr/bin/lua5.4' : 'lua'
+    if (isMultiFile && entryPath) {
+      socket.emit('output', { stream: 'system', data: `Running with Lua...\n`, promptLike: false })
+      return spawn(luaBin, [entryPath], { cwd: workspaceDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    }
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.lua`)
+    try { await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 }) } catch { return null }
+    socket.emit('output', { stream: 'system', data: `Running with Lua...\n`, promptLike: false })
+    return spawn(luaBin, [scriptPath], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+  }
+
+  async function spawnPerl(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+    if (isMultiFile && entryPath) {
+      socket.emit('output', { stream: 'system', data: `Running with Perl...\n`, promptLike: false })
+      return spawn('perl', [entryPath], { cwd: workspaceDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    }
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.pl`)
+    try { await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o700 }) } catch { return null }
+    socket.emit('output', { stream: 'system', data: `Running with Perl...\n`, promptLike: false })
+    return spawn('perl', [scriptPath], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+  }
+
+  async function spawnPowerShell(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+    const pwshBin = existsSync('/usr/bin/pwsh') ? '/usr/bin/pwsh' : 'pwsh'
+    if (isMultiFile && entryPath) {
+      socket.emit('output', { stream: 'system', data: `Running with PowerShell...\n`, promptLike: false })
+      return spawn(pwshBin, ['-NoProfile', '-File', entryPath], { cwd: workspaceDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    }
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.ps1`)
+    try { await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 }) } catch { return null }
+    socket.emit('output', { stream: 'system', data: `Running with PowerShell...\n`, promptLike: false })
+    return spawn(pwshBin, ['-NoProfile', '-File', scriptPath], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+  }
+
+  async function spawnBash(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+    if (isMultiFile && entryPath) {
+      socket.emit('output', { stream: 'system', data: `Running with Bash...\n`, promptLike: false })
+      return spawn('bash', [entryPath], { cwd: workspaceDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    }
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.sh`)
+    try { await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o700 }) } catch { return null }
+    socket.emit('output', { stream: 'system', data: `Running with Bash...\n`, promptLike: false })
+    return spawn('bash', [scriptPath], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+  }
+
+  async function spawnFortran(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+    const gfortranBin = existsSync('/usr/bin/gfortran') ? '/usr/bin/gfortran' : 'gfortran'
+    if (isMultiFile && entryPath) {
+      const binPath = join(workspaceDir, 'fortran_bin')
+      socket.emit('output', { stream: 'system', data: `Compiling with gfortran...\n`, promptLike: false })
+      return spawn('bash', ['-c', `${gfortranBin} "${entryPath}" -o "${binPath}" 2>&1 && echo "---RUNNING---" && "${binPath}" 2>&1`], { cwd: workspaceDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    }
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.f90`)
+    const binPath = join(sandboxDir, `snippet_${sessionId}.bin`)
+    try { await writeFile(scriptPath, code, { encoding: 'utf8', mode: 0o600 }) } catch { return null }
+    socket.emit('output', { stream: 'system', data: `Compiling with gfortran...\n`, promptLike: false })
+    return spawn('bash', ['-c', `${gfortranBin} "${scriptPath}" -o "${binPath}" 2>&1 && echo "---RUNNING---" && "${binPath}" 2>&1`], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+  }
+
+  async function spawnCobol(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
+    const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
+    const cobcBin = existsSync('/usr/bin/cobc') ? '/usr/bin/cobc' : 'cobc'
+    const safeCode = code.endsWith('\n') ? code : code + '\n'
+    if (isMultiFile && entryPath) {
+      const binPath = join(workspaceDir, 'cobol_bin')
+      socket.emit('output', { stream: 'system', data: `Compiling with GnuCOBOL...\n`, promptLike: false })
+      return spawn('bash', ['-c', `${cobcBin} -x -o "${binPath}" "${entryPath}" 2>&1 && echo "---RUNNING---" && "${binPath}" 2>&1`], { cwd: workspaceDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+    }
+    const scriptPath = join(sandboxDir, `snippet_${sessionId}.cbl`)
+    const binPath = join(sandboxDir, `snippet_${sessionId}.bin`)
+    try { await writeFile(scriptPath, safeCode, { encoding: 'utf8', mode: 0o600 }) } catch { return null }
+    socket.emit('output', { stream: 'system', data: `Compiling with GnuCOBOL...\n`, promptLike: false })
+    return spawn('bash', ['-c', `${cobcBin} -x -o "${binPath}" "${scriptPath}" 2>&1 && echo "---RUNNING---" && "${binPath}" 2>&1`], { cwd: sandboxDir, env: { ...process.env } as NodeJS.ProcessEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+  }
 
   socket.on('run', async (payload: RunPayload) => {
     // If a previous session is still alive on this socket, kill it first.
@@ -1813,6 +1993,30 @@ if __name__ == "__main__":
       child = await spawnHtml(code, sessionId, socket)
     } else if (language === 'sql') {
       child = await spawnSql(code, sessionId, socket)
+    } else if (language === 'kotlin') {
+      child = await spawnKotlin(code, sessionId, socket, payload)
+    } else if (language === 'go') {
+      child = await spawnGo(code, sessionId, socket, payload)
+    } else if (language === 'typescript') {
+      child = await spawnTypeScript(code, sessionId, socket, payload)
+    } else if (language === 'rust') {
+      child = await spawnRust(code, sessionId, socket, payload)
+    } else if (language === 'ruby') {
+      child = await spawnRuby(code, sessionId, socket, payload)
+    } else if (language === 'swift') {
+      child = await spawnSwift(code, sessionId, socket, payload)
+    } else if (language === 'lua') {
+      child = await spawnLua(code, sessionId, socket, payload)
+    } else if (language === 'perl') {
+      child = await spawnPerl(code, sessionId, socket, payload)
+    } else if (language === 'powershell') {
+      child = await spawnPowerShell(code, sessionId, socket, payload)
+    } else if (language === 'bash') {
+      child = await spawnBash(code, sessionId, socket, payload)
+    } else if (language === 'fortran') {
+      child = await spawnFortran(code, sessionId, socket, payload)
+    } else if (language === 'cobol') {
+      child = await spawnCobol(code, sessionId, socket, payload)
     } else {
       child = await spawnPython(code, sessionId, socket)
     }
