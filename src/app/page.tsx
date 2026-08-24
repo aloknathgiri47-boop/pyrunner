@@ -952,7 +952,6 @@ export default function Home() {
                                         ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
                                         : language === 'sql'
                                           ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                                          : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                                           : language === 'kotlin'
                                             ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
                                             : language === 'go'
@@ -1002,7 +1001,6 @@ export default function Home() {
                                       ? 'HTML/CSS'
                                       : language === 'sql'
                                         ? 'SQLite 3.53'
-                                        : 'Python 3.12'}
                                         : language === 'kotlin'
                                           ? 'Kotlin 2.0'
                                           : language === 'go'
@@ -1053,7 +1051,6 @@ export default function Home() {
                                     ? 'Live HTML/CSS/JS preview in iframe'
                                     : language === 'sql'
                                       ? 'Interactive SQLite SQL console'
-                                      : 'Interactive Python console with live input()'}
                                       : language === 'kotlin'
                                         ? 'Interactive Kotlin/JVM console with live stdin'
                                         : language === 'go'
@@ -1967,7 +1964,6 @@ export default function Home() {
                                         ? 'index.html'
                                         : language === 'sql'
                                           ? 'query.sql'
-                                          : 'code.py'}
                                           : language === 'kotlin'
                                             ? 'Main.kt'
                                             : language === 'go'
