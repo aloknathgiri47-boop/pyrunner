@@ -1734,6 +1734,11 @@ void main() {
     // Emit server event so frontend opens the preview
     socket.emit('server', { port: servePort, host: '127.0.0.1' })
 
+    // Also emit flutter_preview_url for cloud deployments
+    // The frontend will use this URL directly in the iframe when XTransformPort doesn't work
+    const runnerUrl = process.env.RENDER_EXTERNAL_URL || 'https://codehubz-runner.onrender.com'
+    socket.emit('flutter_preview_url', { url: `${runnerUrl}/preview/${servePort}/` })
+
     // Start serving using our custom Flutter server (rewrites HTML to inject XTransformPort)
     const flutterServerScript = join(__dirname, 'flutter-server.py')
     const child = spawn('python3', [flutterServerScript, servePort.toString(), webBuildDir], {

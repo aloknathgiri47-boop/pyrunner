@@ -300,6 +300,7 @@ export default function Home() {
   const [showStdin, setShowStdin] = useState(false)
   const [flutterPort, setFlutterPort] = useState<number | null>(null)
   const [htmlPreview, setHtmlPreview] = useState<string | null>(null)
+  const [flutterPreviewUrl, setFlutterPreviewUrl] = useState<string | null>(null)
   // Hydration flag: false during SSR and the very first client render,
   // true after mount. Used to gate rendering of any client-only UI
   // (like theme-dependent icons or persisted state).
@@ -508,6 +509,18 @@ export default function Home() {
       })
     })
 
+    // Flutter preview URL — emitted by spawnFlutter on cloud (Render)
+    // The URL points directly to the Render server's preview endpoint
+    sock.on('flutter_preview_url', (msg: { url: string }) => {
+      setHtmlPreview(null)
+      setFlutterPort(null)
+      // Use a special state for the Flutter preview URL
+      setFlutterPreviewUrl(msg.url)
+      toast.success('Flutter preview is live!', {
+        duration: 4000,
+      })
+    })
+
     sock.on('exit', (res: RunResult) => {
       setResult(res)
       setIsRunning(false)
@@ -599,6 +612,7 @@ export default function Home() {
     setAwaitingInput(false)
     setFlutterPort(null)
     setHtmlPreview(null)
+    setFlutterPreviewUrl(null)
     chunkIdRef.current = 0
 
     const sock = ensureSocket()
@@ -2070,6 +2084,14 @@ export default function Home() {
                       key={htmlPreview.length}
                       srcDoc={htmlPreview}
                       title="HTML Preview"
+                      className="absolute inset-0 h-full w-full border-0"
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                    />
+                  ) : flutterPreviewUrl ? (
+                    <iframe
+                      key={flutterPreviewUrl}
+                      src={flutterPreviewUrl}
+                      title="Flutter Preview"
                       className="absolute inset-0 h-full w-full border-0"
                       sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
                     />

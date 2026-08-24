@@ -151,8 +151,8 @@ def main():
         sys.exit(1)
 
     handler = make_handler(port, directory)
-    server = HTTPServer(("127.0.0.1", port), handler)
-    sys.stderr.write(f"[flutter-server] serving {directory} on http://127.0.0.1:{port}/\n")
+    server = HTTPServer(("0.0.0.0", port), handler)
+    sys.stderr.write(f"[flutter-server] serving {directory} on http://0.0.0.0:{port}/\n")
     sys.stderr.flush()
     try:
         server.serve_forever()
