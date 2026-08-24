@@ -3,7 +3,8 @@ export interface Snippet {
   name: string
   description: string
   code: string
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran' | 'cobol'
+  files?: Record<string, string>
 }
 
 export const EXAMPLES: Snippet[] = [
@@ -11,7 +12,7 @@ export const EXAMPLES: Snippet[] = [
     id: 'hello',
     name: 'Hello, World',
     description: 'The classic first program.',
-    code: `# Welcome to PyRunner — a fast Python playground.
+    code: `# Welcome to CodeHubz — a fast Python playground.
 # Press Run (or Ctrl+Enter) to execute.
 
 print("Hello, World!")
@@ -447,7 +448,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 httpd = HTTPServer(("127.0.0.1", 5557), Handler)
-# Print this exact line so PyRunner detects the server and cancels the timeout.
+# Print this exact line so CodeHubz detects the server and cancels the timeout.
 print(f" * Running on http://127.0.0.1:5557/")
 httpd.serve_forever()
 `,
@@ -481,7 +482,7 @@ print(f"  Slides: {len(data['slideshow']['slides'])}")
 
 # Custom headers (e.g. User-Agent, Authorization)
 headers = {
-    "User-Agent": "PyRunner/1.0",
+    "User-Agent": "CodeHubz/1.0",
     "Accept": "application/json",
 }
 
@@ -584,7 +585,7 @@ print(df.groupby("species").mean(numeric_only=True).to_string())
     name: 'Java: Hello World',
     description: 'Classic first Java program.',
     language: 'java',
-    code: `// Welcome to PyRunner — Java 21 playground.
+    code: `// Welcome to CodeHubz — Java 21 playground.
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 public class Hello {
@@ -761,7 +762,7 @@ public class Broken {
     name: 'C: Hello World',
     description: 'Classic first C program with printf.',
     language: 'c',
-    code: `// Welcome to PyRunner — C (gcc 14) playground.
+    code: `// Welcome to CodeHubz — C (gcc 14) playground.
 // Compiled with: gcc -std=c11 -Wall -O2 -lm
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
@@ -1008,7 +1009,7 @@ int main(void) {
     name: 'C++: Hello World',
     description: 'Classic first C++ program with iostream.',
     language: 'cpp',
-    code: `// Welcome to PyRunner — C++ (g++ 14, C++20) playground.
+    code: `// Welcome to CodeHubz — C++ (g++ 14, C++20) playground.
 // Compiled with: g++ -std=c++20 -Wall -O2
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
@@ -1312,7 +1313,7 @@ int main() {
     name: 'R: Hello World',
     description: 'Basic R vectors and statistics.',
     language: 'r',
-    code: `# Welcome to PyRunner — R 4.5 playground
+    code: `# Welcome to CodeHubz — R 4.5 playground
 # Press Run (or Ctrl/Cmd+Enter) to execute.
 
 print("Hello, World!")
@@ -1472,7 +1473,7 @@ print(eigen(A)$values)
     name: 'JS: Hello World',
     description: 'Basic JavaScript with console.log and arrays.',
     language: 'javascript',
-    code: `// Welcome to PyRunner — JavaScript (Node.js 24) playground
+    code: `// Welcome to CodeHubz — JavaScript (Node.js 24) playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 console.log("Hello, World!");
@@ -1786,7 +1787,7 @@ console.log("\\nTotal price: $" + total);
     name: 'JS: Browser APIs',
     description: 'prompt(), alert(), confirm() polyfilled.',
     language: 'javascript',
-    code: `// Browser APIs work in PyRunner!
+    code: `// Browser APIs work in CodeHubz!
 // prompt() reads from stdin (Program Input panel)
 // alert() prints to stdout
 // confirm() reads y/n from stdin
@@ -1817,7 +1818,7 @@ if (likesPython) {
     description: 'Basic PHP with echo and arrays.',
     language: 'php',
     code: `<?php
-// Welcome to PyRunner — PHP 8.4 playground
+// Welcome to CodeHubz — PHP 8.4 playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 echo "Hello, World!\\n";
@@ -2000,7 +2001,7 @@ for ($i = 1; $i <= 30; $i++) {
     name: 'C#: Hello World',
     description: 'Basic C# with Console.WriteLine and LINQ.',
     language: 'csharp',
-    code: `// PyRunner — C# (.NET 8) playground
+    code: `// CodeHubz — C# (.NET 8) playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 using System;
@@ -2185,7 +2186,7 @@ class Program {
     name: 'Dart: Hello World',
     description: 'Basic Dart with print and lists.',
     language: 'dart',
-    code: `// PyRunner - Dart 3.13 playground
+    code: `// CodeHubz - Dart 3.13 playground
 // Press Run (or Ctrl/Cmd+Enter) to execute.
 
 void main() {
@@ -2512,7 +2513,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PyRunner Demo',
+      title: 'CodeHubz Demo',
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF6366F1),
         useMaterial3: true,
@@ -3143,4 +3144,1790 @@ SELECT id, name, price FROM products ORDER BY price DESC LIMIT 3 OFFSET 0;
 SELECT id, name, price FROM products ORDER BY price DESC LIMIT 3 OFFSET 3;
 `,
   },
+  {
+    id: 'kotlin-hello',
+    name: 'Kotlin: Hello World',
+    description: 'Basic Kotlin/JVM program with main function.',
+    language: 'kotlin',
+    code: `// Kotlin/JVM console — runs with kotlinc 2.0.21
+fun main() {
+    println("Hello from Kotlin!")
+
+    val name = "World"
+    println("Hello, " + name + "!")
+
+    val result = add(3, 4)
+    println("3 + 4 = " + result)
+}
+
+fun add(a: Int, b: Int): Int = a + b
+`,
+  },
+  {
+    id: 'kotlin-classes',
+    name: 'Kotlin: Classes & Data Classes',
+    description: 'OOP with classes, data classes, inheritance.',
+    language: 'kotlin',
+    code: `fun main() {
+    val person = Person("Alice", 30)
+    println(person)
+
+    val student = Student("Bob", 20, "Computer Science")
+    println(student)
+    val isAdult = student.isAdult()
+    println("Is adult: " + isAdult)
+
+    println("Counter: " + Counter.next())
+    println("Counter: " + Counter.next())
+    println("Counter: " + Counter.next())
+}
+
+open class Person(val name: String, val age: Int) {
+    override fun toString(): String = "Person(name=" + name + ", age=" + age + ")"
+}
+
+class Student(name: String, age: Int, val major: String) : Person(name, age) {
+    fun isAdult(): Boolean = age >= 18
+}
+
+object Counter {
+    private var count = 0
+    fun next(): Int {
+        count++
+        return count
+    }
+}
+`,
+  },
+  {
+    id: 'kotlin-collections',
+    name: 'Kotlin: Collections & Null Safety',
+    description: 'Lists, maps, null safety, elvis operator.',
+    language: 'kotlin',
+    code: `fun main() {
+    val fruits = listOf("apple", "banana", "cherry", "date")
+    println("Fruits: " + fruits)
+    val filtered = fruits.filter { it.length > 5 }
+    println("Filtered (length > 5): " + filtered)
+    val upper = fruits.map { it.uppercase() }
+    println("Uppercase: " + upper)
+
+    val prices = mapOf("apple" to 1.5, "banana" to 0.5, "cherry" to 3.0)
+    val total = prices.values.sum()
+    println("Total price: $" + total)
+
+    val name: String? = null
+    val nameLen = name?.length ?: 0
+    println("Name length: " + nameLen)
+
+    val nullableList: List<String?> = listOf("a", null, "b", null, "c")
+    val nonNull = nullableList.filterNotNull()
+    println("Non-null: " + nonNull)
+}
+`,
+  },
+  {
+    id: 'go-hello',
+    name: 'Go: Hello World',
+    description: 'Basic Go program with main function.',
+    language: 'go',
+    code: `package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("Hello from Go!")
+    name := "World"
+    fmt.Println("Hello, " + name + "!")
+}
+`,
+  },
+  {
+    id: 'go-functions',
+    name: 'Go: Functions & Structs',
+    description: 'Functions, structs, methods, slices.',
+    language: 'go',
+    code: `package main
+
+import "fmt"
+
+type Person struct {
+    Name string
+    Age  int
+}
+
+func (p Person) Greet() string {
+    return "Hello, I'm " + p.Name
+}
+
+func add(a, b int) int {
+    return a + b
+}
+
+func main() {
+    fmt.Println("3 + 4 =", add(3, 4))
+
+    person := Person{Name: "Alice", Age: 30}
+    fmt.Println(person.Greet())
+    fmt.Printf("%s is %d years old\n", person.Name, person.Age)
+
+    fruits := []string{"apple", "banana", "cherry"}
+    for i, fruit := range fruits {
+        fmt.Printf("%d: %s\n", i, fruit)
+    }
+
+    nums := map[string]int{"one": 1, "two": 2, "three": 3}
+    for k, v := range nums {
+        fmt.Printf("%s = %d\n", k, v)
+    }
+}
+`,
+  },
+  {
+    id: 'go-goroutines',
+    name: 'Go: Goroutines & Channels',
+    description: 'Concurrent programming with goroutines.',
+    language: 'go',
+    code: `package main
+
+import (
+    "fmt"
+    "sync"
+)
+
+func worker(id int, wg *sync.WaitGroup) {
+    defer wg.Done()
+    fmt.Printf("Worker %d starting\n", id)
+    fmt.Printf("Worker %d done\n", id)
+}
+
+func main() {
+    var wg sync.WaitGroup
+
+    for i := 1; i <= 3; i++ {
+        wg.Add(1)
+        go worker(i, &wg)
+    }
+
+    wg.Wait()
+    fmt.Println("All workers finished!")
+
+    // Channel example
+    ch := make(chan int, 3)
+    ch <- 1
+    ch <- 2
+    ch <- 3
+    close(ch)
+
+    for val := range ch {
+        fmt.Println("Received:", val)
+    }
+}
+`,
+  },
+  {
+    id: 'ts-hello',
+    name: 'TypeScript: Hello World',
+    description: 'Basic TypeScript with interfaces and types.',
+    language: 'typescript',
+    code: `// TypeScript 5.x — runs with bun
+interface Person {
+    name: string;
+    age: number;
+}
+
+function greet(person: Person): string {
+    return "Hello, " + person.name + "!";
+}
+
+const alice: Person = { name: "Alice", age: 30 };
+console.log(greet(alice));
+
+// Type-safe array operations
+const numbers: number[] = [1, 2, 3, 4, 5];
+const doubled = numbers.map(n => n * 2);
+console.log("Doubled:", doubled);
+`,
+  },
+  {
+    id: 'ts-generics',
+    name: 'TypeScript: Generics & Unions',
+    description: 'Generic functions, union types, enums.',
+    language: 'typescript',
+    code: `// TypeScript generics and union types
+
+enum Color {
+    Red = "RED",
+    Green = "GREEN",
+    Blue = "BLUE"
+}
+
+type Result<T> = {
+    success: boolean;
+    data?: T;
+    error?: string;
+};
+
+function wrap<T>(value: T): Result<T> {
+    return { success: true, data: value };
+}
+
+function divide(a: number, b: number): Result<number> {
+    if (b === 0) {
+        return { success: false, error: "Division by zero" };
+    }
+    return wrap(a / b);
+}
+
+// Usage
+const color: Color = Color.Green;
+console.log("Color:", color);
+
+const result1 = divide(10, 2);
+const result2 = divide(10, 0);
+
+if (result1.success && result1.data) {
+    console.log("10 / 2 =", result1.data);
+}
+if (!result2.success && result2.error) {
+    console.log("Error:", result2.error);
+}
+
+// Generic array function
+function first<T>(arr: T[]): T | undefined {
+    return arr[0];
+}
+
+console.log("First number:", first([1, 2, 3]));
+console.log("First string:", first(["a", "b", "c"]));
+`,
+  },
+  {
+    id: 'ts-classes',
+    name: 'TypeScript: Classes & OOP',
+    description: 'Abstract classes, interfaces, inheritance.',
+    language: 'typescript',
+    code: `// TypeScript OOP — classes, interfaces, abstract classes
+
+interface Animal {
+    name: string;
+    sound(): string;
+}
+
+abstract class BaseAnimal implements Animal {
+    constructor(public name: string) {}
+    abstract sound(): string;
+    describe(): string {
+        return this.name + " says " + this.sound();
+    }
+}
+
+class Dog extends BaseAnimal {
+    constructor(name: string) {
+        super(name);
+    }
+    sound(): string {
+        return "Woof!";
+    }
+}
+
+class Cat extends BaseAnimal {
+    constructor(name: string) {
+        super(name);
+    }
+    sound(): string {
+        return "Meow!";
+    }
+}
+
+const dog = new Dog("Rex");
+const cat = new Cat("Whiskers");
+
+console.log(dog.describe());
+console.log(cat.describe());
+
+// Type narrowing
+function makeSound(animal: Animal): void {
+    console.log(animal.name + ": " + animal.sound());
+}
+
+makeSound(dog);
+makeSound(cat);
+`,
+  },
+  {
+    id: 'rust-hello',
+    name: 'Rust: Hello World',
+    description: 'Basic Rust program with functions and loops.',
+    language: 'rust',
+    code: `fn main() {
+    println!("Hello from Rust!");
+
+    let name = "World";
+    println!("Hello, {}!", name);
+
+    let result = add(3, 4);
+    println!("3 + 4 = {}", result);
+
+    for i in 1..=3 {
+        println!("Count: {}", i);
+    }
+}
+
+fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+`,
+  },
+  {
+    id: 'rust-structs',
+    name: 'Rust: Structs & Enums',
+    description: 'Structs, enums, impl blocks, pattern matching.',
+    language: 'rust',
+    code: `// Rust structs, enums, and pattern matching
+
+struct Person {
+    name: String,
+    age: u32,
+}
+
+impl Person {
+    fn new(name: &str, age: u32) -> Self {
+        Person { name: String::from(name), age }
+    }
+
+    fn greet(&self) -> String {
+        format!("Hello, I'm {} and I'm {} years old", self.name, self.age)
+    }
+}
+
+enum Status {
+    Idle,
+    Running(String),
+    Done(u32),
+}
+
+fn describe(status: Status) -> String {
+    match status {
+        Status::Idle => "Idle".to_string(),
+        Status::Running(task) => format!("Running: {}", task),
+        Status::Done(code) => format!("Done with code {}", code),
+    }
+}
+
+fn main() {
+    let alice = Person::new("Alice", 30);
+    println!("{}", alice.greet());
+
+    let s1 = Status::Idle;
+    let s2 = Status::Running("compile".to_string());
+    let s3 = Status::Done(0);
+
+    println!("{}", describe(s1));
+    println!("{}", describe(s2));
+    println!("{}", describe(s3));
+
+    // Vectors
+    let fruits = vec!["apple", "banana", "cherry"];
+    for (i, fruit) in fruits.iter().enumerate() {
+        println!("{}: {}", i, fruit);
+    }
+
+    // Option type
+    let maybe: Option<i32> = Some(42);
+    match maybe {
+        Some(val) => println!("Got value: {}", val),
+        None => println!("Got nothing"),
+    }
+}
+`,
+  },
+  {
+    id: 'rust-ownership',
+    name: 'Rust: Ownership & Traits',
+    description: 'Traits, generics, ownership, borrowing.',
+    language: 'rust',
+    code: `// Rust ownership, borrowing, and traits
+
+trait Area {
+    fn area(&self) -> f64;
+}
+
+struct Rectangle {
+    width: f64,
+    height: f64,
+}
+
+struct Circle {
+    radius: f64,
+}
+
+impl Area for Rectangle {
+    fn area(&self) -> f64 {
+        self.width * self.height
+    }
+}
+
+impl Area for Circle {
+    fn area(&self) -> f64 {
+        3.14159 * self.radius * self.radius
+    }
+}
+
+fn print_area<T: Area>(shape: &T) {
+    println!("Area: {:.2}", shape.area());
+}
+
+fn main() {
+    let rect = Rectangle { width: 5.0, height: 3.0 };
+    let circ = Circle { radius: 2.0 };
+
+    print_area(&rect);
+    print_area(&circ);
+
+    // Ownership and borrowing
+    let s1 = String::from("hello");
+    let s2 = s1.clone();  // clone to keep ownership
+    let len = calculate_length(&s1);  // borrow
+    println!("The length of '{}' is {}", s2, len);
+
+    // Mutable borrow
+    let mut s3 = String::from("hello");
+    append_world(&mut s3);
+    println!("{}", s3);
+}
+
+fn calculate_length(s: &String) -> usize {
+    s.len()
+}
+
+fn append_world(s: &mut String) {
+    s.push_str(", world!");
+}
+`,
+  },
+  {
+    id: 'ruby-hello',
+    name: 'Ruby: Hello World',
+    description: 'Basic Ruby with methods and blocks.',
+    language: 'ruby',
+    code: `# Ruby 3.3 — runs with ruby
+def add(a, b)
+  a + b
+end
+
+puts "Hello from Ruby!"
+name = "World"
+puts "Hello, #{name}!"
+result = add(3, 4)
+puts "3 + 4 = #{result}"
+3.times do |i|
+  puts "Count: #{i + 1}"
+end
+`,
+  },
+  {
+    id: 'ruby-classes',
+    name: 'Ruby: Classes & Blocks',
+    description: 'Classes, modules, blocks, iterators.',
+    language: 'ruby',
+    code: `# Ruby OOP and blocks
+
+class Person
+  attr_accessor :name, :age
+
+  def initialize(name, age)
+    @name = name
+    @age = age
+  end
+
+  def greet
+    "Hello, I'm #{@name} and I'm #{@age} years old"
+  end
+
+  def to_s
+    "Person(name=#{@name}, age=#{@age})"
+  end
+end
+
+class Student < Person
+  attr_accessor :major
+
+  def initialize(name, age, major)
+    super(name, age)
+    @major = major
+  end
+
+  def greet
+    super + ". I study #{@major}."
+  end
+end
+
+alice = Person.new("Alice", 30)
+puts alice.greet
+puts alice.to_s
+
+bob = Student.new("Bob", 20, "Computer Science")
+puts bob.greet
+
+# Blocks and iterators
+fruits = ["apple", "banana", "cherry"]
+fruits.each_with_index do |fruit, i|
+  puts "#{i + 1}. #{fruit.capitalize}"
+end
+
+# Hash
+prices = { "apple" => 1.5, "banana" => 0.5, "cherry" => 3.0 }
+total = prices.values.sum
+puts "Total: $#{total}"
+
+# Map/select
+numbers = [1, 2, 3, 4, 5]
+doubled = numbers.map { |n| n * 2 }
+evens = numbers.select(&:even?)
+puts "Doubled: #{doubled}"
+puts "Evens: #{evens}"
+`,
+  },
+  {
+    id: 'ruby-metaprogramming',
+    name: 'Ruby: Procs & Lambdas',
+    description: 'Procs, lambdas, symbols, enumerable.',
+    language: 'ruby',
+    code: `# Ruby procs, lambdas, and functional style
+
+# Proc
+square = Proc.new { |x| x * x }
+puts "Square of 5: #{square.call(5)}"
+
+# Lambda
+add = ->(a, b) { a + b }
+puts "3 + 4 = #{add.call(3, 4)}"
+
+# Difference: lambda checks arity, proc doesn't
+# add.call(1)  # would raise ArgumentError
+
+# Using & to convert proc to block
+numbers = [1, 2, 3, 4, 5]
+double = Proc.new { |x| x * 2 }
+puts "Doubled: #{numbers.map(&double).inspect}"
+
+# reduce/inject
+sum = numbers.reduce(0) { |acc, n| acc + n }
+product = numbers.reduce(1) { |acc, n| acc * n }
+puts "Sum: #{sum}, Product: #{product}"
+
+# group_by
+words = ["apple", "bat", "cat", "ant", "ball"]
+grouped = words.group_by { |w| w[0] }
+puts "Grouped: #{grouped.inspect}"
+
+# sort_by
+sorted = words.sort_by { |w| w.length }
+puts "Sorted by length: #{sorted.inspect}"
+
+# flatten, compact, uniq
+nested = [1, [2, 3], [4, [5, 6]], nil, 1, 2]
+puts "Flattened: #{nested.flatten.inspect}"
+puts "Compact: #{nested.compact.inspect}"
+puts "Uniq: #{nested.flatten.uniq.inspect}"
+`,
+  },
+  {
+    id: 'swift-hello',
+    name: 'Swift: Hello World',
+    description: 'Basic Swift with functions and loops.',
+    language: 'swift',
+    code: `// Swift 5.10 — runs with swift
+
+func add(_ a: Int, _ b: Int) -> Int {
+    return a + b
+}
+
+print("Hello from Swift!")
+let name = "World"
+print("Hello, \\(name)!")
+let result = add(3, 4)
+print("3 + 4 = \\(result)")
+for i in 1...3 {
+    print("Count: \\(i)")
+}
+`,
+  },
+  {
+    id: 'swift-classes',
+    name: 'Swift: Classes & Structs',
+    description: 'Classes, structs, protocols, extensions.',
+    language: 'swift',
+    code: `// Swift classes, structs, and protocols
+
+protocol Greetable {
+    func greet() -> String
+}
+
+struct Person: Greetable {
+    let name: String
+    let age: Int
+
+    func greet() -> String {
+        return "Hello, I'm \\(name) and I'm \\(age) years old"
+    }
+}
+
+class Student: Greetable {
+    let name: String
+    let age: Int
+    let major: String
+
+    init(name: String, age: Int, major: String) {
+        self.name = name
+        self.age = age
+        self.major = major
+    }
+
+    func greet() -> String {
+        return "Hi, I'm \\(name). I study \\(major)."
+    }
+}
+
+let alice = Person(name: "Alice", age: 30)
+print(alice.greet())
+
+let bob = Student(name: "Bob", age: 20, major: "Computer Science")
+print(bob.greet())
+
+// Array operations
+let numbers = [1, 2, 3, 4, 5]
+let doubled = numbers.map { $0 * 2 }
+let sum = numbers.reduce(0, +)
+let evens = numbers.filter { $0 % 2 == 0 }
+print("Doubled: \\(doubled)")
+print("Sum: \\(sum)")
+print("Evens: \\(evens)")
+
+// Optional handling
+let maybeName: String? = "Alice"
+if let name = maybeName {
+    print("Name is: \\(name)")
+}
+
+// Dictionary
+let prices = ["apple": 1.5, "banana": 0.5, "cherry": 3.0]
+for (fruit, price) in prices {
+    print("\\(fruit): $\\(price)")
+}
+`,
+  },
+  {
+    id: 'swift-advanced',
+    name: 'Swift: Generics & Enums',
+    description: 'Generics, enums with associated values, pattern matching.',
+    language: 'swift',
+    code: `// Swift generics and advanced enums
+
+enum Result<T> {
+    case success(T)
+    case failure(String)
+}
+
+enum Status {
+    case idle
+    case running(String)
+    case done(Int)
+}
+
+func describe(_ status: Status) -> String {
+    switch status {
+    case .idle:
+        return "Idle"
+    case .running(let task):
+        return "Running: \\(task)"
+    case .done(let code):
+        return "Done with code \\(code)"
+    }
+}
+
+// Generic function
+func first<T>(_ array: [T]) -> T? {
+    return array.first
+}
+
+// Usage
+let s1 = Status.idle
+let s2 = Status.running("compile")
+let s3 = Status.done(0)
+
+print(describe(s1))
+print(describe(s2))
+print(describe(s3))
+
+// Generics
+let firstNum = first([1, 2, 3])
+let firstStr = first(["a", "b", "c"])
+print("First number: \\(firstNum ?? -1)")
+print("First string: \\(firstStr ?? "none")")
+
+// Result enum
+func divide(_ a: Int, _ b: Int) -> Result<Int> {
+    if b == 0 {
+        return .failure("Division by zero")
+    }
+    return .success(a / b)
+}
+
+let result1 = divide(10, 2)
+let result2 = divide(10, 0)
+
+switch result1 {
+case .success(let val):
+    print("10 / 2 = \\(val)")
+case .failure(let err):
+    print("Error: \\(err)")
+}
+
+switch result2 {
+case .success(let val):
+    print("10 / 0 = \\(val)")
+case .failure(let err):
+    print("Error: \\(err)")
+}
+`,
+  },
+  {
+    id: 'lua-hello',
+    name: 'Lua: Hello World',
+    description: 'Basic Lua with functions and loops.',
+    language: 'lua',
+    code: `-- Lua 5.4 — runs with lua
+local function add(a, b)
+    return a + b
+end
+
+print("Hello from Lua!")
+local name = "World"
+print("Hello, " .. name .. "!")
+local result = add(3, 4)
+print("3 + 4 = " .. result)
+for i = 1, 3 do
+    print("Count: " .. i)
+end
+`,
+  },
+  {
+    id: 'lua-tables',
+    name: 'Lua: Tables & OOP',
+    description: 'Tables, metatables, OOP, closures.',
+    language: 'lua',
+    code: `-- Lua tables, metatables, and OOP
+
+-- Tables as arrays
+local fruits = {"apple", "banana", "cherry"}
+for i, fruit in ipairs(fruits) do
+    print(i .. ". " .. fruit)
+end
+
+-- Tables as dictionaries
+local prices = {apple = 1.5, banana = 0.5, cherry = 3.0}
+local total = 0
+for fruit, price in pairs(prices) do
+    print(fruit .. ": $" .. price)
+    total = total + price
+end
+print("Total: $" .. total)
+
+-- OOP with metatables
+local Animal = {}
+Animal.__index = Animal
+
+function Animal.new(name, sound)
+    local self = setmetatable({}, Animal)
+    self.name = name
+    self.sound = sound
+    return self
+end
+
+function Animal:speak()
+    return self.name .. " says " .. self.sound
+end
+
+-- Inheritance
+local Dog = setmetatable({}, {__index = Animal})
+Dog.__index = Dog
+
+function Dog.new(name)
+    local self = Animal.new(name, "Woof")
+    return setmetatable(self, Dog)
+end
+
+function Dog:fetch()
+    return self.name .. " fetches the ball!"
+end
+
+local rex = Dog.new("Rex")
+print(rex:speak())
+print(rex:fetch())
+
+-- Closures
+local function counter()
+    local count = 0
+    return function()
+        count = count + 1
+        return count
+    end
+end
+
+local c = counter()
+print("Counter: " .. c())
+print("Counter: " .. c())
+print("Counter: " .. c())
+`,
+  },
+  {
+    id: 'lua-coroutines',
+    name: 'Lua: Coroutines & String',
+    description: 'Coroutines, string manipulation, math.',
+    language: 'lua',
+    code: `-- Lua coroutines and string operations
+
+-- Coroutines (generators)
+local function range(start, stop)
+    return coroutine.create(function()
+        for i = start, stop do
+            coroutine.yield(i)
+        end
+    end)
+end
+
+local co = range(1, 5)
+while true do
+    local ok, val = coroutine.resume(co)
+    if not ok or val == nil then break end
+    print("Yielded: " .. val)
+end
+
+-- String manipulation
+local s = "Hello, World!"
+print("Upper: " .. string.upper(s))
+print("Lower: " .. string.lower(s))
+print("Reverse: " .. string.reverse(s))
+print("Length: " .. #s)
+print("Sub: " .. string.sub(s, 1, 5))
+print("Find: " .. tostring(string.find(s, "World")))
+
+-- String format
+local name = "Alice"
+local age = 30
+print(string.format("Name: %s, Age: %d", name, age))
+
+-- Math
+print("Pi: " .. math.pi)
+print("Random: " .. math.random(1, 100))
+print("Floor: " .. math.floor(3.7))
+print("Ceil: " .. math.ceil(3.2))
+
+-- Table sort
+local nums = {5, 2, 8, 1, 9, 3}
+table.sort(nums)
+print("Sorted: " .. table.concat(nums, ", "))
+
+-- pcall (error handling)
+local ok, err = pcall(function()
+    error("Something went wrong!")
+end)
+if not ok then
+    print("Caught error: " .. err)
+end
+`,
+  },
+  {
+    id: 'perl-hello',
+    name: 'Perl: Hello World',
+    description: 'Basic Perl with subs, scalars, loops.',
+    language: 'perl',
+    code: `#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub add {
+    return $_[0] + $_[1];
+}
+
+print "Hello from Perl!\n";
+my $name = "World";
+print "Hello, $name!\n";
+my $result = add(3, 4);
+print "3 + 4 = $result\n";
+for my $i (1..3) {
+    print "Count: $i\n";
+}
+`,
+  },
+  {
+    id: 'perl-data',
+    name: 'Perl: Arrays & Hashes',
+    description: 'Arrays, hashes, references, regex.',
+    language: 'perl',
+    code: `#!/usr/bin/perl
+use strict;
+use warnings;
+
+# Arrays
+my @fruits = ("apple", "banana", "cherry");
+for my $i (0..$#fruits) {
+    print "$i: $fruits[$i]\n";
+}
+
+# Array functions
+my @nums = (5, 2, 8, 1, 9, 3);
+my @sorted = sort { $a <=> $b } @nums;
+print "Sorted: @sorted\n";
+my @reversed = reverse @nums;
+print "Reversed: @reversed\n";
+my $sum = 0;
+$sum += $_ for @nums;
+print "Sum: $sum\n";
+
+# Hashes
+my %prices = (apple => 1.5, banana => 0.5, cherry => 3.0);
+for my $fruit (sort keys %prices) {
+    print "$fruit: \$$prices{$fruit}\n";
+}
+
+# References
+my $person = {
+    name => "Alice",
+    age => 30,
+    hobbies => ["reading", "coding"],
+};
+print "\nPerson: $person->{name}, age $person->{age}\n";
+print "Hobbies: @{$person->{hobbies}}\n";
+
+# Regex
+my $text = "Hello, World! 12345";
+if ($text =~ /(\w+), (\w+)! (\d+)/) {
+    print "Match: $1, $2, $3\n";
+}
+$text =~ s/World/Perl/;
+print "Replaced: $text\n";
+
+# Map/grep
+my @upper = map { uc($_) } @fruits;
+print "Uppercase: @upper\n";
+my @long = grep { length($_) > 5 } @fruits;
+print "Long (>5): @long\n";
+`,
+  },
+  {
+    id: 'perl-oop',
+    name: 'Perl: OOP & File I/O',
+    description: 'Packages, bless, file operations.',
+    language: 'perl',
+    code: `#!/usr/bin/perl
+use strict;
+use warnings;
+
+# OOP with bless
+package Animal;
+
+sub new {
+    my ($class, %args) = @_;
+    my $self = bless \%args, $class;
+    return $self;
+}
+
+sub name { return shift->{name}; }
+sub sound { return shift->{sound}; }
+
+sub speak {
+    my $self = shift;
+    return $self->{name} . " says " . $self->{sound};
+}
+
+package Dog;
+our @ISA = ('Animal');
+
+sub new {
+    my ($class, $name) = @_;
+    return $class->SUPER::new(name => $name, sound => "Woof");
+}
+
+sub fetch {
+    my $self = shift;
+    return $self->{name} . " fetches the ball!";
+}
+
+package main;
+
+my $dog = Dog->new("Rex");
+print $dog->speak(), "\n";
+print $dog->fetch(), "\n";
+
+# File I/O
+my $filename = "/tmp/perl_test.txt";
+open(my $fh, '>', $filename) or die "Cannot open $filename: $!";
+print $fh "Hello from file!\n";
+print $fh "Line 2\n";
+close($fh);
+
+print "\nReading file:\n";
+open(my $in, '<', $filename) or die "Cannot read $filename: $!";
+while (my $line = <$in>) {
+    chomp $line;
+    print "  > $line\n";
+}
+close($in);
+unlink($filename);
+print "File deleted.\n";
+`,
+  },
+  {
+    id: 'ps-hello',
+    name: 'PowerShell: Hello World',
+    description: 'Basic PowerShell with functions and loops.',
+    language: 'powershell',
+    code: `# PowerShell 7.4 — runs with pwsh
+
+function Add($a, $b) {
+    return $a + $b
+}
+
+Write-Host "Hello from PowerShell!"
+$name = "World"
+Write-Host "Hello, $name!"
+$result = Add 3 4
+Write-Host "3 + 4 = $result"
+for ($i = 1; $i -le 3; $i++) {
+    Write-Host "Count: $i"
+}
+`,
+  },
+  {
+    id: 'ps-objects',
+    name: 'PowerShell: Objects & Pipes',
+    description: 'Pipelines, cmdlets, objects, formatting.',
+    language: 'powershell',
+    code: `# PowerShell objects, pipelines, and cmdlets
+
+# Arrays
+$fruits = @("apple", "banana", "cherry")
+$fruits | ForEach-Object { Write-Host "Fruit: $_" }
+$fruits | Where-Object { $_.Length -gt 5 } | ForEach-Object { Write-Host "Long: $_" }
+
+# Hashtables
+$prices = @{
+    apple = 1.5
+    banana = 0.5
+    cherry = 3.0
+}
+$prices.GetEnumerator() | ForEach-Object {
+    Write-Host "$($_.Key): $$($_.Value)"
+}
+
+# Custom objects
+$people = @(
+    [PSCustomObject]@{Name="Alice"; Age=30}
+    [PSCustomObject]@{Name="Bob"; Age=25}
+    [PSCustomObject]@{Name="Charlie"; Age=35}
+)
+
+# Sort and filter
+$people | Sort-Object Age | ForEach-Object {
+    Write-Host "$($_.Name) is $($_.Age) years old"
+}
+
+$youngest = $people | Sort-Object Age | Select-Object -First 1
+Write-Host "Youngest: $($youngest.Name)"
+
+# String operations
+$text = "Hello, World!"
+Write-Host "Upper: $($text.ToUpper())"
+Write-Host "Lower: $($text.ToLower())"
+Write-Host "Length: $($text.Length)"
+
+# Math
+Write-Host "Random: $(Get-Random -Min 1 -Max 100)"
+Write-Host "Pi: $([Math]::Pi)"
+
+# Try/Catch
+try {
+    $null = 1 / 0
+} catch {
+    Write-Host "Caught: $($_.Exception.Message)"
+}
+`,
+  },
+  {
+    id: 'ps-files',
+    name: 'PowerShell: Files & Strings',
+    description: 'File I/O, regex, environment vars.',
+    language: 'powershell',
+    code: `# PowerShell file operations and string manipulation
+
+# Create and write to file
+$filePath = "/tmp/ps_test.txt"
+$content = "Hello from PowerShell!\nLine 2\nLine 3"
+$content | Out-File -FilePath $filePath -Encoding UTF8
+Write-Host "File written: $filePath"
+
+# Read file
+$lines = Get-Content $filePath
+Write-Host "Lines read: $($lines.Count)"
+$lines | ForEach-Object { Write-Host "  > $_" }
+
+# Append
+"Line 4" | Add-Content -FilePath $filePath
+Write-Host "After append:"
+Get-Content $filePath | ForEach-Object { Write-Host "  > $_" }
+
+# File info
+$fileInfo = Get-Item $filePath
+Write-Host "Size: $($fileInfo.Length) bytes"
+
+# Clean up
+Remove-Item $filePath
+Write-Host "File deleted."
+
+# Regex
+$text = "Contact: alice@example.com, bob@test.org"
+$matches = [regex]::Matches($text, "(\w+)@(\w+\.\w+)")
+foreach ($m in $matches) {
+    Write-Host "Email: $($m.Value)"
+    Write-Host "  User: $($m.Groups[1].Value)"
+    Write-Host "  Domain: $($m.Groups[2].Value)"
+}
+
+# Environment
+Write-Host "HOME: $env:HOME"
+Write-Host "PATH: $env:PATH".Substring(0, 50) + "..."
+
+# Date
+$now = Get-Date
+Write-Host "Date: $($now.ToString('yyyy-MM-dd HH:mm:ss'))"
+`,
+  },
+  {
+    id: 'bash-hello',
+    name: 'Bash: Hello World',
+    description: 'Basic Bash with functions, variables, loops.',
+    language: 'bash',
+    code: `#!/bin/bash
+
+add() {
+    echo $(( $1 + $2 ))
+}
+
+echo "Hello from Bash!"
+name="World"
+echo "Hello, $name!"
+result=$(add 3 4)
+echo "3 + 4 = $result"
+for i in 1 2 3; do
+    echo "Count: $i"
+done
+`,
+  },
+  {
+    id: 'bash-strings',
+    name: 'Bash: Strings & Arrays',
+    description: 'String manipulation, arrays, conditionals.',
+    language: 'bash',
+    code: `#!/bin/bash
+
+# String operations
+text="Hello, World!"
+echo "Upper: $(echo $text | tr a-z A-Z)"
+echo "Lower: $(echo $text | tr A-Z a-z)"
+echo "Length: $(echo -n $text | wc -c)"
+echo "Substring: $(echo $text | cut -c1-5)"
+echo "Replace: $(echo $text | sed 's/World/Bash/')"
+
+# Arrays
+fruits=("apple" "banana" "cherry" "date")
+echo "Array: \${fruits[@]}"
+echo "Count: \${#fruits[@]}"
+idx=0
+for f in "\${fruits[@]}"; do
+    echo "  $idx: $f"
+    idx=$((idx + 1))
+done
+
+# Array operations
+nums=(5 2 8 1 9 3)
+sorted=($(printf '%s\n' "\${nums[@]}" | sort -n))
+echo "Sorted: \${sorted[@]}"
+
+# Conditionals
+age=20
+if [ $age -ge 18 ]; then
+    echo "Adult"
+elif [ $age -ge 13 ]; then
+    echo "Teenager"
+else
+    echo "Child"
+fi
+
+# Case statement
+day="Monday"
+case $day in
+    Monday|Tuesday|Wednesday|Thursday|Friday)
+        echo "Weekday" ;;
+    Saturday|Sunday)
+        echo "Weekend" ;;
+    *)
+        echo "Unknown" ;;
+esac
+
+# Reading input from a file
+echo "line1\nline2\nline3" > /tmp/bash_test.txt
+while IFS= read -r line; do
+    echo "  > $line"
+done < /tmp/bash_test.txt
+rm /tmp/bash_test.txt
+`,
+  },
+  {
+    id: 'bash-system',
+    name: 'Bash: System & Functions',
+    description: 'File ops, process management, networking.',
+    language: 'bash',
+    code: `#!/bin/bash
+
+# System info
+echo "OS: $(uname -s)"
+echo "Hostname: $(hostname)"
+echo "User: $(whoami)"
+echo "Date: $(date)"
+echo "Uptime: $(uptime -p)"
+
+# Disk usage
+echo ""
+echo "Disk usage:"
+df -h / | tail -1 | awk '{print "  Total: "$2"  Used: "$3"  Free: "$4}'
+
+# Memory
+echo ""
+echo "Memory:"
+free -h | head -2
+
+# Functions with local variables
+calculate_area() {
+    local width=$1
+    local height=$2
+    local area=$((width * height))
+    echo $area
+}
+
+rect_area=$(calculate_area 5 3)
+echo ""
+echo "Rectangle area (5x3): $rect_area"
+
+# Recursive function
+factorial() {
+    if [ $1 -le 1 ]; then
+        echo 1
+    else
+        local prev=$(factorial $(( $1 - 1 )))
+        echo $(( $1 * prev ))
+    fi
+}
+
+echo "5! = $(factorial 5)"
+
+# String splitting
+csv="apple,banana,cherry"
+IFS=',' read -ra items <<< "$csv"
+for item in "\${items[@]}"; do
+    echo "Item: $item"
+done
+
+# Find files
+echo ""
+echo "Temp files:"
+find /tmp -maxdepth 1 -name "*.txt" 2>/dev/null | head -3
+
+# Count lines in output
+echo ""
+echo "Running processes: $(ps aux | wc -l)"
+`,
+  },
+  {
+    id: 'fortran-hello',
+    name: 'Fortran: Hello World',
+    description: 'Basic Fortran 90 with functions and loops.',
+    language: 'fortran',
+    code: `program main
+    implicit none
+    print *, "Hello from Fortran!"
+    
+    character(len=*), parameter :: name = "World"
+    print *, "Hello, " // trim(name) // "!"
+    
+    integer :: result
+    result = add(3, 4)
+    print *, "3 + 4 = ", result
+    
+    integer :: i
+    do i = 1, 3
+        print *, "Count: ", i
+    end do
+
+contains
+    integer function add(a, b)
+        integer, intent(in) :: a, b
+        add = a + b
+    end function add
+end program main
+`,
+  },
+  {
+    id: 'fortran-arrays',
+    name: 'Fortran: Arrays & Modules',
+    description: 'Arrays, modules, derived types, I/O.',
+    language: 'fortran',
+    code: `module math_utils
+    implicit none
+contains
+    function array_sum(arr) result(total)
+        integer, intent(in) :: arr(:)
+        integer :: total
+        integer :: i
+        total = 0
+        do i = 1, size(arr)
+            total = total + arr(i)
+        end do
+    end function array_sum
+    
+    subroutine bubble_sort(arr)
+        integer, intent(inout) :: arr(:)
+        integer :: i, j, temp
+        do i = 1, size(arr) - 1
+            do j = 1, size(arr) - i
+                if (arr(j) > arr(j+1)) then
+                    temp = arr(j)
+                    arr(j) = arr(j+1)
+                    arr(j+1) = temp
+                end if
+            end do
+        end do
+    end subroutine bubble_sort
+end module math_utils
+
+program main
+    use math_utils
+    implicit none
+    
+    integer :: nums(5) = [5, 2, 8, 1, 9]
+    integer :: i
+    
+    print *, "Original array:"
+    do i = 1, size(nums)
+        print *, "  nums(", i, ") = ", nums(i)
+    end do
+    
+    print *, "Sum:", array_sum(nums)
+    
+    call bubble_sort(nums)
+    print *, "Sorted:"
+    do i = 1, size(nums)
+        print *, "  nums(", i, ") = ", nums(i)
+    end do
+    
+    ! Derived type
+    type :: person
+        character(len=20) :: name
+        integer :: age
+    end type person
+    
+    type(person) :: alice
+    alice%name = "Alice"
+    alice%age = 30
+    print *, "Person: ", trim(alice%name), ", age ", alice%age
+end program main
+`,
+  },
+  {
+    id: 'fortran-math',
+    name: 'Fortran: Math & Matrix',
+    description: 'Matrix operations, math functions.',
+    language: 'fortran',
+    code: `program main
+    implicit none
+    
+    ! Matrix multiplication
+    real :: A(2,3) = reshape([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [2,3])
+    real :: B(3,2) = reshape([1.0, 0.0, 0.0, 1.0, 1.0, 1.0], [3,2])
+    real :: C(2,2)
+    integer :: i, j, k
+    
+    ! Matrix multiply C = A * B
+    do i = 1, 2
+        do j = 1, 2
+            C(i,j) = 0.0
+            do k = 1, 3
+                C(i,j) = C(i,j) + A(i,k) * B(k,j)
+            end do
+        end do
+    end do
+    
+    print *, "Matrix C = A * B:"
+    do i = 1, 2
+        print *, C(i,1), C(i,2)
+    end do
+    
+    ! Math functions
+    print *, ""
+    print *, "Math functions:"
+    print *, "  sin(pi/2) = ", sin(3.14159265/2.0)
+    print *, "  cos(0)    = ", cos(0.0)
+    print *, "  sqrt(16)  = ", sqrt(16.0)
+    print *, "  exp(1)    = ", exp(1.0)
+    print *, "  log(2.718)=", log(2.71828)
+    
+    ! Sum of squares
+    real :: total
+    total = 0.0
+    do i = 1, 100
+        total = total + real(i)**2
+    end do
+    print *, "  Sum of 1^2..100^2 = ", total
+    
+    ! Factorial
+    print *, "  10! = ", factorial(10)
+    
+contains
+    integer function factorial(n)
+        integer, intent(in) :: n
+        if (n <= 1) then
+            factorial = 1
+        else
+            factorial = n * factorial(n - 1)
+        end if
+    end function factorial
+end program main
+`,
+  },
+  {
+    id: 'cobol-hello',
+    name: 'COBOL: Hello World',
+    description: 'Basic COBOL with DISPLAY, PERFORM, arithmetic.',
+    language: 'cobol',
+    code: `       IDENTIFICATION DIVISION.
+       PROGRAM-ID. HELLO.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  NAME      PIC X(10) VALUE "World".
+       01  RESULT    PIC 9(4).
+       01  COUNTER   PIC 9(2).
+
+       PROCEDURE DIVISION.
+           DISPLAY "Hello from COBOL!".
+           DISPLAY "Hello, " NAME "!".
+
+           ADD 3 TO 4 GIVING RESULT.
+           DISPLAY "3 + 4 = " RESULT.
+
+           PERFORM VARYING COUNTER FROM 1 BY 1
+               UNTIL COUNTER > 3
+               DISPLAY "Count: " COUNTER
+           END-PERFORM.
+
+           STOP RUN.
+`,
+  },
+  {
+    id: 'cobol-data',
+    name: 'COBOL: Data & Files',
+    description: 'File I/O, tables, computation, conditions.',
+    language: 'cobol',
+    code: `       IDENTIFICATION DIVISION.
+       PROGRAM-ID. DATADEMO.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  STUDENT-TABLE.
+           05  STUDENT OCCURS 3 TIMES.
+               10  STU-NAME   PIC X(15).
+               10  STU-SCORE  PIC 9(3).
+       01  I               PIC 9(2).
+       01  TOTAL           PIC 9(4) VALUE 0.
+       01  AVERAGE         PIC 9(2)V9(1).
+
+       PROCEDURE DIVISION.
+           MOVE "Alice" TO STU-NAME(1).
+           MOVE 85 TO STU-SCORE(1).
+           MOVE "Bob" TO STU-NAME(2).
+           MOVE 92 TO STU-SCORE(2).
+           MOVE "Charlie" TO STU-NAME(3).
+           MOVE 78 TO STU-SCORE(3).
+
+           DISPLAY "Student Scores:".
+           PERFORM VARYING I FROM 1 BY 1 UNTIL I > 3
+               DISPLAY "  " STU-NAME(I) ": " STU-SCORE(I)
+               ADD STU-SCORE(I) TO TOTAL
+           END-PERFORM.
+
+           COMPUTE AVERAGE = TOTAL / 3.
+           DISPLAY "Average: " AVERAGE.
+
+           IF AVERAGE >= 85
+               DISPLAY "Class grade: A"
+           ELSE
+               IF AVERAGE >= 75
+                   DISPLAY "Class grade: B"
+               ELSE
+                   DISPLAY "Class grade: C"
+           END-IF.
+
+           STOP RUN.
+`,
+  },
+  {
+    id: 'cobol-business',
+    name: 'COBOL: Business App',
+    description: 'Payroll calculation with input, tax, output.',
+    language: 'cobol',
+    code: `       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PAYROLL.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01  EMP-NAME        PIC X(20).
+       01  HOURS-WORKED    PIC 9(3).
+       01  HOURLY-RATE     PIC 9(4)V99.
+       01  GROSS-PAY       PIC 9(6)V99.
+       01  TAX-RATE        PIC V99 VALUE .15.
+       01  TAX-AMOUNT      PIC 9(5)V99.
+       01  NET-PAY         PIC 9(6)V99.
+       01  EMP-COUNT       PIC 9(2) VALUE 0.
+       01  TOTAL-PAYROLL   PIC 9(8)V99 VALUE 0.
+
+       PROCEDURE DIVISION.
+           PERFORM PROCESS-EMPLOYEE 3 TIMES.
+           DISPLAY "Total payroll: $" TOTAL-PAYROLL.
+           STOP RUN.
+
+       PROCESS-EMPLOYEE.
+           ADD 1 TO EMP-COUNT.
+           EVALUATE EMP-COUNT
+               WHEN 1
+                   MOVE "Alice Smith" TO EMP-NAME
+                   MOVE 40 TO HOURS-WORKED
+                   MOVE 25.50 TO HOURLY-RATE
+               WHEN 2
+                   MOVE "Bob Johnson" TO EMP-NAME
+                   MOVE 35 TO HOURS-WORKED
+                   MOVE 30.00 TO HOURLY-RATE
+               WHEN 3
+                   MOVE "Charlie Brown" TO EMP-NAME
+                   MOVE 45 TO HOURS-WORKED
+                   MOVE 22.75 TO HOURLY-RATE
+           END-EVALUATE.
+
+           COMPUTE GROSS-PAY = HOURS-WORKED * HOURLY-RATE.
+           COMPUTE TAX-AMOUNT = GROSS-PAY * TAX-RATE.
+           COMPUTE NET-PAY = GROSS-PAY - TAX-AMOUNT.
+           ADD NET-PAY TO TOTAL-PAYROLL.
+
+           DISPLAY "Employee: " EMP-NAME.
+           DISPLAY "  Hours: " HOURS-WORKED.
+           DISPLAY "  Rate: $" HOURLY-RATE.
+           DISPLAY "  Gross: $" GROSS-PAY.
+           DISPLAY "  Tax: $" TAX-AMOUNT.
+           DISPLAY "  Net: $" NET-PAY.
+`,
+  },
 ]
+
+
+/* ------------------------------------------------------------------ */
+/* Kotlin Android default project template                            */
+/* ------------------------------------------------------------------ */
+
+export const KOTLIN_ANDROID_TEMPLATE: Record<string, string> = {
+  'app/src/main/java/com/example/app/MainActivity.kt': `package com.example.app
+
+import android.os.Bundle
+import android.widget.Button
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+
+class MainActivity : AppCompatActivity() {
+
+    private var counter = 0
+    private lateinit var counterText: TextView
+    private lateinit var incrementBtn: Button
+    private lateinit var resetBtn: Button
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        counterText = findViewById(R.id.counterText)
+        incrementBtn = findViewById(R.id.incrementBtn)
+        resetBtn = findViewById(R.id.resetBtn)
+
+        updateCounter()
+
+        incrementBtn.setOnClickListener {
+            counter++
+            updateCounter()
+        }
+
+        resetBtn.setOnClickListener {
+            counter = 0
+            updateCounter()
+            Toast.makeText(this, "Counter reset", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun updateCounter() {
+        counterText.text = "Count: " + counter
+    }
+}
+`,
+  'app/src/main/res/layout/activity_main.xml': `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/counterText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Count: 0"
+        android:textSize="48sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="32dp" />
+
+    <Button
+        android:id="@+id/incrementBtn"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:text="Increment"
+        android:textSize="16sp" />
+
+    <Button
+        android:id="@+id/resetBtn"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:text="Reset"
+        android:textSize="16sp"
+        android:layout_marginTop="16dp" />
+
+</LinearLayout>
+`,
+  'app/src/main/res/values/strings.xml': `<resources>
+    <string name="app_name">My Kotlin App</string>
+</resources>
+`,
+  'app/src/main/res/values/colors.xml': `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>
+`,
+  'app/src/main/res/values/themes.xml': `<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.MyApp" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorOnPrimary">@color/white</item>
+    </style>
+</resources>
+`,
+  'app/src/main/AndroidManifest.xml': `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.app">
+
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.MyApp">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+`,
+  'app/build.gradle.kts': `plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.example.app"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.example.app"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
+}
+`,
+  'settings.gradle.kts': `pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "MyKotlinApp"
+include(":app")
+`,
+  'build.gradle.kts': `plugins {
+    id("com.android.application") version "8.1.0" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.0" apply false
+}
+`,
+  'gradle.properties': `org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+android.useAndroidX=true
+kotlin.code.style=official
+android.nonTransitiveRClass=true
+`,
+}

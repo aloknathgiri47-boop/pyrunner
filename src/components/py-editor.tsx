@@ -6,6 +6,7 @@ import CodeMirror, {
   type Extension,
 } from '@uiw/react-codemirror'
 import { StreamLanguage } from '@codemirror/language'
+import { indentUnit } from '@codemirror/language'
 import { python } from '@codemirror/lang-python'
 import { java } from '@codemirror/lang-java'
 import { cpp } from '@codemirror/lang-cpp'
@@ -13,7 +14,18 @@ import { javascript } from '@codemirror/lang-javascript'
 import { php as phpLang } from '@codemirror/lang-php'
 import { html as htmlLang } from '@codemirror/lang-html'
 import { sql as sqlLang } from '@codemirror/lang-sql'
+import { xml as xmlLang } from '@codemirror/lang-xml'
+import { rust as rustLang } from '@codemirror/lang-rust'
 import { r } from '@codemirror/legacy-modes/mode/r'
+import { ruby as rubyLang } from '@codemirror/legacy-modes/mode/ruby'
+import { swift as swiftLang } from '@codemirror/legacy-modes/mode/swift'
+import { lua as luaLang } from '@codemirror/legacy-modes/mode/lua'
+import { perl as perlLang } from '@codemirror/legacy-modes/mode/perl'
+import { powerShell as psLang } from '@codemirror/legacy-modes/mode/powershell'
+import { shell as shellLang } from '@codemirror/legacy-modes/mode/shell'
+import { fortran as fortranLang } from '@codemirror/legacy-modes/mode/fortran'
+import { cobol as cobolLang } from '@codemirror/legacy-modes/mode/cobol'
+import { go } from '@codemirror/legacy-modes/mode/go'
 import { clike } from '@codemirror/legacy-modes/mode/clike'
 import { oneDark } from '@codemirror/theme-one-dark'
 
@@ -23,7 +35,7 @@ interface PyEditorProps {
   onRun?: () => void
   theme?: 'light' | 'dark'
   readOnly?: boolean
-  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql'
+  language?: 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'kotlin-android' | 'xml' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran' | 'cobol'
 }
 
 // Dart keywords for syntax highlighting via clike mode
@@ -43,6 +55,26 @@ const dartKeywords = {
   'print': true, 'main': true, 'int': true, 'double': true, 'String': true,
   'bool': true, 'List': true, 'Map': true, 'Set': true, 'Future': true,
   'Stream': true, 'stdout': true, 'stdin': true,
+}
+
+// Kotlin keywords for syntax highlighting via clike mode
+const kotlinKeywords = {
+  'as': true, 'by': true, 'class': true, 'data': true, 'do': true, 'else': true,
+  'false': true, 'for': true, 'fun': true, 'if': true, 'in': true, 'is': true,
+  'null': true, 'object': true, 'package': true, 'return': true, 'super': true,
+  'this': true, 'throw': true, 'true': true, 'try': true, 'typealias': true,
+  'val': true, 'var': true, 'when': true, 'while': true, 'break': true,
+  'continue': true, 'import': true, 'interface': true, 'enum': true, 'sealed': true,
+  'annotation': true, 'companion': true, 'abstract': true, 'final': true, 'open': true,
+  'override': true, 'private': true, 'public': true, 'protected': true, 'internal': true,
+  'suspend': true, 'inline': true, 'reified': true, 'operator': true, 'infix': true,
+  'tailrec': true, 'external': true, 'lateinit': true, 'init': true, 'constructor': true,
+  'out': true, 'vararg': true, 'get': true, 'set': true, 'field': true, 'it': true,
+  'String': true, 'Int': true, 'Long': true, 'Short': true, 'Byte': true,
+  'Double': true, 'Float': true, 'Boolean': true, 'Char': true, 'Unit': true,
+  'Any': true, 'Nothing': true, 'List': true, 'Map': true, 'Set': true, 'Array': true,
+  'MutableList': true, 'MutableMap': true, 'MutableSet': true, 'Pair': true,
+  'Triple': true, 'Result': true, 'println': true, 'print': true, 'main': true,
 }
 
 const customLightTheme = EditorView.theme(
@@ -141,14 +173,30 @@ export default function PyEditor({
       language === 'r' ? StreamLanguage.define(r) :
       language === 'javascript' ? javascript() :
       language === 'php' ? phpLang() :
-      language === 'dart' || language === 'flutter' ? StreamLanguage.define(clike({ keywords: dartKeywords })) :
+      language === 'dart' || language === 'flutter' ? StreamLanguage.define(clike({ name: 'dart', keywords: dartKeywords })) :
       language === 'html' ? htmlLang() :
       language === 'sql' ? sqlLang() :
+      language === 'go' ? StreamLanguage.define(go) :
+      language === 'typescript' ? javascript({ typescript: true }) :
+      language === 'rust' ? rustLang() :
+      language === 'ruby' ? StreamLanguage.define(rubyLang) :
+      language === 'swift' ? StreamLanguage.define(swiftLang) :
+      language === 'lua' ? StreamLanguage.define(luaLang) :
+      language === 'perl' ? StreamLanguage.define(perlLang) :
+      language === 'powershell' ? StreamLanguage.define(psLang) :
+      language === 'bash' ? StreamLanguage.define(shellLang) :
+      language === 'fortran' ? StreamLanguage.define(fortranLang) :
+      language === 'cobol' ? StreamLanguage.define(cobolLang) :
+      language === 'kotlin' || language === 'kotlin-android' ? StreamLanguage.define(clike({ name: 'kotlin', keywords: kotlinKeywords })) :
+      language === 'xml' ? xmlLang() :
       python()
     const exts: Extension[] = [
       langExt,
       EditorView.lineWrapping,
       EditorView.editable.of(!readOnly),
+      // Set indent unit to 4 spaces so Python auto-indent uses 4 spaces,
+      // not 8 (the default is 2 but some setups double it).
+      indentUnit.of('    '),
       EditorView.theme({
         '.cm-scroller': {
           fontFamily:
@@ -194,6 +242,9 @@ export default function PyEditor({
           autocompletion: true,
           bracketMatching: true,
           closeBrackets: true,
+          // Re-enabled with proper indentUnit (4 spaces) to fix the
+          // 8-space auto-indent bug. The indentUnit extension above
+          // ensures all auto-indentation uses exactly 4 spaces.
           indentOnInput: true,
           tabSize: 4,
         }}

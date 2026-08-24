@@ -6,24 +6,32 @@ import { ThemeProvider } from "next-themes";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "PyRunner — Online Python Compiler",
-  description: "Write, run, and share Python code right in your browser. A fast, clean, sandboxed Python 3 code playground with stdin support, syntax highlighting, and live output.",
+  title: "CodeHubz — Online Python Compiler",
+  description: "Write, run, and share code in 24+ languages right in your browser. A fast, clean, sandboxed Python 3 code playground with stdin support, syntax highlighting, and live output.",
   keywords: ["Python", "compiler", "online IDE", "Python playground", "code runner", "Python 3", "snippet", "Z.ai"],
   authors: [{ name: "Z.ai" }],
+  // No favicon, no manifest, no apple-touch-icon — completely remove
+  // any icon/logo from the browser tab.
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: [],
+    shortcut: [],
+    apple: [],
+    other: [],
+  },
+  appleWebApp: {
+    capable: false,
   },
   openGraph: {
-    title: "PyRunner — Online Python Compiler",
-    description: "Write, run, and share Python code right in your browser.",
+    title: "CodeHubz — Online Python Compiler",
+    description: "Write, run, and share code in 24+ languages right in your browser.",
     url: "https://chat.z.ai",
     siteName: "Z.ai",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "PyRunner — Online Python Compiler",
-    description: "Write, run, and share Python code right in your browser.",
+    title: "CodeHubz — Online Python Compiler",
+    description: "Write, run, and share code in 24+ languages right in your browser.",
   },
 };
 

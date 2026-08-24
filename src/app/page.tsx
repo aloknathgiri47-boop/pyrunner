@@ -26,12 +26,23 @@ import {
   Share2,
   Eraser,
   CornerDownLeft,
+  PanelLeft,
+  Save,
+  Folder as FolderIcon,
+  FolderOpen as FolderOpenIcon,
 } from 'lucide-react'
 
 import PyEditor from '@/components/py-editor'
+import FileExplorer from '@/components/file-explorer'
+import QuickSwitcher from '@/components/quick-switcher'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -47,6 +58,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  useProjectStore,
+  useActiveFile,
+  getFilesForRunner,
+  getEntryFilePath,
+} from '@/lib/project-store'
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -75,211 +92,19 @@ interface RunResult {
 
 const STORAGE_KEY = 'pyrunner:state:v3'
 
+<<<<<<< HEAD
 type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql'
+=======
+type Language = 'python' | 'java' | 'c' | 'cpp' | 'r' | 'javascript' | 'php' | 'csharp' | 'dart' | 'flutter' | 'html' | 'sql' | 'kotlin' | 'go' | 'typescript' | 'rust' | 'ruby' | 'swift' | 'lua' | 'perl' | 'powershell' | 'bash' | 'fortran' | 'cobol'
+>>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
 
 interface PersistedState {
   code: string
   language: Language
 }
 
-const DEFAULT_CODE = `# PyRunner — Python 3 playground
-# Press Run (or Ctrl/Cmd+Enter) to execute.
+import { DEFAULT_CODE } from '@/lib/default-code'
 
-def greet(name: str) -> str:
-    return f"Hello, {name}!"
-
-print(greet("world"))
-
-# Interactive: type your name in the input bar below
-# the console when prompted, then press Enter.
-name = input("What's your name? ")
-print(f"Nice to meet you, {name}!")
-`
-
-const DEFAULT_JAVA_CODE = `// PyRunner — Java 21 playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-// The public class name is detected automatically.
-
-public class Hello {
-    public static void main(String[] args) {
-        System.out.println("Hello, World!");
-
-        // Use Scanner to read from stdin (interactive)
-        var scanner = new java.util.Scanner(System.in);
-        System.out.print("What's your name? ");
-        String name = scanner.nextLine();
-        System.out.println("Nice to meet you, " + name + "!");
-    }
-}
-`
-
-const DEFAULT_C_CODE = `// PyRunner — C (gcc 14) playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-// Compiled with: gcc -std=c11 -Wall -O2 -lm
-
-#include <stdio.h>
-
-int main(void) {
-    printf("Hello, World!\\n");
-
-    // Use scanf to read from stdin (interactive)
-    char name[64];
-    printf("What's your name? ");
-    scanf("%63s", name);
-    printf("Nice to meet you, %s!\\n", name);
-
-    return 0;
-}
-`
-
-const DEFAULT_CPP_CODE = `// PyRunner — C++ (g++ 14, C++20) playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-// Compiled with: g++ -std=c++20 -Wall -O2
-
-#include <iostream>
-#include <string>
-
-int main() {
-    std::cout << "Hello, World!" << std::endl;
-
-    // Read from stdin (interactive)
-    std::string name;
-    std::cout << "What's your name? ";
-    std::getline(std::cin, name);
-    std::cout << "Nice to meet you, " << name << "!" << std::endl;
-
-    return 0;
-}
-`
-
-const DEFAULT_R_CODE = `# PyRunner — R 4.5 playground
-# Press Run (or Ctrl/Cmd+Enter) to execute.
-
-print("Hello, World!")
-
-# Basic vector operations
-x <- c(1, 2, 3, 4, 5)
-print(paste("Mean:", mean(x)))
-print(paste("Sum:", sum(x)))
-print(paste("Squared:", paste(x^2, collapse=", ")))
-
-# For interactive input, open "Program Input" below the editor,
-# type your values (one per line), then Run.
-# Or load the "R: Interactive Input" example from the Examples menu.
-`
-
-const DEFAULT_JS_CODE = `// PyRunner — JavaScript (Node.js 24) playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-// Supports both CommonJS (require) and ES modules (import).
-
-console.log("Hello, World!");
-
-// Array methods — functional programming style
-const nums = [1, 2, 3, 4, 5];
-console.log("Sum:", nums.reduce((a, b) => a + b, 0));
-console.log("Squared:", nums.map(n => n ** 2));
-
-// Object destructuring
-const user = { name: "Ada", age: 36 };
-console.log(user.name + " is " + user.age + " years old.");
-
-// For interactive input, open "Program Input" below the editor,
-// type your values (one per line), then Run.
-// Or load the "JS: Interactive Input" example from the Examples menu.
-`
-
-const DEFAULT_PHP_CODE = `<?php
-// PyRunner — PHP 8.4 playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-
-echo "Hello, World!\\n";
-
-// Array functions
-$nums = [1, 2, 3, 4, 5];
-echo "Sum: " . array_sum($nums) . "\\n";
-echo "Squared: " . implode(", ", array_map(fn($n) => $n * $n, $nums)) . "\\n";
-
-// Interactive: type your name in the input bar below
-echo "What's your name? ";
-$name = trim(fgets(STDIN));
-echo "Nice to meet you, $name!\\n";
-`
-
-const DEFAULT_CSHARP_CODE = `// PyRunner - C# (.NET 8) playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-
-using System;
-using System.Linq;
-
-class Program {
-    static void Main() {
-        Console.WriteLine("Hello, World!");
-
-        // LINQ
-        int[] nums = { 1, 2, 3, 4, 5 };
-        Console.WriteLine("Sum: " + nums.Sum());
-        Console.WriteLine("Squared: " + string.Join(", ", nums.Select(n => n * n)));
-
-        // Interactive: type your name in the input bar
-        Console.Write("What's your name? ");
-        string name = Console.ReadLine();
-        Console.WriteLine("Nice to meet you, " + name + "!");
-    }
-}
-`
-
-const DEFAULT_DART_CODE = `// PyRunner - Dart 3.13 playground
-// Press Run (or Ctrl/Cmd+Enter) to execute.
-
-import 'dart:io';
-
-void main() {
-  print('Hello, World!');
-
-  // List methods
-  var nums = [1, 2, 3, 4, 5];
-  print('Sum: ' + nums.reduce((a, b) => a + b).toString());
-  print('Squared: ' + nums.map((n) => n * n).join(', '));
-
-  // Interactive: type your name in the input bar
-  stdout.write("What's your name? ");
-  var name = stdin.readLineSync() ?? '';
-  print('Nice to meet you, ' + name + '!');
-}
-`
-
-const DEFAULT_FLUTTER_CODE = `import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(title: const Text('My Flutter App')),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Hello from Flutter!',
-                style: TextStyle(fontSize: 24)),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {},
-                child: const Text('Click me'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}`
 
 
 /* ------------------------------------------------------------------ */
@@ -295,7 +120,11 @@ function loadState(): PersistedState | null {
     if (typeof parsed.code !== 'string') return null
     return {
       code: parsed.code,
+<<<<<<< HEAD
       language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql'].includes(parsed.language) ? parsed.language : 'python',
+=======
+      language: ['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash','fortran','cobol'].includes(parsed.language) ? parsed.language : 'python',
+>>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
     }
   } catch {
     return null
@@ -312,7 +141,61 @@ function encodeToHash(code: string, language: Language): string {
   const params = new URLSearchParams()
   params.set('c', encode(code))
   params.set('l', language)
-  return `#$\{params.toString()}`
+  return `#${params.toString()}`
+}
+
+/**
+ * Decode a URL hash (e.g. "#c=...&l=python") back into { code, language }.
+ * Returns null if the hash is empty or malformed.
+ *
+ * Used both at initial mount (in getInitialState) and on browser Back/Forward
+ * navigation (popstate), so refreshing the page or using the browser's
+ * history buttons restores the exact code+language that was shared.
+ */
+function decodeFromHash(hash: string): { code: string; language: Language } | null {
+  if (!hash || hash.length < 2) return null
+  try {
+    const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash)
+    const codeB64 = params.get('c')
+    const lang = params.get('l') ?? ''
+    if (!codeB64) return null
+    const decode = (s: string) => {
+      const padded = s.replace(/-/g, '+').replace(/_/g, '/')
+      const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4))
+      const bin = atob(padded + pad)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+      return new TextDecoder('utf-8').decode(bytes)
+    }
+    return {
+      code: decode(codeB64),
+      language: (['java','c','cpp','r','javascript','php','csharp','dart','flutter','html','sql','kotlin','go','typescript','rust','ruby','swift','lua','perl','powershell','bash','fortran','cobol'].includes(lang) ? lang : 'python') as Language,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Push a new browser history entry encoding the given code+language.
+ *
+ * This is what makes the browser's native Back/Forward buttons work:
+ * each meaningful state transition (load example, switch language, share)
+ * pushes a new entry, so the user can press Back to undo the last action.
+ *
+ * We use pushState (NOT replaceState) so the previous state stays on the
+ * history stack. The popstate listener in the main component restores
+ * the code+language when the user navigates with Back/Forward.
+ *
+ * No-op if the new hash equals the current hash, to avoid spurious
+ * duplicate entries.
+ */
+function pushHistoryState(code: string, language: Language) {
+  if (typeof window === 'undefined') return
+  const newHash = encodeToHash(code, language)
+  if (window.location.hash === newHash) return
+  const newUrl = `${window.location.pathname}${window.location.search}${newHash}`
+  window.history.pushState({ code, language }, '', newUrl)
 }
 
 /* ------------------------------------------------------------------ */
@@ -322,6 +205,7 @@ function encodeToHash(code: string, language: Language): string {
 function getInitialState(): { code: string; language: Language } {
   if (typeof window === 'undefined') return { code: DEFAULT_CODE, language: 'python' }
   // URL hash takes priority, then localStorage, then default.
+<<<<<<< HEAD
   const hash = window.location.hash
   if (hash && hash.length > 2) {
     try {
@@ -346,6 +230,10 @@ function getInitialState(): { code: string; language: Language } {
       /* fall through */
     }
   }
+=======
+  const fromHash = decodeFromHash(window.location.hash)
+  if (fromHash) return fromHash
+>>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
   const persisted = loadState()
   if (persisted) {
     return { code: persisted.code, language: persisted.language }
@@ -356,13 +244,59 @@ function getInitialState(): { code: string; language: Language } {
 export default function Home() {
   const { setTheme, resolvedTheme } = useTheme()
 
+  // ---- Multi-file project store (replaces single-file useState) ----
+  // The active file's content is the source of truth for the editor.
+  // `code` and `language` are derived from it so all existing handlers
+  // (handleRun, handleShare, handleDownload, etc.) keep working unchanged.
+  const activeFile = useActiveFile()
+  const selectedLanguage = useProjectStore((s) => s.selectedLanguage)
+  const projectHydrated = useProjectStore((s) => s.hydrated)
+  const setActiveFileContent = useProjectStore((s) => s.setActiveFileContent)
+  const markActiveFileSaved = useProjectStore((s) => s.markActiveFileSaved)
+  const entryFilePath = useProjectStore((s) => {
+    const p = s.projects[s.selectedLanguage]
+    if (!p.entryFileId) return null
+    const n = p.nodes[p.entryFileId]
+    return n && n.type === 'file' ? n.name : null
+  })
+  const isProjectDirty = useProjectStore((s) => {
+    const p = s.projects[s.selectedLanguage]
+    return Object.values(p.nodes).some(
+      (n) => n.type === 'file' && n.content !== n.savedContent,
+    )
+  })
+
   // Use defaults on both server AND the first client render so the markup
-  // matches exactly. After mount, we hydrate from localStorage / URL hash.
+  // matches exactly. After mount, we hydrate from IndexedDB / URL hash.
   // This is the canonical Next.js pattern for avoiding hydration mismatches
   // when initial state depends on browser-only APIs.
   const [code, setCode] = useState<string>(DEFAULT_CODE)
   const [language, setLanguage] = useState<Language>('python')
   const [activeExampleId, setActiveExampleId] = useState<string | null>(null)
+
+  // Sync derived `code` + `language` from the active file whenever it changes.
+  // We do this in an effect (not directly during render) to avoid React
+  // "cannot update a component while rendering a different component" warnings.
+  // Also fires when `selectedLanguage` changes so that switching language tabs
+  // immediately updates the editor to show the new language's active file.
+  useEffect(() => {
+    if (!projectHydrated) return
+    if (activeFile) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCode(activeFile.content)
+      setLanguage(activeFile.language)
+    } else {
+      setCode('')
+      setLanguage(selectedLanguage)
+    }
+  }, [activeFile?.id, activeFile?.content, activeFile?.language, projectHydrated, selectedLanguage])
+
+  // Wrap setCode so it writes to the active file's content in the store,
+  // while still updating local `code` state for immediate re-render.
+  const setCodeWrapped = useCallback((newCode: string) => {
+    setCode(newCode)
+    setActiveFileContent(newCode)
+  }, [setActiveFileContent])
 
   const [chunks, setChunks] = useState<OutputChunk[]>([])
   const [isRunning, setIsRunning] = useState(false)
@@ -374,21 +308,48 @@ export default function Home() {
   const [stdinText, setStdinText] = useState('')
   const [showStdin, setShowStdin] = useState(false)
   const [flutterPort, setFlutterPort] = useState<number | null>(null)
+  const [htmlPreview, setHtmlPreview] = useState<string | null>(null)
   // Hydration flag: false during SSR and the very first client render,
   // true after mount. Used to gate rendering of any client-only UI
   // (like theme-dependent icons or persisted state).
   const [hydrated, setHydrated] = useState(false)
 
-  // After mount: load persisted state from localStorage / URL hash.
-  // This runs only on the client, so there is no SSR/client mismatch.
+  // After mount: hydrate React state from URL hash (share-link mode).
+  // Multi-file project state is hydrated by the project store (IndexedDB)
+  // via Zustand's persist middleware — we don't touch that here.
+  //
+  // URL hash takes priority: if `#c=...&l=...` is present, we load that
+  // snippet into the active file so share links continue to work.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHydrated(true)
-    const initial = getInitialState()
-    if (initial.code !== DEFAULT_CODE || initial.language !== 'python') {
-      setCode(initial.code)
-      setLanguage(initial.language)
+    // If a share-link hash is present, switch to the shared snippet's
+    // language project and load the snippet into the active file.
+    const fromHash = decodeFromHash(window.location.hash)
+    if (fromHash && projectHydrated) {
+      const state = useProjectStore.getState()
+      // Switch to the shared snippet's language project first.
+      state.setSelectedLanguage(fromHash.language)
+      // Now load the snippet into the active file of that language's project.
+      const proj = state.projects[fromHash.language]
+      const activeId = proj.activeFileId
+      if (activeId) {
+        const n = proj.nodes[activeId]
+        if (n && n.type === 'file') {
+          // Overwrite the active file's content with the shared snippet.
+          state.setActiveFileContent(fromHash.code)
+        }
+      } else {
+        // No active file — create one for the shared snippet.
+        state.createFile({
+          content: fromHash.code,
+          language: fromHash.language,
+          makeActive: true,
+          makeEntry: true,
+        })
+      }
     }
-  }, [])
+  }, [projectHydrated])
 
   const socketRef = useRef<Socket | null>(null)
   const chunkIdRef = useRef(0)
@@ -396,26 +357,54 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const isRunningRef = useRef(false)
   const languageRef = useRef<Language>(language)
+  // True while we are restoring state from a popstate event (browser Back/Forward).
+  // Prevents the debounced localStorage-persistence effect from pushing a
+  // duplicate history entry — we only push entries on explicit user actions
+  // (Share, Load example, Switch language).
+  const isRestoringFromHistoryRef = useRef(false)
 
   // Keep languageRef in sync so the socket callbacks can read the current value
   useEffect(() => {
     languageRef.current = language
   }, [language])
 
-  // ---- Persist code + language (debounced) ----
+  // ---- Browser Back/Forward support (popstate) ----
+  // When the user presses the browser's Back or Forward button, the URL
+  // hash changes and we restore the { code, language } encoded there.
+  // We do NOT push a new history entry here (that would create a loop);
+  // we only sync React state from the URL.
   useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        window.localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({ code, language } satisfies PersistedState),
-        )
-      } catch {
-        /* ignore */
+    const onPopState = () => {
+      isRestoringFromHistoryRef.current = true
+      const fromHash = decodeFromHash(window.location.hash)
+      if (fromHash) {
+        // Switch to the shared snippet's language project, then load the
+        // snippet into the active file.
+        const state = useProjectStore.getState()
+        state.setSelectedLanguage(fromHash.language)
+        state.setActiveFileContent(fromHash.code)
+        setLanguage(fromHash.language)
+      } else {
+        // No hash → restore to the default Python project.
+        useProjectStore.getState().setSelectedLanguage('python')
+        setLanguage('python')
       }
-    }, 400)
-    return () => clearTimeout(t)
-  }, [code, language])
+      // Clear console output so the previous run's output doesn't linger.
+      setChunks([])
+      setResult(null)
+      setActiveExampleId(null)
+      // Reset the flag on the next tick so the debounced localStorage save
+      // runs normally.
+      setTimeout(() => { isRestoringFromHistoryRef.current = false }, 0)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [setCodeWrapped])
+
+  // Legacy localStorage persistence is now replaced by the Zustand project
+  // store + IndexedDB (see src/lib/project-store.ts). The store handles
+  // debouncing internally and supports multi-file projects, which the old
+  // `{ code, language }` JSON couldn't represent.
 
   // ---- WebSocket connection (lazy: only connect when running) ----
   const ensureSocket = useCallback((): Socket => {
@@ -425,7 +414,12 @@ export default function Home() {
     // the polling handshake and the query gets dropped by the gateway).
     // Enable reconnection so if the runner restarts (watchdog auto-restart),
     // the client automatically reconnects without showing "xhr poll error".
-    const sock = io('/?XTransformPort=3003', {
+    // When deployed on Vercel, connect to the Render runner URL directly.
+    // When running locally (dev), use the gateway proxy.
+    const runnerUrl = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+      ? 'https://codehubz-runner.onrender.com'
+      : undefined
+    const sock = io(runnerUrl ?? '/?XTransformPort=3003', {
       transports: ['polling', 'websocket'],
       forceNew: true,
       reconnection: true,
@@ -478,7 +472,7 @@ export default function Home() {
       // Inline image (matplotlib figure rendered as PNG). The runner already
       // base64-encoded the bytes — we wrap it as a data URL for <img src>.
       const mime = msg.mime ?? 'image/png'
-      const src = `data:$\{mime};base64,$\{msg.data}`
+      const src = `data:${mime};base64,${msg.data}`
       const id = ++chunkIdRef.current
       setChunks((prev) => [
         ...prev,
@@ -501,15 +495,26 @@ export default function Home() {
           {
             id,
             stream: 'server',
-            text: `Server started on port $\{msg.port}`,
+            text: `Server started on port ${msg.port}`,
             port: msg.port,
           },
         ])
         toast.success('Server started', {
-          description: `Listening on port $\{msg.port} — click the link in the console to open it.`,
+          description: `Listening on port ${msg.port} — click the link in the console to open it.`,
           duration: 8000,
         })
       }
+    })
+
+    // HTML preview — emitted by spawnHtml when running on cloud (Render).
+    // The HTML content is loaded directly into the iframe via srcdoc,
+    // no separate HTTP server needed.
+    sock.on('html_preview', (msg: { html: string }) => {
+      setHtmlPreview(msg.html)
+      setFlutterPort(null) // Clear the port-based preview
+      toast.success('HTML preview is live!', {
+        duration: 3000,
+      })
     })
 
     sock.on('exit', (res: RunResult) => {
@@ -524,7 +529,7 @@ export default function Home() {
       } else if (res.timedOut) {
         toast.error('Timed out')
       } else if (res.code !== null && res.code !== 0) {
-        toast.error(`Exited with code $\{res.code}`)
+        toast.error(`Exited with code ${res.code}`)
       } else if (res.error) {
         toast.error('Failed to run', { description: res.error })
       }
@@ -562,7 +567,10 @@ export default function Home() {
 
   // ---- Run handler ----
   const handleRun = useCallback(() => {
-    if (isRunningRef.current) return
+    if (isRunningRef.current) {
+      return
+    }
+    // Kotlin Android uses its own multi-file project state — skip the empty-code guard.
     if (!code.trim()) {
       toast.info('Nothing to run', {
         description:
@@ -577,6 +585,21 @@ export default function Home() {
           language === 'flutter' ? 'Write some Flutter code first.' :
           language === 'html' ? 'Write some HTML/CSS first.' :
           language === 'sql' ? 'Write some SQL first.' :
+<<<<<<< HEAD
+=======
+          language === 'kotlin' ? 'Write some Kotlin code first.' :
+          language === 'go' ? 'Write some Go code first.' :
+          language === 'typescript' ? 'Write some TypeScript code first.' :
+          language === 'rust' ? 'Write some Rust code first.' :
+          language === 'ruby' ? 'Write some Ruby code first.' :
+          language === 'swift' ? 'Write some Swift code first.' :
+          language === 'lua' ? 'Write some Lua code first.' :
+          language === 'perl' ? 'Write some Perl code first.' :
+          language === 'powershell' ? 'Write some PowerShell code first.' :
+          language === 'bash' ? 'Write some Bash code first.' :
+          language === 'fortran' ? 'Write some Fortran code first.' :
+          language === 'cobol' ? 'Write some COBOL code first.' :
+>>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
           'Write some Python first.',
       })
       return
@@ -587,10 +610,35 @@ export default function Home() {
     setChunks([])
     setAwaitingInput(false)
     setFlutterPort(null)
+    setHtmlPreview(null)
     chunkIdRef.current = 0
 
     const sock = ensureSocket()
-    const emitRun = () => sock.emit('run', { code, language, timeout: (language === 'flutter' || language === 'html') ? 120000 : 30000, stdin: stdinText })
+    // Multi-file execution: send the full project file tree + entry file
+    // path for every language. Each spawn* function in the runner knows
+    // how to handle multi-file mode for its language (Python: PYTHONPATH,
+    // JS: run entry directly, Java: compile *.java together, Go: go run .,
+    // Rust: rustc entry resolves `mod helper;`, etc.).
+    //
+    // Flutter, HTML, and SQL are single-file-only (their spawn functions
+    // don't use the `files` payload), so we skip the payload for them.
+    const isMultiFileLanguage =
+      language !== 'flutter' &&
+      language !== 'html' &&
+      language !== 'sql'
+    const files = isMultiFileLanguage ? getFilesForRunner() : undefined
+    const entryFile = isMultiFileLanguage ? getEntryFilePath() : undefined
+    const emitRun = () => {
+      sock.emit('run', {
+      code,
+      language,
+      timeout: (language === 'flutter' || language === 'html') ? 120000 : 30000,
+      stdin: stdinText,
+      // Only send files+entryFile when we have at least 1 file AND an entry path.
+      // The runner ignores these for single-file runs.
+      ...(files && Object.keys(files).length >= 1 && entryFile ? { files, entryFile } : {}),
+      })
+    }
     if (sock.connected) {
       emitRun()
     } else {
@@ -650,32 +698,35 @@ export default function Home() {
   }, [])
 
   const handleClearAll = useCallback(() => {
-    setCode('')
+    setCodeWrapped('')
     setChunks([])
     setResult(null)
     setActiveExampleId(null)
     toast.info('Editor cleared')
-  }, [])
+  }, [setCodeWrapped])
 
-  // Switch language — load the default starter code for that language.
+  // Switch language — switches the active project (per-language isolation).
+  // Each language has its own completely separate workspace with its own
+  // files, folders, and entry file. Switching to Java shows the Java
+  // project's files; switching back to Python shows the Python project's
+  // files. No files are mixed, deleted, renamed, or overwritten.
+  // The editor's content + language are automatically derived from the
+  // active file via the useEffect below.
   const handleLanguageChange = useCallback((lang: Language) => {
     if (lang === language) return
+    // Switch the active project — the store's selectedLanguage changes,
+    // which causes useActiveFile() to return the new language's active file.
+    useProjectStore.getState().setSelectedLanguage(lang)
     setLanguage(lang)
-    setCode(
-      lang === 'java' ? DEFAULT_JAVA_CODE :
-      lang === 'c' ? DEFAULT_C_CODE :
-      lang === 'cpp' ? DEFAULT_CPP_CODE :
-      lang === 'r' ? DEFAULT_R_CODE :
-      lang === 'javascript' ? DEFAULT_JS_CODE :
-      lang === 'php' ? DEFAULT_PHP_CODE :
-      lang === 'csharp' ? DEFAULT_CSHARP_CODE :
-      lang === 'dart' ? DEFAULT_DART_CODE :
-      lang === 'flutter' ? DEFAULT_FLUTTER_CODE :
-      DEFAULT_CODE
-    )
     setChunks([])
     setResult(null)
     setActiveExampleId(null)
+    // Push a history entry so the browser Back button returns to the
+    // previous language.
+    const newProj = useProjectStore.getState().projects[lang]
+    const activeNode = newProj.activeFileId ? newProj.nodes[newProj.activeFileId] : null
+    const newCode = activeNode && activeNode.type === 'file' ? activeNode.content : ''
+    pushHistoryState(newCode, lang)
   }, [language])
 
   const handleCopy = useCallback(async () => {
@@ -691,11 +742,14 @@ export default function Home() {
 
   const handleShare = useCallback(async () => {
     try {
-      const hash = encodeToHash(code, language)
-      const newUrl = `$\{window.location.pathname}$\{hash}`
-      window.history.replaceState(null, '', newUrl)
+      // Push a new history entry (NOT replaceState) so that pressing the
+      // browser Back button returns the user to the previous snippet.
+      pushHistoryState(code, language)
       await navigator.clipboard.writeText(window.location.href)
       setShared(true)
+      // Mark the active file as saved (no longer dirty) since we just
+      // shared it.
+      markActiveFileSaved()
       toast.success('Share link copied to clipboard', {
         description: 'Anyone with the link can run this snippet.',
       })
@@ -703,7 +757,7 @@ export default function Home() {
     } catch {
       toast.error('Failed to create share link')
     }
-  }, [code, language])
+  }, [code, language, markActiveFileSaved])
 
   const handleDownload = useCallback(() => {
     const ext =
@@ -718,6 +772,21 @@ export default function Home() {
       language === 'flutter' ? 'dart' :
       language === 'html' ? 'html' :
       language === 'sql' ? 'sql' :
+<<<<<<< HEAD
+=======
+      language === 'kotlin' ? 'kt' :
+      language === 'go' ? 'go' :
+      language === 'typescript' ? 'ts' :
+      language === 'rust' ? 'rs' :
+      language === 'ruby' ? 'rb' :
+      language === 'swift' ? 'swift' :
+      language === 'lua' ? 'lua' :
+      language === 'perl' ? 'pl' :
+      language === 'powershell' ? 'ps1' :
+      language === 'bash' ? 'sh' :
+      language === 'fortran' ? 'f90' :
+      language === 'cobol' ? 'cbl' :
+>>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
       'py'
     const mime =
       language === 'java' ? 'text/x-java;charset=utf-8' :
@@ -731,30 +800,52 @@ export default function Home() {
       language === 'flutter' ? 'text/x-dart;charset=utf-8' :
       language === 'html' ? 'text/html;charset=utf-8' :
       language === 'sql' ? 'application/sql;charset=utf-8' :
+<<<<<<< HEAD
+=======
+      language === 'kotlin' ? 'text/x-kotlin;charset=utf-8' :
+      language === 'go' ? 'text/x-go;charset=utf-8' :
+      language === 'typescript' ? 'text/typescript;charset=utf-8' :
+      language === 'rust' ? 'text/rust;charset=utf-8' :
+      language === 'ruby' ? 'text/x-ruby;charset=utf-8' :
+      language === 'swift' ? 'text/swift;charset=utf-8' :
+      language === 'lua' ? 'text/lua;charset=utf-8' :
+      language === 'perl' ? 'text/perl;charset=utf-8' :
+      language === 'powershell' ? 'text/powershell;charset=utf-8' :
+      language === 'bash' ? 'text/x-sh;charset=utf-8' :
+      language === 'fortran' ? 'text/fortran;charset=utf-8' :
+      language === 'cobol' ? 'text/cobol;charset=utf-8' :
+>>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
       'text/x-python;charset=utf-8'
     const blob = new Blob([code], { type: mime })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `snippet.$\{ext}`
+    a.download = `snippet.${ext}`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    toast.success(`Downloaded snippet.$\{ext}`)
+    toast.success(`Downloaded snippet.${ext}`)
   }, [code, language])
 
   const handleSelectExample = useCallback((ex: Snippet) => {
-    setCode(ex.code)
-    // Auto-switch language if the example specifies one
-    if (ex.language) {
-      setLanguage(ex.language)
-    }
+    // Switch to the example's language project first (per-language isolation).
+    // This ensures the example is loaded into the correct language's workspace
+    // without overwriting files in other languages.
+    const newLang = ex.language ?? language
+    const state = useProjectStore.getState()
+    state.setSelectedLanguage(newLang)
+    setLanguage(newLang)
+    // Load the example code into the active file of the new language's project.
+    state.setActiveFileContent(ex.code)
     setActiveExampleId(ex.id)
     setChunks([])
     setResult(null)
-    toast.success(`Loaded "$\{ex.name}"`, { description: ex.description })
-  }, [])
+    // Push a history entry so the browser Back button returns to the
+    // previous snippet (not the example just loaded).
+    pushHistoryState(ex.code, newLang)
+    toast.success(`Loaded "${ex.name}"`, { description: ex.description })
+  }, [language])
 
   // resolvedTheme is undefined during SSR; default to dark to match the
   // ThemeProvider's `defaultTheme='dark'` setting. After mount the actual
@@ -772,41 +863,91 @@ export default function Home() {
     if (result.timedOut) return { label: 'Timed out', tone: 'error' as const }
     if (result.error) return { label: 'Error', tone: 'error' as const }
     if (result.code === 0) return { label: 'Success', tone: 'success' as const }
-    return { label: `Exit $\{result.code}`, tone: 'error' as const }
+    return { label: `Exit ${result.code}`, tone: 'error' as const }
   }, [isRunning, awaitingInput, result])
 
   const lineCount = useMemo(() => code.split('\n').length, [code])
   const charCount = code.length
 
-  // ---- Keyboard shortcut: Ctrl/Cmd+Enter runs ----
+  // ---- Quick file switcher state ----
+  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false)
+  // ---- Mobile file explorer drawer state ----
+  const [mobileExplorerOpen, setMobileExplorerOpen] = useState(false)
+
+  // ---- Keyboard shortcuts ----
+  // Ctrl/Cmd+Enter  → Run
+  // Ctrl/Cmd+S      → Save (marks the active file as saved)
+  // Ctrl/Cmd+P      → Quick file switcher
+  // Ctrl/Cmd+F      → Find in file (CodeMirror built-in; we just intercept browser's)
+  // Ctrl/Cmd+H      → Replace (Phase 3 — for now, prevent browser history dialog)
+  // Ctrl/Cmd+/      → Toggle comment (handled by CodeMirror's default binding)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      const mod = e.ctrlKey || e.metaKey
+      if (!mod) return
+      if (e.key === 'Enter') {
         e.preventDefault()
         handleRun()
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault()
+        markActiveFileSaved()
+        toast.success('Saved')
+      } else if (e.key === 'p' || e.key === 'P') {
+        // Only trigger if NOT pressed inside an input/textarea (so users can
+        // still type Ctrl+P for printing in textareas).
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+        e.preventDefault()
+        setQuickSwitcherOpen(true)
       }
+      // Ctrl+F / Ctrl+H / Ctrl+/ — let CodeMirror's default keybindings handle these.
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [handleRun])
+  }, [handleRun, markActiveFileSaved, setQuickSwitcherOpen])
+
+  // ---- Unsaved-changes protection (beforeunload) ----
+  // Warns the user before closing/refreshing the tab if there are unsaved changes.
+  useEffect(() => {
+    if (!isProjectDirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      // Browsers ignore custom messages, but returning a string triggers the prompt.
+      e.returnValue = 'You have unsaved changes. Leave anyway?'
+      return e.returnValue
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isProjectDirty])
 
   return (
     <TooltipProvider delayDuration={300}>
+      <QuickSwitcher open={quickSwitcherOpen} onOpenChange={setQuickSwitcherOpen} />
       <div className="flex h-screen flex-col bg-background text-foreground">
         {/* ============ Header ============ */}
         <header className="flex h-14 flex-none items-center justify-between border-b border-border bg-card/40 px-3 sm:px-4 backdrop-blur-sm">
           <div className="flex items-center gap-2.5 min-w-0">
+            {/* Mobile: file explorer toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 md:hidden flex-none"
+              onClick={() => setMobileExplorerOpen(true)}
+              aria-label="Open file explorer"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
             <div className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-rose-500 shadow-sm">
               <FileCode2 className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="truncate text-base font-semibold tracking-tight">
-                  PyRunner
+                  CodeHubz
                 </h1>
                 <Badge
                   variant="secondary"
-                  className={`hidden sm:inline-flex border $\{
+                  className={`hidden sm:inline-flex border ${
                     language === 'java'
                       ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
                       : language === 'c'
@@ -829,7 +970,35 @@ export default function Home() {
                                         ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
                                         : language === 'sql'
                                           ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+<<<<<<< HEAD
                                           : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+=======
+                                          : language === 'kotlin'
+                                            ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
+                                            : language === 'go'
+                                              ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20'
+                                              : language === 'typescript'
+                                                ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                                                : language === 'rust'
+                                                  ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
+                                                  : language === 'ruby'
+                                                    ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+                                                    : language === 'swift'
+                                                      ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
+                                                      : language === 'lua'
+                                                        ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'
+                                                        : language === 'perl'
+                                                          ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'
+                                                          : language === 'powershell'
+                                                            ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20'
+                                                            : language === 'bash'
+                                                              ? 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20'
+                                                              : language === 'fortran'
+                                                                ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20'
+                                                                : language === 'cobol'
+                                                                  ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                                                                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+>>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
                   }`}
                 >
                   {language === 'java'
@@ -854,7 +1023,35 @@ export default function Home() {
                                       ? 'HTML/CSS'
                                       : language === 'sql'
                                         ? 'SQLite 3.53'
+<<<<<<< HEAD
                                         : 'Python 3.12'}
+=======
+                                        : language === 'kotlin'
+                                          ? 'Kotlin 2.0'
+                                          : language === 'go'
+                                            ? 'Go 1.23'
+                                            : language === 'typescript'
+                                              ? 'TypeScript 5'
+                                              : language === 'rust'
+                                                ? 'Rust 1.98'
+                                                : language === 'ruby'
+                                                  ? 'Ruby 3.3'
+                                                  : language === 'swift'
+                                                    ? 'Swift 5.10'
+                                                    : language === 'lua'
+                                                      ? 'Lua 5.4'
+                                                      : language === 'perl'
+                                                        ? 'Perl 5.40'
+                                                        : language === 'powershell'
+                                                          ? 'PowerShell 7'
+                                                          : language === 'bash'
+                                                            ? 'Bash 5.2'
+                                                            : language === 'fortran'
+                                                              ? 'Fortran 14'
+                                                              : language === 'cobol'
+                                                                ? 'COBOL 3.2'
+                                                                : 'Python 3.12'}
+>>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
                 </Badge>
               </div>
               <p className="hidden sm:block text-xs text-muted-foreground truncate">
@@ -880,7 +1077,35 @@ export default function Home() {
                                     ? 'Live HTML/CSS/JS preview in iframe'
                                     : language === 'sql'
                                       ? 'Interactive SQLite SQL console'
+<<<<<<< HEAD
                                       : 'Interactive Python console with live input()'}
+=======
+                                      : language === 'kotlin'
+                                        ? 'Interactive Kotlin/JVM console with live stdin'
+                                        : language === 'go'
+                                          ? 'Interactive Go console with live stdin'
+                                          : language === 'typescript'
+                                            ? 'Interactive TypeScript console with live stdin'
+                                            : language === 'rust'
+                                              ? 'Interactive Rust console with live stdin'
+                                              : language === 'ruby'
+                                                ? 'Interactive Ruby console with live stdin'
+                                                : language === 'swift'
+                                                  ? 'Interactive Swift console with live stdin'
+                                                  : language === 'lua'
+                                                    ? 'Interactive Lua console with live stdin'
+                                                    : language === 'perl'
+                                                      ? 'Interactive Perl console with live stdin'
+                                                      : language === 'powershell'
+                                                        ? 'Interactive PowerShell console with live stdin'
+                                                        : language === 'bash'
+                                                          ? 'Interactive Bash console with live stdin'
+                                                          : language === 'fortran'
+                                                            ? 'Interactive Fortran console with live stdin'
+                                                            : language === 'cobol'
+                                                              ? 'Interactive COBOL console with live stdin'
+                                                              : 'Interactive Python console with live input()'}
+>>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
               </p>
             </div>
           </div>
@@ -891,7 +1116,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('python')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'python'
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -902,7 +1127,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('java')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'java'
                     ? 'bg-orange-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -913,7 +1138,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('c')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'c'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -924,7 +1149,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('cpp')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'cpp'
                     ? 'bg-purple-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -935,7 +1160,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('r')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'r'
                     ? 'bg-cyan-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -946,7 +1171,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('javascript')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'javascript'
                     ? 'bg-yellow-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -957,7 +1182,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('php')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'php'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -968,7 +1193,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('csharp')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'csharp'
                     ? 'bg-pink-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -979,7 +1204,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleLanguageChange('dart')}
-                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors $\{
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                   language === 'dart'
                     ? 'bg-teal-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -1020,6 +1245,141 @@ export default function Home() {
               >
                 SQL
               </button>
+<<<<<<< HEAD
+=======
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('kotlin')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'kotlin'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Kotlin
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('go')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'go'
+                    ? 'bg-cyan-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Go
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('typescript')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'typescript'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                TS
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('rust')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'rust'
+                    ? 'bg-orange-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Rust
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('ruby')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'ruby'
+                    ? 'bg-red-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Ruby
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('swift')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'swift'
+                    ? 'bg-orange-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Swift
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('lua')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'lua'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Lua
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('perl')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'perl'
+                    ? 'bg-green-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Perl
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('powershell')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'powershell'
+                    ? 'bg-sky-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                PS
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('bash')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'bash'
+                    ? 'bg-zinc-700 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Bash
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('fortran')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'fortran'
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Fortran
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLanguageChange('cobol')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  language === 'cobol'
+                    ? 'bg-rose-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                COBOL
+              </button>
+>>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
             </div>
           </div>
 
@@ -1239,6 +1599,213 @@ export default function Home() {
                     </div>
                   </DropdownMenuItem>
                 ))}
+<<<<<<< HEAD
+=======
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Kotlin examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'kotlin').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Go examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'go').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  TypeScript examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'typescript').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Rust examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'rust').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Ruby examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'ruby').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Swift examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'swift').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Lua examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'lua').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Perl examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'perl').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  PowerShell examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'powershell').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Bash examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'bash').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Fortran examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'fortran').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+                  COBOL examples
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {EXAMPLES.filter((ex) => ex.language === 'cobol').map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    onSelect={() => handleSelectExample(ex)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="font-medium text-sm">{ex.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {ex.description}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+>>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1333,6 +1900,26 @@ export default function Home() {
 
           <Tooltip>
             <TooltipTrigger asChild>
+              <Button
+                onClick={() => {
+                  markActiveFileSaved()
+                  toast.success('Saved')
+                }}
+                variant={isProjectDirty ? 'default' : 'ghost'}
+                size="sm"
+                className="gap-1.5"
+              >
+                <Save className="h-4 w-4" />
+                <span className="hidden md:inline">
+                  {isProjectDirty ? 'Save' : 'Saved'}
+                </span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Save (Ctrl+S)</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
               <Button onClick={handleDownload} variant="ghost" size="sm" className="gap-1.5">
                 <Download className="h-4 w-4" />
                 <span className="hidden md:inline">Download</span>
@@ -1359,19 +1946,39 @@ export default function Home() {
           </Tooltip>
         </div>
 
-        {/* ============ Main split: editor | console ============ */}
+        {/* ============ Main split: file explorer | editor | console ============ */}
         <main className="flex-1 min-h-0 overflow-hidden">
+          {/* Mobile file explorer drawer (Sheet) */}
+          <Sheet open={mobileExplorerOpen} onOpenChange={setMobileExplorerOpen}>
+            <SheetContent side="left" className="w-72 p-0 sm:max-w-xs">
+              <FileExplorer onCommandPalette={() => { setMobileExplorerOpen(false); setQuickSwitcherOpen(true) }} />
+            </SheetContent>
+          </Sheet>
+
           <PanelGroup direction="horizontal" className="h-full">
+            {/* ---- File Explorer (desktop only) ---- */}
+            <Panel
+              defaultSize={15}
+              minSize={10}
+              maxSize={30}
+              className="hidden md:block"
+            >
+              <FileExplorer onCommandPalette={() => setQuickSwitcherOpen(true)} />
+            </Panel>
+            <PanelResizeHandle className="hidden md:flex w-1 bg-border hover:bg-emerald-500/50 transition-colors items-center justify-center group">
+              <div className="h-10 w-0.5 rounded-full bg-border group-hover:bg-emerald-500" />
+            </PanelResizeHandle>
+
             {/* ---- Editor ---- */}
             <Panel
-              defaultSize={language === 'flutter' || language === 'html' ? 40 : 55}
+              defaultSize={language === 'flutter' || language === 'html' ? 0 : 40}
               minSize={20}
             >
               <div className="h-full flex flex-col">
                 <div className="flex-none flex h-9 items-center gap-2 border-b border-border bg-muted/30 px-3">
                   <FileCode2 className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    {language === 'java'
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground truncate">
+                    {activeFile?.name ?? (language === 'java'
                       ? 'code.java'
                       : language === 'c'
                         ? 'code.c'
@@ -1393,13 +2000,41 @@ export default function Home() {
                                         ? 'index.html'
                                         : language === 'sql'
                                           ? 'query.sql'
+<<<<<<< HEAD
                                           : 'code.py'}
+=======
+                                          : language === 'kotlin'
+                                            ? 'Main.kt'
+                                            : language === 'go'
+                                              ? 'main.go'
+                                              : language === 'typescript'
+                                                ? 'index.ts'
+                                                : language === 'rust'
+                                                  ? 'main.rs'
+                                                  : language === 'ruby'
+                                                    ? 'main.rb'
+                                                    : language === 'swift'
+                                                      ? 'main.swift'
+                                                      : language === 'lua'
+                                                        ? 'main.lua'
+                                                        : language === 'perl'
+                                                          ? 'main.pl'
+                                                          : language === 'powershell'
+                                                            ? 'main.ps1'
+                                                            : language === 'bash'
+                                                              ? 'script.sh'
+                                                              : language === 'fortran'
+                                                                ? 'main.f90'
+                                                                : language === 'cobol'
+                                                                  ? 'main.cbl'
+                                                                  : 'code.py')}
+>>>>>>> d8337da8ca216fa9e2bd81b067047f623ea5ad08
                   </span>
                   <div className="flex-1" />
                   <button
                     type="button"
                     onClick={() => setShowStdin(!showStdin)}
-                    className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded transition-colors $\{
+                    className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded transition-colors ${
                       showStdin
                         ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -1418,7 +2053,7 @@ export default function Home() {
                 <div className="flex-1 min-h-0">
                   <PyEditor
                     value={code}
-                    onChange={setCode}
+                    onChange={setCodeWrapped}
                     onRun={handleRun}
                     theme={editorTheme}
                     language={language}
@@ -1462,20 +2097,23 @@ export default function Home() {
               <div className="h-10 w-0.5 rounded-full bg-border group-hover:bg-emerald-500" />
             </PanelResizeHandle>
 
-            {/* ---- Right panel: Console (non-preview langs) OR Full-screen Preview (Flutter/HTML) ---- */}
+            {/* ---- Right panel: Console OR Full-screen Preview (Flutter/HTML) ---- */}
             <Panel
-              defaultSize={language === 'flutter' || language === 'html' ? 60 : 45}
+              defaultSize={language === 'flutter' || language === 'html' ? 85 : 45}
               minSize={25}
             >
-              {language === 'flutter' || language === 'html' ? (
-                /* ============================================================
-                 * Full-screen Preview (Flutter OR HTML/CSS)
-                 * - Takes 100% of the available panel area
-                 * - NO console header / input bar / footer strip
-                 * - Loading / error / empty states are full-screen overlays
-                 * ============================================================ */
+              {(language === 'flutter' || language === 'html') ? (
+                /* Full-screen Preview (Flutter OR HTML/CSS) */
                 <div className="relative h-full w-full overflow-hidden bg-white dark:bg-black">
-                  {flutterPort ? (
+                  {htmlPreview ? (
+                    <iframe
+                      key={htmlPreview.length}
+                      srcDoc={htmlPreview}
+                      title="HTML Preview"
+                      className="absolute inset-0 h-full w-full border-0"
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                    />
+                  ) : flutterPort ? (
                     <iframe
                       key={flutterPort}
                       src={`/?XTransformPort=${flutterPort}`}
@@ -1524,9 +2162,7 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                /* ============================================================
-                 * Normal Interactive Console (non-Flutter languages)
-                 * ============================================================ */
+                /* Normal Interactive Console (non-Flutter languages) */
                 <div className="h-full flex flex-col bg-card/30">
                   {/* Console header */}
                   <div className="flex-none flex h-9 items-center justify-between border-b border-border px-3 bg-muted/30">
@@ -1713,9 +2349,9 @@ function StatusBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium $\{styles}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${styles}`}
     >
-      {icon ?? <span className={`h-1.5 w-1.5 rounded-full $\{dot}`} />}
+      {icon ?? <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}
       {status.label}
     </span>
   )
@@ -1741,7 +2377,7 @@ function ConsoleLine({ chunk }: { chunk: OutputChunk }) {
   // to the user's running Flask/Django/http.server app.
   if (chunk.stream === 'server' && chunk.port) {
     const port = chunk.port
-    const href = `/?XTransformPort=$\{port}`
+    const href = `/?XTransformPort=${port}`
     return (
       <span
         className="my-2 block rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2"
@@ -1838,16 +2474,7 @@ function EmptyConsole() {
           <Terminal className="h-7 w-7 text-emerald-500" />
         </div>
       </div>
-      <h3 className="text-sm font-medium mb-1 text-zinc-200">Interactive console</h3>
-      <p className="text-xs text-zinc-400 max-w-[300px] leading-relaxed">
-        Write your Python code on the left and press{' '}
-        <kbd className="font-mono px-1 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-200">
-          Run
-        </kbd>
-        . <code className="text-emerald-400">input()</code> prompts appear
-        inline, and <code className="text-emerald-400">matplotlib</code> figures
-        render as images — try the examples menu.
-      </p>
+      <h3 className="text-sm font-medium text-zinc-200">Interactive console</h3>
     </div>
   )
 }
