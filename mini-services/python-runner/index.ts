@@ -2787,11 +2787,20 @@ if __name__ == "__main__":
    * Multi-file: compiles all .cob files together so CALL subprograms resolve.
    */
   async function spawnCobol(code: string, sessionId: string, socket: any, payload?: RunPayload): Promise<ChildProcess | null> {
-    const cobcBin = existsSync('/home/z/.local/gnucobol/bin/cobc')
+    // Detect COBOL compiler — check multiple locations
+    const cobcBin = existsSync('/home/z/.local/gnucobol3/usr/bin/cobc')
+      ? '/home/z/.local/gnucobol3/usr/bin/cobc'
+      : existsSync('/home/z/.local/gnucobol/bin/cobc')
       ? '/home/z/.local/gnucobol/bin/cobc'
+      : existsSync('/usr/local/bin/cobc')
+      ? '/usr/local/bin/cobc'
       : 'cobc'
-    const cobolLib = '/home/z/.local/gnucobol/lib'
-    const dbLib = '/home/z/.local/gnucobol-deps/usr/lib/x86_64-linux-gnu'
+    const gnucobolRoot = cobcBin.includes('gnucobol3') ? '/home/z/.local/gnucobol3'
+      : cobcBin.includes('gnucobol') ? '/home/z/.local/gnucobol'
+      : '/usr/local'
+    const cobolLib = `${gnucobolRoot}/usr/lib/x86_64-linux-gnu`
+    const cobolInclude = `${gnucobolRoot}/usr/include`
+    const cobolConfig = `${gnucobolRoot}/usr/share/gnucobol/config`
 
     // Multi-file mode
     const { workspaceDir, entryPath, isMultiFile } = await setupMultiFileWorkspace(payload, sessionId)
@@ -2807,13 +2816,16 @@ if __name__ == "__main__":
       // `-x` builds an executable; multiple .cob files in one invocation
       // are linked together so CALL subprograms resolve.
       const child = spawn('bash', ['-c',
-        `${cobcBin} -x -o "${binPath}" *.cob 2>&1 && echo "---RUNNING---" && LD_LIBRARY_PATH=${cobolLib}:${dbLib} "${binPath}" 2>&1`
+        `${cobcBin} -x -o "${binPath}" *.cob 2>&1 && echo "---RUNNING---" && LD_LIBRARY_PATH=${cobolLib} "${binPath}" 2>&1`
       ], {
         cwd: workspaceDir,
         env: {
           ...process.env,
-          PATH: '/home/z/.local/gnucobol/bin:' + (process.env.PATH || ''),
-          LD_LIBRARY_PATH: `${cobolLib}:${dbLib}`,
+          PATH: `/usr/local/bin:${cobolLib}:` + (process.env.PATH || ''),
+          LD_LIBRARY_PATH: cobolLib,
+          C_INCLUDE_PATH: cobolInclude,
+          COB_CONFIG_DIR: cobolConfig,
+          LIBRARY_PATH: cobolLib,
         } as NodeJS.ProcessEnv,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
@@ -2849,13 +2861,16 @@ if __name__ == "__main__":
     })
 
     const child = spawn('bash', ['-c',
-      `${cobcBin} -x -o "${binPath}" "${scriptPath}" 2>&1 && echo "---RUNNING---" && LD_LIBRARY_PATH=${cobolLib}:${dbLib} "${binPath}" 2>&1`
+      `${cobcBin} -x -o "${binPath}" "${scriptPath}" 2>&1 && echo "---RUNNING---" && LD_LIBRARY_PATH=${cobolLib} "${binPath}" 2>&1`
     ], {
       cwd: workspaceRoot,
       env: {
         ...process.env,
-        PATH: '/home/z/.local/gnucobol/bin:' + (process.env.PATH || ''),
-        LD_LIBRARY_PATH: `${cobolLib}:${dbLib}`,
+        PATH: `/usr/local/bin:${cobolLib}:` + (process.env.PATH || ''),
+        LD_LIBRARY_PATH: cobolLib,
+          C_INCLUDE_PATH: cobolInclude,
+          COB_CONFIG_DIR: cobolConfig,
+          LIBRARY_PATH: cobolLib,
       } as NodeJS.ProcessEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
